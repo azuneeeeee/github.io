@@ -1,2 +1,1 @@
-# github.io
-プロセカbotの説明
+# プロセカbot
