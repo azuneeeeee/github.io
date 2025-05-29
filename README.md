@@ -146,3 +146,4 @@ pjsk_ap_fc_rateの任意の項目でこれがあると思います。<br>
 
 ### 使い方<br>
 コマンドを送信すると、下の画像のような画面に飛ばされます。
+![image](https://github.com/user-attachments/assets/4f59ecb5-ff22-4048-827f-eab730a44809)
