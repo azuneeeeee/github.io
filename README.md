@@ -39,12 +39,18 @@ BOTの招待リンクは[こちら](https://discord.com/oauth2/authorize?client_
 ![image](https://github.com/user-attachments/assets/6d64062c-b83e-463f-87f5-4f44ecdc0bc8)
 ![image](https://github.com/user-attachments/assets/4e16445c-4c7c-44e6-b38f-4a1354a7977b)
 １「Login to verify」を押す。<br>
+<br>
 ２ Discordにログインし、スクロールしてから認証を押す。<br>
+<br>
 ３ ログインしたら、Verifiを押す。(下の画像の部分)<br>
+<br>
 ４ 画面中央に出てくる「Hold to verify」を長押しすれば、認証完了です。<br>
+<br>
 ![image](https://github.com/user-attachments/assets/9231b5b0-799a-476a-97ed-cb6b801a8c25)
 ### :warning:認証を1時間以内で行わないとサーバーからキックされるので注意:warning:<br>
+<br>
 プロセカコマンド1⃣というチャンネルを探し、開いたら準備完了です！<br>
+
 ## ２ BOT使い方<br>
 このBOTには下記のコマンドが使用可能です。<br>
 - pjsk_random_song
@@ -56,14 +62,43 @@ BOTの招待リンクは[こちら](https://discord.com/oauth2/authorize?client_
   全部のコマンドを詳しく説明して行きます！<br>
 ## ２-１ pjsk_random_song<br>
 このコマンドは、いつもの一人でやる時に使えるランダム選曲出来るコマンドです。<br>
+<br>
 え？だったら普通の使えば良くね？って思いますよね？<br>
+<br>
 **このコマンドは、複数の難易度を指定でき、かつ、選ばれるレベル範囲も指定出来ちゃいます！**<br>
+<br>
 pjsk_random_songだけで送信するとランダム選曲かつ、難易度もランダムに選ばれます。<br>
+
 ### 難易度指定<br>
 /pjsk_random_songをチャット欄に打ったら「difficulty」を押し、難易度を入力してください。<br>
+<br>
 HARDのみの場合は「HARD」MASTERの場合は「MASTER」<br>
+<br>
 複数難易度を指定したい場合はこのように打ちます。<br>
+<br>
 「EXPERT,MASTER,APPEND」<br>
+<br>
 この場合はEXPERTとMASTERとAPPENDの中からランダム選曲かつ難易度も3つの中から選ばれます。<br>
-必ず複数難易度も指定したい場合は「コンマ(,)」を入れてくださいね。<br>
+<br>
+複数難易度を指定したい場合は必ず「コンマ(,)」を入れてくださいね。<br>
+
 ### レベル範囲を指定<br>
+/pjsk_random_songをチャット欄に打ったら「level_min level_max」を押し、範囲を入力してください(数字のみ)<br>
+<br>
+スマホのアプリ版を使ってる方は「任意」と書かれてるところを右にスクロールすれば出てきます。<br>
+<br>
+「level_min」選ばれる範囲の最低レベル<br>
+「level_max」選ばれる範囲の最高レベル<br>
+<br>
+例<br>
+/pjsk_random_song level_min:30 level_max:31<br>
+<br>
+この場合はレベル30〜31の範囲でのみ選曲してくれます。<br>
+これに難易度を指定することも可能です。<br>
+<br>
+例<br>
+/pjsk_random_song difficulty:APPEND level_min:28 level_max:33<br>
+<br>
+この場合は難易度APPENDのみでレベル28〜33の範囲で選曲してくれるって事です。<br>
+
+## ２-２ pjsk_rankmatch_song<br>
