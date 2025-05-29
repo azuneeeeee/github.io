@@ -102,3 +102,22 @@ HARDのみの場合は「HARD」MASTERの場合は「MASTER」<br>
 この場合は難易度APPENDのみでレベル28〜33の範囲で選曲してくれるって事です。<br>
 
 ## ２-２ pjsk_rankmatch_song<br>
+pjsk_rankmatch_songはランクマ形式でランダム選曲が出来ます。<br>
+<br>
+チャット欄に打って、ランクを選択するだけで使用出来ます。<br>
+<br>
+簡単だね<br>
+
+## ２-３ pjsk_ap_fc_rate<br>
+pjsk_ap_fc_rateはAP率、FC率等を自動計算してくれるコマンドです。<br>
+<br>
+送信するとこのような埋め込みが送信されます。<br>
+![image](https://github.com/user-attachments/assets/21c15282-1bd7-4a93-a4e3-042f86cad828)
+- 「AP」(ALL PERFECTの略)
+- 「FC」(FULL COMBOの略)
+- 「クリア」
+- 「クリア失敗」<br>
+<br>
+この4つのボタンを押すと「総試行回数」が増えて、何回やったか分かるようになります。<br>
+<br>
+このコマンドの使用中にpjsk_rankmatch_songや、pjsk_random_songを使用すると、メッセージが再送信され、内容引き継がれるようになってます。
