@@ -34,5 +34,36 @@ BOTの招待リンクは[こちら](https://discord.com/oauth2/authorize?client_
 :red_circle:の円で囲まれてる部分を押すと、次のよう画面に飛ばされます。<br>
 同意の所にチェックを入れ、「完了！」を押してください。<br>
 <br>
-上の画像にも書いてあった「認証はこちらから」の部分をタップし、「:robot:認証する」押してください。<br>
-そしたら下の画像で:red_circle:の円で囲まれてる部分、「Click here」を押しサイトに飛んでください。<br>
+上の画像にも書いてあった「認証はこちらから」の部分をタップし、「🤖認証する」押してください。<br>
+そしたら下の画像で🔴の円で囲まれてる部分、「Click here」を押しサイトに飛んでください。<br>
+![image](https://github.com/user-attachments/assets/6d64062c-b83e-463f-87f5-4f44ecdc0bc8)
+![image](https://github.com/user-attachments/assets/4e16445c-4c7c-44e6-b38f-4a1354a7977b)
+１「Login to verify」を押す。<br>
+２ Discordにログインし、スクロールしてから認証を押す。<br>
+３ ログインしたら、Verifiを押す。(下の画像の部分)<br>
+４ 画面中央に出てくる「Hold to verify」を長押しすれば、認証完了です。<br>
+![image](https://github.com/user-attachments/assets/9231b5b0-799a-476a-97ed-cb6b801a8c25)
+### :warning:認証を1時間以内で行わないとサーバーからキックされるので注意:warning:<br>
+プロセカコマンド1⃣というチャンネルを探し、開いたら準備完了です！<br>
+## ２ BOT使い方<br>
+このBOTには下記のコマンドが使用可能です。<br>
+- pjsk_random_song
+- pjsk_rankmatch_song
+- pjsk_list_song
+- pjsk_ap_fc_rate
+- pjsk_rankmatch_result
+- pjsk_record_result(サポートサーバー限定コマンド)<br>
+  全部のコマンドを詳しく説明して行きます！<br>
+## ２-１ pjsk_random_song<br>
+このコマンドは、いつもの一人でやる時に使えるランダム選曲出来るコマンドです。<br>
+え？だったら普通の使えば良くね？って思いますよね？<br>
+**このコマンドは、複数の難易度を指定でき、かつ、選ばれるレベル範囲も指定出来ちゃいます！**<br>
+pjsk_random_songだけで送信するとランダム選曲かつ、難易度もランダムに選ばれます。<br>
+### 難易度指定<br>
+/pjsk_random_songをチャット欄に打ったら「difficulty」を押し、難易度を入力してください。<br>
+HARDのみの場合は「HARD」MASTERの場合は「MASTER」<br>
+複数難易度を指定したい場合はこのように打ちます。<br>
+「EXPERT,MASTER,APPEND」<br>
+この場合はEXPERTとMASTERとAPPENDの中からランダム選曲かつ難易度も3つの中から選ばれます。<br>
+必ず複数難易度も指定したい場合は「コンマ(,)」を入れてくださいね。<br>
+### レベル範囲を指定<br>
