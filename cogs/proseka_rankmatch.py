@@ -50,7 +50,7 @@ class ProsekaRankMatchCommands(commands.Cog):
         self.songs_data = self._load_songs_data()
 
         # 既存のAP/FCレートコグへの参照を保持 (setup時に設定される)
-        self.ap_fc_rate_cog = None # setup時に設定される
+        self.ap_fc_rate_cog = False # setup時に設定される
 
         self.RANK_LEVEL_MAP = {
             "ビギナー": {"normal": (18, 25), "append_allowed": False},
