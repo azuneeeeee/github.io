@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+# from data.songs import proseka_songs, VALID_DIFFICULTIES # ★削除済み
 import random
 import os
 from dotenv import load_dotenv
@@ -24,7 +25,8 @@ def is_owner_global(interaction: discord.Interaction) -> bool:
     return interaction.user.id == OWNER_ID
 
 class ProsekaGeneralCommands(commands.Cog):
-    def __init__(self, bot, songs_data: list = None, valid_difficulties: list = None):
+    # ★変更: songs_data と valid_difficulties を __init__ の引数から削除
+    def __init__(self, bot):
         self.bot = bot
         self.owner_id = OWNER_ID
 
@@ -37,8 +39,9 @@ class ProsekaGeneralCommands(commands.Cog):
             "APPEND": discord.Color(0xFFC0CB)
         }
 
-        self.songs_data = songs_data if songs_data is not None else []
-        self.valid_difficulties = valid_difficulties if valid_difficulties is not None else ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
+        # ★変更: 初期値を空のリストで設定 (main.py で後から設定される)
+        self.songs_data = []
+        self.valid_difficulties = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
 
         self.ap_fc_rate_cog = None
 
@@ -58,7 +61,6 @@ class ProsekaGeneralCommands(commands.Cog):
 
     @app_commands.command(name="pjsk_list_songs", description="プロジェクトセカイの楽曲一覧をメニューで並べ替えて表示します。")
     async def pjsk_list_songs(self, interaction: discord.Interaction):
-        # ★修正: ボットが完全に準備完了しているかチェック
         if not self.bot.is_bot_ready:
             print(f"DEBUG: Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}")
             try:
@@ -73,7 +75,6 @@ class ProsekaGeneralCommands(commands.Cog):
                 return
 
         print(f"DEBUG: /pjsk_list_songs command invoked by {interaction.user.name}.")
-        # defer() の呼び出しは try-except で囲まない（グローバルエラーハンドラーに任せる）
         await interaction.response.defer(ephemeral=False)
         print("DEBUG: interaction.response.defer() successful.")
 
@@ -123,7 +124,6 @@ class ProsekaGeneralCommands(commands.Cog):
         level_min: app_commands.Range[int, 1, 37] = None,
         level_max: app_commands.Range[int, 1, 37] = None
     ):
-        # ★修正: ボットが完全に準備完了しているかチェック
         if not self.bot.is_bot_ready:
             print(f"DEBUG: Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}")
             try:
@@ -509,8 +509,9 @@ class SongListView(discord.ui.View):
                 traceback.print_exc()
 
 
-async def setup(bot, songs_data: list, valid_difficulties: list):
-    cog = ProsekaGeneralCommands(bot, songs_data=songs_data, valid_difficulties=valid_difficulties)
+# ★変更: setup 関数から songs_data と valid_difficulties を削除
+async def setup(bot):
+    cog = ProsekaGeneralCommands(bot) # ★変更: 引数を渡さない
     await bot.add_cog(cog)
     print("ProsekaGeneralCommands cog loaded and commands added.")
 
