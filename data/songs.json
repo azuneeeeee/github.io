@@ -2728,7 +2728,7 @@
         "hard": 17,
         "expert": 25,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "Hello, Worker",
@@ -2738,7 +2738,7 @@
         "hard": 17,
         "expert": 25,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "Where shall we go?",
@@ -2748,7 +2748,7 @@
         "hard": 16,
         "expert": 21,
         "master": 26,
-        "append": None
+        "append": null
     },
     {
         "title": "ココロ",
@@ -2758,7 +2758,7 @@
         "hard": 16,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "ストロボラスト",
@@ -2768,7 +2768,7 @@
         "hard": 16,
         "expert": 23,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "パレットには君がいっぱい",
@@ -2778,7 +2778,7 @@
         "hard": 17,
         "expert": 25,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "Q",
@@ -2788,7 +2788,7 @@
         "hard": 17,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "ヤミナベ!!!!",
@@ -2798,7 +2798,7 @@
         "hard": 23,
         "expert": 31,
         "master": 37,
-        "append": None
+        "append": null
     },
     {
         "title": "Booo!",
@@ -2808,7 +2808,7 @@
         "hard": 18,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "39",
@@ -2818,7 +2818,7 @@
         "hard": 18,
         "expert": 24,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "Mr. Showtime",
@@ -2828,7 +2828,7 @@
         "hard": 19,
         "expert": 26,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "エゴイスト",
@@ -2838,7 +2838,7 @@
         "hard": 18,
         "expert": 26,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "エピローグに君はいない",
@@ -2848,7 +2848,7 @@
         "hard": 16,
         "expert": 23,
         "master": 26,
-        "append": None
+        "append": null
     },
     {
         "title": "Highlight",
@@ -2858,7 +2858,7 @@
         "hard": 16,
         "expert": 23,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "アトラクトライト",
@@ -2868,7 +2868,7 @@
         "hard": 17,
         "expert": 25,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "ザムザ",
@@ -2878,7 +2878,7 @@
         "hard": 18,
         "expert": 25,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "トラッシュ・アンド・トラッシュ！",
@@ -2888,7 +2888,7 @@
         "hard": 19,
         "expert": 27,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "Vampire's ∞ pathoS",
@@ -2898,7 +2898,7 @@
         "hard": 19,
         "expert": 27,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "Be The MUSIC!",
@@ -2908,7 +2908,7 @@
         "hard": 20,
         "expert": 26,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "METEOR",
@@ -2918,7 +2918,7 @@
         "hard": 19,
         "expert": 25,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "インタビュア",
@@ -2928,7 +2928,7 @@
         "hard": 16,
         "expert": 23,
         "master": 26,
-        "append": None
+        "append": null
     },
     {
         "title": "私の恋はヘルファイア",
@@ -2938,7 +2938,7 @@
         "hard": 18,
         "expert": 27,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "スノーマン",
@@ -2948,7 +2948,7 @@
         "hard": 18,
         "expert": 24,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "深海少女",
@@ -2958,7 +2958,7 @@
         "hard": 16,
         "expert": 23,
         "master": 27,
-        "append": None
+        "append": null
     },
     {
         "title": "魔法みたいなミュージック！",
@@ -2968,7 +2968,7 @@
         "hard": 18,
         "expert": 25,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "相生",
@@ -2978,7 +2978,7 @@
         "hard": 18,
         "expert": 22,
         "master": 26,
-        "append": None
+        "append": null
     },
     {
         "title": "名も無き革命",
@@ -2988,7 +2988,7 @@
         "hard": 18,
         "expert": 24,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "おこちゃま戦争",
@@ -2998,7 +2998,7 @@
         "hard": 18,
         "expert": 27,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "絶え間なく藍色",
@@ -3008,7 +3008,7 @@
         "hard": 17,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "命ばっかり",
@@ -3018,7 +3018,7 @@
         "hard": 18,
         "expert": 25,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "ももいろの鍵",
@@ -3028,7 +3028,7 @@
         "hard": 19,
         "expert": 26,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "キティ",
@@ -3038,7 +3038,7 @@
         "hard": 20,
         "expert": 28,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "快晴",
@@ -3048,7 +3048,7 @@
         "hard": 17,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "悪食娘のコンチータ",
@@ -3058,7 +3058,7 @@
         "hard": 19,
         "expert": 26,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "眠らせ姫からの贈り物",
@@ -3068,7 +3068,7 @@
         "hard": 18,
         "expert": 24,
         "master": 27,
-        "append": None
+        "append": null
     },
     {
         "title": "円尾坂の仕立屋",
@@ -3078,7 +3078,7 @@
         "hard": 16,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "悪徳のジャッジメント",
@@ -3088,7 +3088,7 @@
         "hard": 17,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "Sharing The World",
@@ -3098,7 +3098,7 @@
         "hard": 17,
         "expert": 23,
         "master": 27,
-        "append": None
+        "append": null
     },
     {
         "title": "セツナトリップ",
@@ -3108,7 +3108,7 @@
         "hard": 20,
         "expert": 27,
         "master": 32,
-        "append": None
+        "append": null
     },
     {
         "title": "シャンティ",
@@ -3118,7 +3118,7 @@
         "hard": 18,
         "expert": 25,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "エターナルアリア",
@@ -3128,7 +3128,7 @@
         "hard": 19,
         "expert": 27,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "Blue Star",
@@ -3138,7 +3138,7 @@
         "hard": 17,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "箱庭のコラル",
@@ -3148,7 +3148,7 @@
         "hard": 17,
         "expert": 23,
         "master": 27,
-        "append": None
+        "append": null
     },
     {
         "title": "人生",
@@ -3158,28 +3158,28 @@
         "hard": 23,
         "expert": 31,
         "master": 37,
-        "append": None
+        "append": null
     },
-        {
-            "title": "Wonder Style",
-            "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376224453872193767/image.jpeg?ex=68348c66&is=68333ae6&hm=67e8952c1d6f91f8f3b329cc120b3875e725a71424ec3d15d526564175a4c2a4&",
-            "easy": 6,
-            "normal": 11,
-            "hard": 18,
-            "expert": 24,
-            "master": 28,
-            "append": None
-        },
-        {
-            "title": "下剋上",
-            "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376224628409896970/image.jpeg?ex=68348c90&is=68333b10&hm=bcfa3685d0ef1624579aadfc996790efca6efc08fa9fc71284ed91a52850294c&",
-            "easy": 8,
-            "normal": 12,
-            "hard": 18,
-            "expert": 25,
-            "master": 30,
-            "append": None
-        },
+    {
+        "title": "Wonder Style",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376224453872193767/image.jpeg?ex=68348c66&is=68333ae6&hm=67e8952c1d6f91f8f3b329cc120b3875e725a71424ec3d15d526564175a4c2a4&",
+        "easy": 6,
+        "normal": 11,
+        "hard": 18,
+        "expert": 24,
+        "master": 28,
+        "append": null
+    },
+    {
+        "title": "下剋上",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376224628409896970/image.jpeg?ex=68348c90&is=68333b10&hm=bcfa3685d0ef1624579aadfc996790efca6efc08fa9fc71284ed91a52850294c&",
+        "easy": 8,
+        "normal": 12,
+        "hard": 18,
+        "expert": 25,
+        "master": 30,
+        "append": null
+    },
     {
         "title": "嗚呼、素晴らしきニャン生",
         "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376224866272940083/image.jpeg?ex=68348cc9&is=68333b49&hm=992e53a3339881a3fba097facfecb93dd5a74fcf6bfec386e81bd8ec233668b1&",
@@ -3188,7 +3188,7 @@
         "hard": 18,
         "expert": 24,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "スターダストメドレー",
@@ -3198,7 +3198,7 @@
         "hard": 20,
         "expert": 26,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "チームメイト",
@@ -3208,7 +3208,7 @@
         "hard": 18,
         "expert": 24,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "glow",
@@ -3228,7 +3228,7 @@
         "hard": 18,
         "expert": 24,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "UNDERWATER",
@@ -3238,7 +3238,7 @@
         "hard": 16,
         "expert": 24,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "きゅうくらりん",
@@ -3248,7 +3248,7 @@
         "hard": 20,
         "expert": 27,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "Affterglow",
@@ -3258,7 +3258,7 @@
         "hard": 16,
         "expert": 23,
         "master": 27,
-        "append": None
+        "append": null
     },
     {
         "title": "太陽系デスコ",
@@ -3268,7 +3268,7 @@
         "hard": 17,
         "expert": 23,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "心拍ペアリング",
@@ -3278,7 +3278,7 @@
         "hard": 17,
         "expert": 23,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "演劇",
@@ -3288,7 +3288,7 @@
         "hard": 17,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "星を繋ぐ",
@@ -3308,7 +3308,7 @@
         "hard": 18,
         "expert": 27,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "Decade",
@@ -3318,7 +3318,7 @@
         "hard": 16,
         "expert": 24,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "我らステインバスターズ！",
@@ -3328,7 +3328,7 @@
         "hard": 17,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "新人類",
@@ -3338,7 +3338,7 @@
         "hard": 19,
         "expert": 27,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "ずんだパーリナイ",
@@ -3348,7 +3348,7 @@
         "hard": 19,
         "expert": 27,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "Disco No.39",
@@ -3358,7 +3358,7 @@
         "hard": 19,
         "expert": 26,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "サマータイムレコード",
@@ -3368,7 +3368,7 @@
         "hard": 19,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "リアライズ",
@@ -3378,7 +3378,7 @@
         "hard": 19,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "キラピピ★キラピカ",
@@ -3388,7 +3388,7 @@
         "hard": 16,
         "expert": 23,
         "master": 27,
-        "append": None
+        "append": null
     },
     {
         "title": "ボトルケーキ",
@@ -3398,7 +3398,7 @@
         "hard": 16,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "心做し",
@@ -3408,7 +3408,7 @@
         "hard": 16,
         "expert": 22,
         "master": 26,
-        "append": None
+        "append": null
     },
     {
         "title": "ブループラネット",
@@ -3418,7 +3418,7 @@
         "hard": 19,
         "expert": 26,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "HERO",
@@ -3428,7 +3428,7 @@
         "hard": 19,
         "expert": 26,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "CIRCUS PANIC!!!",
@@ -3438,7 +3438,7 @@
         "hard": 19,
         "expert": 27,
         "master": 32,
-        "append": None
+        "append": null
     },
     {
         "title": "白い雪のプリンセスは",
@@ -3448,7 +3448,7 @@
         "hard": 17,
         "expert": 24,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "Un-Lock",
@@ -3458,7 +3458,7 @@
         "hard": 18,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "ラッキー☆オーブ",
@@ -3468,7 +3468,7 @@
         "hard": 17,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "NEO",
@@ -3488,7 +3488,7 @@
         "hard": 18,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "天樂",
@@ -3498,7 +3498,7 @@
         "hard": 18,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "まにまに",
@@ -3508,7 +3508,7 @@
         "hard": 19,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "メランコリック",
@@ -3518,7 +3518,7 @@
         "hard": 16,
         "expert": 24,
         "master": 27,
-        "append": None
+        "append": null
     },
     {
         "title": "豚になってyeah yeah",
@@ -3528,7 +3528,7 @@
         "hard": 17,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "恋は戦争",
@@ -3538,7 +3538,7 @@
         "hard": 16,
         "expert": 23,
         "master": 27,
-        "append": None
+        "append": null
     },
     {
         "title": "デビルじゃないもん",
@@ -3548,7 +3548,7 @@
         "hard": 19,
         "expert": 26,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "すきなことだけでいいです",
@@ -3558,7 +3558,7 @@
         "hard": 18,
         "expert": 26,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "番凩",
@@ -3568,7 +3568,7 @@
         "hard": 17,
         "expert": 24,
         "master": 27,
-        "append": None
+        "append": null
     },
     {
         "title": "神っぽいな",
@@ -3578,7 +3578,7 @@
         "hard": 18,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "Dear",
@@ -3588,7 +3588,7 @@
         "hard": 17,
         "expert": 23,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "CR詠ZY",
@@ -3598,7 +3598,7 @@
         "hard": 19,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "Cool Me Down",
@@ -3608,7 +3608,7 @@
         "hard": 19,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "悪役にキスシーンを",
@@ -3618,7 +3618,7 @@
         "hard": 18,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "我儘姫",
@@ -3628,268 +3628,268 @@
         "hard": 18,
         "expert": 26,
         "master": 30,
-        "append": None
+        "append": null
     },
-{
-    "title": "purpose",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376364023989145630/image.jpeg?ex=68350e62&is=6833bce2&hm=70b68e1a867060142523bf1bfd90abb875d0acc309c119c6828dffb74193db5a&",
-    "easy": 6,
-    "normal": 12,
-    "hard": 18,
-    "expert": 24,
-    "master": 28,
-    "append": None
-},
-{
-    "title": "はぐ",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376364453511299242/image.jpeg?ex=68350ec9&is=6833bd49&hm=f22cb9d8eb01e197cd59e9450ef5f38d139a7f4ad959608ca7fef6c42850bf03&",
-    "easy": 6,
-    "normal": 13,
-    "hard": 18,
-    "expert": 24,
-    "master": 29,
-    "append": None
-},
-{
-    "title": "トワイライトライト",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376364634860294154/image.jpeg?ex=68350ef4&is=6833bd74&hm=194049b9efd6bf283e8cc2ca29aa35dcdec93c4b730d75b0184ef702f2537232&",
-    "easy": 8,
-    "normal": 13,
-    "hard": 17,
-    "expert": 22,
-    "master": 26,
-    "append": None
-},
-{
-    "title": "春風",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376364763143082077/image.jpeg?ex=68350f13&is=6833bd93&hm=7173c8c7aa37630e2f887ab9deda2c9c7ee935956cbc8cad519864f5c176599c&",
-    "easy": 6,
-    "normal": 14,
-    "hard": 20,
-    "expert": 27,
-    "master": 30,
-    "append": None
-},
-{
-    "title": "ARQETYPE",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376364936187478117/image.jpeg?ex=68350f3c&is=6833bdbc&hm=d80be3e7fe3feacfd1a4eb4898ac30c9050c71932240bfc129931ce06ba00f9a&",
-    "easy": 9,
-    "normal": 14,
-    "hard": 21,
-    "expert": 27,
-    "master": 31,
-    "append": None
-},
-{
-    "title": "On&On",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376365105184378961/image.jpeg?ex=68350f64&is=6833bde4&hm=7bd6ba485f432fdc88542cfcf2582312512ea338da2a7532a0154cd2905ce00f&",
-    "easy": 6,
-    "normal": 12,
-    "hard": 18,
-    "expert": 23,
-    "master": 27,
-    "append": None
-},
-{
-    "title": "キュートなカノジョ",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376365244582072331/image.png?ex=68350f85&is=6833be05&hm=dedfceb44a3f5bf434071a3e5e191df5e7633af33cebe0bc234d2214fe4ef14c&",
-    "easy": 7,
-    "normal": 13,
-    "hard": 17,
-    "expert": 26,
-    "master": 30,
-    "append": None
-},
-{
-    "title": "フィラメントフィーバー",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376365385456160818/image.jpeg?ex=68350fa7&is=6833be27&hm=17f3733df94b82e5d735f0d7b6ee19e389e23e44e086282e047a8a0006b8b93d&",
-    "easy": 6,
-    "normal": 13,
-    "hard": 18,
-    "expert": 25,
-    "master": 29,
-    "append": None
-},
-{
-    "title": "さよならプリンセス",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376365497087688824/image.jpeg?ex=68350fc2&is=6833be42&hm=cf1ca9e01b6e73161f5a8ad5ff2ba32d509ee38c53c8eb59b91752bb2759efc4&",
-    "easy": 8,
-    "normal": 14,
-    "hard": 19,
-    "expert": 26,
-    "master": 30,
-    "append": None
-},
-{
-    "title": "Beyond the way",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376365657712492654/image.jpeg?ex=68350fe8&is=6833be68&hm=457598a575e1e32ac8929280b17627be263fc6accb4eeb31b968efa081e397e0&",
-    "easy": 7,
-    "normal": 13,
-    "hard": 17,
-    "expert": 25,
-    "master": 27,
-    "append": 29
-},
-{
-    "title": "ショウタイム×オーディエンス",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376365874222469170/image.jpeg?ex=6835101c&is=6833be9c&hm=09a00cf6b19c3b7708e1285da149408a362025e9ab92116bc8ce901a2c78b747&",
-    "easy": 9,
-    "normal": 14,
-    "hard": 18,
-    "expert": 25,
-    "master": 30,
-    "append": None
-},
-{
-    "title": "難聴系男子が倒せない",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376366038874067056/image.jpeg?ex=68351043&is=6833bec3&hm=f8a3c2b418df74ea5677427cde161f15ccb81e216cc412e139fd424ade04ad34&",
-    "easy": 7,
-    "normal": 12,
-    "hard": 17,
-    "expert": 25,
-    "master": 30,
-    "append": None
-},
-{
-    "title": "オーバーコード",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376366155756867624/image.jpeg?ex=6835105f&is=6833bedf&hm=6c8de856c21f0a1ab290e3863ea39b649a40be6a2666dec0d317a782d5929397&",
-    "easy": 5,
-    "normal": 12,
-    "hard": 18,
-    "expert": 26,
-    "master": 30,
-    "append": None
-},
-{
-    "title": "スロウダウナー",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376366293413920890/image.jpeg?ex=6835107f&is=6833beff&hm=3a670b0c6b2b5b8f662e1f4bb9c7c9602603e78a8b8a68628288d6e3bf8c56c6&",
-    "easy": 8,
-    "normal": 13,
-    "hard": 18,
-    "expert": 26,
-    "master": 30,
-    "append": None
-},
-{
-    "title": "初めて恋が終わる時",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376366430337110087/image.jpeg?ex=683510a0&is=6833bf20&hm=3d52ac2e1e894c1af35b6b07e41d205f1154c7879dc6bede2276b49fa125e97a&",
-    "easy": 8,
-    "normal": 12,
-    "hard": 17,
-    "expert": 25,
-    "master": 29,
-    "append": None
-},
-{
-    "title": "25時の情熱",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376366555679690782/image.jpeg?ex=683510be&is=6833bf3e&hm=09f4ad61dbab46ecea164864a3fbdeec787fc80529484265dca9f6d48654170a&",
-    "easy": 5,
-    "normal": 11,
-    "hard": 17,
-    "expert": 22,
-    "master": 25,
-    "append": None
-},
-{
-    "title": "金木犀",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376366678912270356/image.jpeg?ex=683510db&is=6833bf5b&hm=7e7fb4a19d74b1a1a5008eae2969bb42f955848497cceb3f79ea4fbd43a4d886&",
-    "easy": 6,
-    "normal": 12,
-    "hard": 17,
-    "expert": 26,
-    "master": 29,
-    "append": None
-},
-{
-    "title": "一千光年",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376366867714932859/image.jpeg?ex=68351108&is=6833bf88&hm=bab138dcf102e1f6497efa57d3abb4597e8e5567346563f1715096f1cc8b9251&",
-    "easy": 8,
-    "normal": 13,
-    "hard": 18,
-    "expert": 25,
-    "master": 30,
-    "append": 31
-},
-{
-    "title": "強風オールバック",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376367165120188467/image.jpeg?ex=6835114f&is=6833bfcf&hm=9d735a8451dc4249d91ce9cc69133dc1c7350f4d6d5c3aa1612bf02d4bc19985&",
-    "easy": 6,
-    "normal": 13,
-    "hard": 17,
-    "expert": 24,
-    "master": 28,
-    "append": None
-},
-{
-    "title": "ヒアソビ",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376367278379110410/image.jpeg?ex=6835116a&is=6833bfea&hm=a0ceefe6f86799db41f5d67099530c733d5b0fe6592ac416a0cc6ccea2b515d7&",
-    "easy": 9,
-    "normal": 13,
-    "hard": 18,
-    "expert": 27,
-    "master": 31,
-    "append": None
-},
-{
-    "title": "エンヴィーベイビー",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376367427234824284/image.jpeg?ex=6835118e&is=6833c00e&hm=df938e9c1f7bdc79887963278aa7aef1ad092128569b6ae519165abb34e0ba4f&",
-    "easy": 7,
-    "normal": 13,
-    "hard": 17,
-    "expert": 23,
-    "master": 28,
-    "append": None
-},
-{
-    "title": "『んっあっあっ。』",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376367602615586897/image.jpeg?ex=683511b8&is=6833c038&hm=2c76fc13a4048d4f4f6ce43bcd940b9debecee780ca951e9a65cbda3267aea3c&",
-    "easy": 6,
-    "normal": 13,
-    "hard": 18,
-    "expert": 24,
-    "master": 28,
-    "append": None
-},
-{
-    "title": "くうになる",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376368091180568687/image.jpeg?ex=6835122c&is=6833c0ac&hm=0ebbb3b80e41cf24fdc24789f0b82d6e94a8695a2c630cf4f076caea18a49e6c&",
-    "easy": 7,
-    "normal": 13,
-    "hard": 18,
-    "expert": 24,
-    "master": 29,
-    "append": None
-},
-{
-    "title": "ハイドアンド・シーク",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376368353555251301/image.jpeg?ex=6835126b&is=6833c0eb&hm=5dcade8a8e28b6df9e76bdc64daa8e857f80e8de20404b1d7f5710360bf09428&",
-    "easy": 7,
-    "normal": 12,
-    "hard": 17,
-    "expert": 24,
-    "master": 28,
-    "append": None
-},
-{
-    "title": "folern",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376368526431883264/image.jpeg?ex=68351294&is=6833c114&hm=23d109a4e92ba596d3da0caa0b17beccd42a69196d1956b6107d8da197a8d86b&",
-    "easy": 9,
-    "normal": 12,
-    "hard": 21,
-    "expert": 30,
-    "master": 32,
-    "append": 35
-},
-{
-    "title": "MOTTO!!!",
-    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376368700051034112/image.jpeg?ex=683512bd&is=6833c13d&hm=fff3787661af96c9c1961b1805628514bda534d3b6f560720e376951c3ed5136&",
-    "easy": 6,
-    "normal": 11,
-    "hard": 16,
-    "expert": 23,
-    "master": 27,
-    "append": None
-},
+    {
+        "title": "purpose",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376364023989145630/image.jpeg?ex=68350e62&is=6833bce2&hm=70b68e1a867060142523bf1bfd90abb875d0acc309c119c6828dffb74193db5a&",
+        "easy": 6,
+        "normal": 12,
+        "hard": 18,
+        "expert": 24,
+        "master": 28,
+        "append": null
+    },
+    {
+        "title": "はぐ",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376364453511299242/image.jpeg?ex=68350ec9&is=6833bd49&hm=f22cb9d8eb01e197cd59e9450ef5f38d139a7f4ad959608ca7fef6c42850bf03&",
+        "easy": 6,
+        "normal": 13,
+        "hard": 18,
+        "expert": 24,
+        "master": 29,
+        "append": null
+    },
+    {
+        "title": "トワイライトライト",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376364634860294154/image.jpeg?ex=68350ef4&is=6833bd74&hm=194049b9efd6bf283e8cc2ca29aa35dcdec93c4b730d75b0184ef702f2537232&",
+        "easy": 8,
+        "normal": 13,
+        "hard": 17,
+        "expert": 22,
+        "master": 26,
+        "append": null
+    },
+    {
+        "title": "春風",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376364763143082077/image.jpeg?ex=68350f13&is=6833bd93&hm=7173c8c7aa37630e2f887ab9deda2c9c7ee935956cbc8cad519864f5c176599c&",
+        "easy": 6,
+        "normal": 14,
+        "hard": 20,
+        "expert": 27,
+        "master": 30,
+        "append": null
+    },
+    {
+        "title": "ARQETYPE",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376364936187478117/image.jpeg?ex=68350f3c&is=6833bdbc&hm=d80be3e7fe3feacfd1a4eb4898ac30c9050c71932240bfc129931ce06ba00f9a&",
+        "easy": 9,
+        "normal": 14,
+        "hard": 21,
+        "expert": 27,
+        "master": 31,
+        "append": null
+    },
+    {
+        "title": "On&On",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376365105184378961/image.jpeg?ex=68350f64&is=6833bde4&hm=7bd6ba485f432fdc88542cfcf2582312512ea338da2a7532a0154cd2905ce00f&",
+        "easy": 6,
+        "normal": 12,
+        "hard": 18,
+        "expert": 23,
+        "master": 27,
+        "append": null
+    },
+    {
+        "title": "キュートなカノジョ",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376365244582072331/image.png?ex=68350f85&is=6833be05&hm=dedfceb44a3f5bf434071a3e5e191df5e7633af33cebe0bc234d2214fe4ef14c&",
+        "easy": 7,
+        "normal": 13,
+        "hard": 17,
+        "expert": 26,
+        "master": 30,
+        "append": null
+    },
+    {
+        "title": "フィラメントフィーバー",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376365385456160818/image.jpeg?ex=68350fa7&is=6833be27&hm=17f3733df94b82e5d735f0d7b6ee19e389e23e44e086282e047a8a0006b8b93d&",
+        "easy": 6,
+        "normal": 13,
+        "hard": 18,
+        "expert": 25,
+        "master": 29,
+        "append": null
+    },
+    {
+        "title": "さよならプリンセス",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376365497087688824/image.jpeg?ex=68350fc2&is=6833be42&hm=cf1ca9e01b6e73161f5a8ad5ff2ba32d509ee38c53c8eb59b91752bb2759efc4&",
+        "easy": 8,
+        "normal": 14,
+        "hard": 19,
+        "expert": 26,
+        "master": 30,
+        "append": null
+    },
+    {
+        "title": "Beyond the way",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376365657712492654/image.jpeg?ex=68350fe8&is=6833be68&hm=457598a575e1e32ac8929280b17627be263fc6accb4eeb31b968efa081e397e0&",
+        "easy": 7,
+        "normal": 13,
+        "hard": 17,
+        "expert": 25,
+        "master": 27,
+        "append": 29
+    },
+    {
+        "title": "ショウタイム×オーディエンス",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376365874222469170/image.jpeg?ex=6835101c&is=6833be9c&hm=09a00cf6b19c3b7708e1285da149408a362025e9ab92116bc8ce901a2c78b747&",
+        "easy": 9,
+        "normal": 14,
+        "hard": 18,
+        "expert": 25,
+        "master": 30,
+        "append": null
+    },
+    {
+        "title": "難聴系男子が倒せない",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376366038874067056/image.jpeg?ex=68351043&is=6833bec3&hm=f8a3c2b418df74ea5677427cde161f15ccb81e216cc412e139fd424ade04ad34&",
+        "easy": 7,
+        "normal": 12,
+        "hard": 17,
+        "expert": 25,
+        "master": 30,
+        "append": null
+    },
+    {
+        "title": "オーバーコード",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376366155756867624/image.jpeg?ex=6835105f&is=6833bedf&hm=6c8de856c21f0a1ab290e3863ea39b649a40be6a2666dec0d317a782d5929397&",
+        "easy": 5,
+        "normal": 12,
+        "hard": 18,
+        "expert": 26,
+        "master": 30,
+        "append": null
+    },
+    {
+        "title": "スロウダウナー",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376366293413920890/image.jpeg?ex=6835107f&is=6833beff&hm=3a670b0c6b2b5b8f662e1f4bb9c7c9602603e78a8b8a68628288d6e3bf8c56c6&",
+        "easy": 8,
+        "normal": 13,
+        "hard": 18,
+        "expert": 26,
+        "master": 30,
+        "append": null
+    },
+    {
+        "title": "初めて恋が終わる時",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376366430337110087/image.jpeg?ex=683510a0&is=6833bf20&hm=3d52ac2e1e894c1af35b6b07e41d205f1154c7879dc6bede2276b49fa125e97a&",
+        "easy": 8,
+        "normal": 12,
+        "hard": 17,
+        "expert": 25,
+        "master": 29,
+        "append": null
+    },
+    {
+        "title": "25時の情熱",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376366555679690782/image.jpeg?ex=683510be&is=6833bf3e&hm=09f4ad61dbab46ecea164864a3fbdeec787fc80529484265dca9f6d48654170a&",
+        "easy": 5,
+        "normal": 11,
+        "hard": 17,
+        "expert": 22,
+        "master": 25,
+        "append": null
+    },
+    {
+        "title": "金木犀",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376366678912270356/image.jpeg?ex=683510db&is=6833bf5b&hm=7e7fb4a19d74b1a1a5008eae2969bb42f955848497cceb3f79ea4fbd43a4d886&",
+        "easy": 6,
+        "normal": 12,
+        "hard": 17,
+        "expert": 26,
+        "master": 29,
+        "append": null
+    },
+    {
+        "title": "一千光年",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376366867714932859/image.jpeg?ex=68351108&is=6833bf88&hm=bab138dcf102e1f6497efa57d3abb4597e8e5567346563f1715096f1cc8b9251&",
+        "easy": 8,
+        "normal": 13,
+        "hard": 18,
+        "expert": 25,
+        "master": 30,
+        "append": 31
+    },
+    {
+        "title": "強風オールバック",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376367165120188467/image.jpeg?ex=6835114f&is=6833bfcf&hm=9d735a8451dc4249d91ce9cc69133dc1c7350f4d6d5c3aa1612bf02d4bc19985&",
+        "easy": 6,
+        "normal": 13,
+        "hard": 17,
+        "expert": 24,
+        "master": 28,
+        "append": null
+    },
+    {
+        "title": "ヒアソビ",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376367278379110410/image.jpeg?ex=6835116a&is=6833bfea&hm=a0ceefe6f86799db41f5d67099530c733d5b0fe6592ac416a0cc6ccea2b515d7&",
+        "easy": 9,
+        "normal": 13,
+        "hard": 18,
+        "expert": 27,
+        "master": 31,
+        "append": null
+    },
+    {
+        "title": "エンヴィーベイビー",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376367427234824284/image.jpeg?ex=6835118e&is=6833c00e&hm=df938e9c1f7bdc79887963278aa7aef1ad092128569b6ae519165abb34e0ba4f&",
+        "easy": 7,
+        "normal": 13,
+        "hard": 17,
+        "expert": 23,
+        "master": 28,
+        "append": null
+    },
+    {
+        "title": "『んっあっあっ。』",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376367602615586897/image.jpeg?ex=683511b8&is=6833c038&hm=2c76fc13a4048d4f4f6ce43bcd940b9debecee780ca951e9a65cbda3267aea3c&",
+        "easy": 6,
+        "normal": 13,
+        "hard": 18,
+        "expert": 24,
+        "master": 28,
+        "append": null
+    },
+    {
+        "title": "くうになる",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376368091180568687/image.jpeg?ex=6835122c&is=6833c0ac&hm=0ebbb3b80e41cf24fdc24789f0b82d6e94a8695a2c630cf4f076caea18a49e6c&",
+        "easy": 7,
+        "normal": 13,
+        "hard": 18,
+        "expert": 24,
+        "master": 29,
+        "append": null
+    },
+    {
+        "title": "ハイドアンド・シーク",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376368353555251301/image.jpeg?ex=6835126b&is=6833c0eb&hm=5dcade8a8e28b6df9e76bdc64daa8e857f80e8de20404b1d7f5710360bf09428&",
+        "easy": 7,
+        "normal": 12,
+        "hard": 17,
+        "expert": 24,
+        "master": 28,
+        "append": null
+    },
+    {
+        "title": "folern",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376368526431883264/image.jpeg?ex=68351294&is=6833c114&hm=23d109a4e92ba596d3da0caa0b17beccd42a69196d1956b6107d8da197a8d86b&",
+        "easy": 9,
+        "normal": 12,
+        "hard": 21,
+        "expert": 30,
+        "master": 32,
+        "append": 35
+    },
+    {
+        "title": "MOTTO!!!",
+        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376368700051034112/image.jpeg?ex=683512bd&is=6833c13d&hm=fff3787661af96c9c1961b1805628514bda534d3b6f560720e376951c3ed5136&",
+        "easy": 6,
+        "normal": 11,
+        "hard": 16,
+        "expert": 23,
+        "master": 27,
+        "append": null
+    },
     {
         "title": "Sage",
         "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376369497232904304/image.jpeg?ex=6835137b&is=6833c1fb&hm=dba3cd1db9836306d6a333c84d5481ca7cac12b0a1d79c8e3e371413c113499f&",
@@ -3908,7 +3908,7 @@
         "hard": 19,
         "expert": 27,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "サイバーパンクデッドボーイ",
@@ -3918,7 +3918,7 @@
         "hard": 19,
         "expert": 27,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "MarbleBlue.",
@@ -3938,7 +3938,7 @@
         "hard": 18,
         "expert": 26,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "え？ああ、そう。",
@@ -3948,7 +3948,7 @@
         "hard": 18,
         "expert": 25,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "リレイアウター",
@@ -3958,7 +3958,7 @@
         "hard": 18,
         "expert": 26,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "おどロボ",
@@ -3968,7 +3968,7 @@
         "hard": 18,
         "expert": 24,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "世界を照らすテトラッド",
@@ -3988,7 +3988,7 @@
         "hard": 17,
         "expert": 23,
         "master": 26,
-        "append": None
+        "append": null
     },
     {
         "title": "十六歳の心臓",
@@ -3998,7 +3998,7 @@
         "hard": 20,
         "expert": 27,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "limbo",
@@ -4008,7 +4008,7 @@
         "hard": 19,
         "expert": 26,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "レグルス",
@@ -4028,7 +4028,7 @@
         "hard": 18,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "JUMPIN' OVER！",
@@ -4038,7 +4038,7 @@
         "hard": 17,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "ラグトレイン",
@@ -4058,7 +4058,7 @@
         "hard": 16,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "ド屑",
@@ -4068,7 +4068,7 @@
         "hard": 18,
         "expert": 25,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "明鏡止水",
@@ -4078,7 +4078,7 @@
         "hard": 18,
         "expert": 23,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "ハジメテノオト",
@@ -4088,7 +4088,7 @@
         "hard": 16,
         "expert": 23,
         "master": 26,
-        "append": None
+        "append": null
     },
     {
         "title": "flos",
@@ -4098,7 +4098,7 @@
         "hard": 18,
         "expert": 23,
         "master": 27,
-        "append": None
+        "append": null
     },
     {
         "title": "アコトバ",
@@ -4108,7 +4108,7 @@
         "hard": 19,
         "expert": 24,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "幽光、1/fのゆらめき",
@@ -4118,7 +4118,7 @@
         "hard": 18,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "嬢王",
@@ -4138,7 +4138,7 @@
         "hard": 18,
         "expert": 23,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "幾望の月",
@@ -4148,7 +4148,7 @@
         "hard": 19,
         "expert": 26,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "blender",
@@ -4158,7 +4158,7 @@
         "hard": 16,
         "expert": 23,
         "master": 27,
-        "append": None
+        "append": null
     },
     {
         "title": "えれくとりっく・えんじぇぅ",
@@ -4168,7 +4168,7 @@
         "hard": 17,
         "expert": 24,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "レッドランドマーカー",
@@ -4178,7 +4178,7 @@
         "hard": 18,
         "expert": 16,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "あいのうた",
@@ -4188,7 +4188,7 @@
         "hard": 16,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "ガーネットの涙",
@@ -4198,7 +4198,7 @@
         "hard": 16,
         "expert": 25,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "だんだん早くなる",
@@ -4208,7 +4208,7 @@
         "hard": 18,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "私は雨",
@@ -4218,7 +4218,7 @@
         "hard": 18,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "酔いどれ知らず",
@@ -4248,7 +4248,7 @@
         "hard": 19,
         "expert": 26,
         "master": 32,
-        "append": None
+        "append": null
     },
     {
         "title": "すれすれ",
@@ -4258,7 +4258,7 @@
         "hard": 16,
         "expert": 23,
         "master": 26,
-        "append": None
+        "append": null
     },
     {
         "title": "烈火",
@@ -4268,7 +4268,7 @@
         "hard": 16,
         "expert": 23,
         "master": 27,
-        "append": None
+        "append": null
     },
     {
         "title": "超最強鬼畜妹フランドール・S",
@@ -4308,7 +4308,7 @@
         "hard": 18,
         "expert": 24,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "ときめきジェットコースター",
@@ -4318,7 +4318,7 @@
         "hard": 19,
         "expert": 27,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "東京テディベア",
@@ -4338,7 +4338,7 @@
         "hard": 18,
         "expert": 27,
         "master": 32,
-        "append": None
+        "append": null
     },
     {
         "title": "I know 愛脳.",
@@ -4348,7 +4348,7 @@
         "hard": 20,
         "expert": 26,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "だめにんげんだ!",
@@ -4358,7 +4358,7 @@
         "hard": 19,
         "expert": 26,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "オペラ！スペースオペラ！",
@@ -4378,7 +4378,7 @@
         "hard": 17,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "きょうもハレバレ",
@@ -4388,7 +4388,7 @@
         "hard": 17,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "Supernova",
@@ -4418,7 +4418,7 @@
         "hard": 19,
         "expert": 25,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "LEADER",
@@ -4428,7 +4428,7 @@
         "hard": 17,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "ポッピンキャンディ☆フィーバー！",
@@ -4438,7 +4438,7 @@
         "hard": 19,
         "expert": 26,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "ULTRA C",
@@ -4448,7 +4448,7 @@
         "hard": 18,
         "expert": 25,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "ダイジョブですか？",
@@ -4468,7 +4468,7 @@
         "hard": 18,
         "expert": 25,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "林檎売りの泡沫少女",
@@ -4478,7 +4478,7 @@
         "hard": 17,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "メリーゴーラウンド",
@@ -4488,7 +4488,7 @@
         "hard": 18,
         "expert": 26,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "マインドブランド",
@@ -4498,7 +4498,7 @@
         "hard": 17,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "イガク",
@@ -4508,7 +4508,7 @@
         "hard": 20,
         "expert": 25,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "あちこちデートさん",
@@ -4518,7 +4518,7 @@
         "hard": 16,
         "expert": 22,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "キラー",
@@ -4538,7 +4538,7 @@
         "hard": 17,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "彗星ノ銀河",
@@ -4548,7 +4548,7 @@
         "hard": 16,
         "expert": 21,
         "master": 26,
-        "append": None
+        "append": null
     },
     {
         "title": "夏夜ノ唄",
@@ -4558,7 +4558,7 @@
         "hard": 16,
         "expert": 23,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "QUEEN",
@@ -4568,7 +4568,7 @@
         "hard": 18,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "アンテナ39",
@@ -4578,7 +4578,7 @@
         "hard": 18,
         "expert": 25,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "ちがう!!!",
@@ -4588,7 +4588,7 @@
         "hard": 18,
         "expert": 26,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "スーパーヒーロー",
@@ -4598,7 +4598,7 @@
         "hard": 20,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "カルチャ",
@@ -4608,7 +4608,7 @@
         "hard": 17,
         "expert": 25,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "レイヤーノート",
@@ -4618,7 +4618,7 @@
         "hard": 16,
         "expert": 21,
         "master": 27,
-        "append": None
+        "append": null
     },
     {
         "title": "それでも僕らは歌うことをやめない",
@@ -4628,7 +4628,7 @@
         "hard": 18,
         "expert": 26,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "Unpoison",
@@ -4638,7 +4638,7 @@
         "hard": 17,
         "expert": 23,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "熱風",
@@ -4658,7 +4658,7 @@
         "hard": 17,
         "expert": 24,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "メズマライザー",
@@ -4668,7 +4668,7 @@
         "hard": 20,
         "expert": 26,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "如月アテンション",
@@ -4678,7 +4678,7 @@
         "hard": 18,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "メインキャラクター",
@@ -4688,7 +4688,7 @@
         "hard": 17,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "コールボーイ",
@@ -4698,7 +4698,7 @@
         "hard": 17,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "きみとぼくのレゾナンス",
@@ -4708,7 +4708,7 @@
         "hard": 16,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "転生林檎",
@@ -4718,7 +4718,7 @@
         "hard": 20,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "Blackjack",
@@ -4728,7 +4728,7 @@
         "hard": 17,
         "expert": 25,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "Shadow Shadow",
@@ -4738,7 +4738,7 @@
         "hard": 16,
         "expert": 23,
         "master": 27,
-        "append": None
+        "append": null
     },
     {
         "title": "生命性シンドロウム",
@@ -4758,7 +4758,7 @@
         "hard": 18,
         "expert": 27,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "キャットフード",
@@ -4768,7 +4768,7 @@
         "hard": 17,
         "expert": 24,
         "master": 28,
-        "append": None
+        "append": null
     },
     {
         "title": "メモリア",
@@ -4788,7 +4788,7 @@
         "hard": 17,
         "expert": 23,
         "master": 27,
-        "append": None
+        "append": null
     },
     {
         "title": "フューエル",
@@ -4798,7 +4798,7 @@
         "hard": 17,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "その音がなるなら",
@@ -4808,7 +4808,7 @@
         "hard": 18,
         "expert": 25,
         "master": 29,
-        "append": None
+        "append": null
     },
     {
         "title": "妄想アスパルテーム",
@@ -4818,7 +4818,7 @@
         "hard": 17,
         "expert": 25,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "キャットラビング",
@@ -4828,7 +4828,7 @@
         "hard": 17,
         "expert": 25,
         "master": 30,
-        "append": None
+        "append": null
     },
     {
         "title": "ぼくのかみさま",
@@ -4848,7 +4848,7 @@
         "hard": 18,
         "expert": 27,
         "master": 31,
-        "append": None
+        "append": null
     },
     {
         "title": "みかぼし",
@@ -4858,639 +4858,640 @@
         "hard": 17,
         "expert": 24,
         "master": 30,
-        "append": None
+        "append": null
     },
-    {
-        "title": "余花にみとれて",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376388911764340846/image.jpeg?ex=68352590&is=6833d410&hm=4e0187821d6eb2a30d0c2e2469ba830ca140e5e0ac07db8d5ac5ce1843902fc3&",
-        "easy": 5,
-        "normal": 11,
-        "hard": 15,
-        "expert": 21,
-        "master": 25,
-        "append": None
-    },
-    {
-        "title": "シークレット・シーカー",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376389076227199007/image.jpeg?ex=683525b7&is=6833d437&hm=3284a7208226e18272863117a47636eca6ffb45c8041fb06622c9a9acd7424a1&",
-        "easy": 8,
-        "normal": 13,
-        "hard": 18,
-        "expert": 26,
-        "master": 30,
-        "append": None
-    },
-    {
-        "title": "はしる! とおく! とどく!",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376389294884651088/image.jpeg?ex=683525eb&is=6833d46b&hm=39bbe524a95cc7f67daa1ca9dd9196ce599b17ceb1725d7623189142f8537f7e&",
-        "easy": 8,
-        "normal": 13,
-        "hard": 17,
-        "expert": 25,
-        "master": 29,
-        "append": None
-    },
-    {
-        "title": "花溺れ",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376389492612530227/image.jpeg?ex=6835261b&is=6833d49b&hm=e59f55d8fd6126d295b1d9833326dfc9ea1cf0dff41b8536af10ec1afb6c12e5&",
-        "easy": 6,
-        "normal": 12,
-        "hard": 17,
-        "expert": 26,
-        "master": 29,
-        "append": None
-    },
-    {
-        "title": "はじまりの未来",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376389637819465778/image.jpeg?ex=6835263d&is=6833d4bd&hm=be383f2b79139b28e1a482c2b8503255b09de108e49c42a90fda9a6c357d99c7&",
-        "easy": 7,
-        "normal": 12,
-        "hard": 17,
-        "expert": 24,
-        "master": 28,
-        "append": None
-    },
-    {
-        "title": "混沌ブギ",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376389808649273445/image.jpeg?ex=68352666&is=6833d4e6&hm=8500ffdcf175381bc92b5a344814df751ad87aaf34966512f9a5529bd5263b00&",
-        "easy": 9,
-        "normal": 14,
-        "hard": 19,
-        "expert": 25,
-        "master": 30,
-        "append": 33
-    },
-    {
-        "title": "アンヘル",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376389950836047982/image.jpeg?ex=68352688&is=6833d508&hm=fd92d3472b228ed425a0aab3feabbc4bdae66a331aa429543aa3ab293591e3b9&",
-        "easy": 8,
-        "normal": 12,
-        "hard": 19,
-        "expert": 27,
-        "master": 31,
-        "append": 33
-    },
-    {
-        "title": "プロトディスコ",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376390161134518282/image.jpeg?ex=683526ba&is=6833d53a&hm=dc6a330ed61489ae025b6705b50466239c9a204716c3d37c425e82e3f1c1893e&",
-        "easy": 6,
-        "normal": 12,
-        "hard": 18,
-        "expert": 26,
-        "master": 32,
-        "append": 34
-    },
-    {
-        "title": "CH4NGE",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376390307544830012/image.jpeg?ex=683526dd&is=6833d55d&hm=b505521a898df40d51742f735ae77a1e1caadd413d088e2d83e1f243ede1044d&",
-        "easy": 6,
-        "normal": 11,
-        "hard": 17,
-        "expert": 24,
-        "master": 28,
-        "append": None
-    },
-    {
-        "title": "snooze",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376390462021177467/image.jpeg?ex=68352702&is=6833d582&hm=871001e07ee7f77d8825550f5b37ba220305860697b9400f4d6b22388812422c&",
-        "easy": 7,
-        "normal": 13,
-        "hard": 19,
-        "expert": 26,
-        "master": 32,
-        "append": 33
-    },
-    {
-        "title": "ワールドランプシェード [reunion]",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376390715084374116/image.jpeg?ex=6835273e&is=6833d5be&hm=ed602a3eb0b2a582fe63906678410f76c2c74a8754d57a2042349782decaf382&",
-        "easy": 8,
-        "normal": 14,
-        "hard": 18,
-        "expert": 25,
-        "master": 30,
-        "append": None
-    },
-    {
-        "title": "のだ",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376391334503387166/image.jpeg?ex=683527d2&is=6833d652&hm=8b541b339f0f4084804d2da0d81a36e1f1c0ef813e71bc935c704efcf9830ed0&",
-        "easy": 6,
-        "normal": 12,
-        "hard": 18,
-        "expert": 25,
-        "master": 30,
-        "append": 33
-    },
-    {
-        "title": "サイハテ",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376391481815990383/image.jpeg?ex=683527f5&is=6833d675&hm=4f58f303d54cea2a890325120d086b285f4631d7e4be6b8fa6066d7b9aa17bc6&",
-        "easy": 6,
-        "normal": 12,
-        "hard": 17,
-        "expert": 23,
-        "master": 28,
-        "append": None
-    },
-    {
-        "title": "Henceforth",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376391698170773595/image.jpeg?ex=68352828&is=6833d6a8&hm=5d00c72c1062c9049f2e417087d28650c863f5069de89cf4ebf305686db32007&",
-        "easy": 7,
-        "normal": 12,
-        "hard": 18,
-        "expert": 25,
-        "master": 29,
-        "append": None
-    },
-    {
-        "title": "厨病激発ボーイ",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376391969496109170/image.jpeg?ex=68352869&is=6833d6e9&hm=16867d450f92863ae35ead93d8f9a0c3a1ed14685c1ac7ceeea4fb6eaa23eba4&",
-        "easy": 9,
-        "normal": 13,
-        "hard": 19,
-        "expert": 27,
-        "master": 32,
-        "append": None
-    },
-    {
-        "title": "ヘイヴン",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376392114794926190/image.jpeg?ex=6835288c&is=6833d70c&hm=0376f0a85bd76ee2e2145927f49ca4e1229810ddac0d38eab74cab254a33b735&",
-        "easy": 7,
-        "normal": 12,
-        "hard": 19,
-        "expert": 26,
-        "master": 30,
-        "append": None
-    },
-    {
-        "title": "夏に透明",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376392114794926190/image.jpeg?ex=6835288c&is=6833d70c&hm=0376f0a85bd76ee2e2145927f49ca4e1229810ddac0d38eab74cab254a33b735&",
-        "easy": 6,
-        "normal": 13,
-        "hard": 17,
-        "expert": 24,
-        "master": 28,
-        "append": None
-    },
-    {
-        "title": "パンダヒーロー",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376392476033679480/image.jpeg?ex=683528e2&is=6833d762&hm=55b6cb30e5e70098ebf8d7c08e913d2d43250369453dc07ddf6ecdffec674aaa&",
-        "easy": 8,
-        "normal": 13,
-        "hard": 18,
-        "expert": 24,
-        "master": 30,
-        "append": None
-    },
-    {
-        "title": "結ンデ開イテ羅刹ト骸",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376392647383711774/image.jpeg?ex=6835290b&is=6833d78b&hm=cf91a1eff8f90dec0ee3843fe5f7a333b523b108b55656ebd3e70545f0aba3dc&",
-        "easy": 7,
-        "normal": 13,
-        "hard": 18,
-        "expert": 24,
-        "master": 29,
-        "append": None
-    },
-    {
-        "title": "ファイアダンス",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376392784486989896/image.jpeg?ex=6835292b&is=6833d7ab&hm=0a5dbff4c0068a007c67d2b45d355d196efe463995b3fd1f203ba2a9a13ad79e&",
-        "easy": 6,
-        "normal": 12,
-        "hard": 18,
-        "expert": 25,
-        "master": 29,
-        "append": None
-    },
-    {
-        "title": "そこに在る、光。",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376398085756031037/image.jpeg?ex=68352e1b&is=6833dc9b&hm=0c26ad8c2a9487101a3428f96d0937070fef32b4d70bca4746293efdbbff02e3&",
-        "easy": 6,
-        "normal": 12,
-        "hard": 16,
-        "expert": 22,
-        "master": 27,
-        "append": None
-    },
-    {
-        "title": "Worlders",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376398288395173938/image.jpeg?ex=68352e4c&is=6833dccc&hm=feb8270a16d1b94f378407d432335127d56369693633c44fb5d8b09d8ef793ff&",
-        "easy": 7,
-        "normal": 13,
-        "hard": 18,
-        "expert": 24,
-        "master": 28,
-        "append": None
-    },
-    {
-        "title": "FUN!!",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376398471644446841/image.jpeg?ex=68352e77&is=6833dcf7&hm=e00397f67256c3e06e9b64e99319548f26fa694ddef55ee986b5639f1e57b9b9&",
-        "easy": 8,
-        "normal": 13,
-        "hard": 17,
-        "expert": 25,
-        "master": 29,
-        "append": None
-    },
-    {
-        "title": "終焉逃避行",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376398657968013352/image.jpeg?ex=68352ea4&is=6833dd24&hm=9784bbd577060866bd1ea9503b165c92ec9611e01d9dabf6027c5e2e4ee34e06&",
-        "easy": 6,
-        "normal": 12,
-        "hard": 18,
-        "expert": 25,
-        "master": 29,
-        "append": None
-    },
-    {
-        "title": "スマイル*シンフォニー",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376398840143417386/image.jpeg?ex=68352ecf&is=6833dd4f&hm=ef52197a679c53ab7e700910f8d7783f0b22cd6f12d0f4efa1da5988ccb1a5fe&",
-        "easy": 5,
-        "normal": 12,
-        "hard": 17,
-        "expert": 24,
-        "master": 28,
-        "append": None
-    },
-    {
-        "title": "SToRY",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376398965209174157/image.jpeg?ex=68352eed&is=6833dd6d&hm=e2f56641e05c3af67278d93e4f3c2b1d5ad67c053574bfb64a14cb9024640685&",
-        "easy": 8,
-        "normal": 13,
-        "hard": 18,
-        "expert": 25,
-        "master": 29,
-        "append": None
-    },
-    {
-        "title": "クリスタルスノウ",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376399105999503511/image.jpeg?ex=68352f0f&is=6833dd8f&hm=b44d8dc66cacfb8e72e3e4b91523bd33318c41dfe52b588eb85c29c18db0cc09&",
-        "easy": 6,
-        "normal": 12,
-        "hard": 17,
-        "expert": 23,
-        "master": 26,
-        "append": None
-    },
-    {
-        "title": "ハローセカイ",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376399307783274647/image.jpeg?ex=68352f3f&is=6833ddbf&hm=2f83c9293c1ab2c919f799ee07c3f25efe83f05788f337faf62c36607cd8fbba&",
-        "easy": 7,
-        "normal": 12,
-        "hard": 17,
-        "expert": 24,
-        "master": 28,
-        "append": None
-    },
-    {
-        "title": "アンチユー",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376399453195604118/image.jpeg?ex=68352f61&is=6833dde1&hm=4111a659e596adb2a848c0fc91d86aa9163212042b9675728e7844d2f329a541&",
-        "easy": 6,
-        "normal": 12,
-        "hard": 17,
-        "expert": 24,
-        "master": 28,
-        "append": None
-    },
-    {
-        "title": "ルルブ",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376399592815329371/image.jpeg?ex=68352f83&is=6833de03&hm=ca52e09e822c4624c349ab507f30248def56b3153c1b9bbfe7efb47e7c5a84d9&",
-        "easy": 9,
-        "normal": 14,
-        "hard": 18,
-        "expert": 27,
-        "master": 31,
-        "append": None
-    },
-    {
-        "title": "フュージョン",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376399765411069952/image.jpeg?ex=68352fac&is=6833de2c&hm=9f66b6e64fe6f0a8ee402a3ab495117e8b4fee0ab5c32e3c5b30e6a3e0a2ed52&",
-        "easy": 8,
-        "normal": 13,
-        "hard": 18,
-        "expert": 27,
-        "master": 30,
-        "append": 34
-    },
-    {
-        "title": "ルーマー",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376400117191413840/image.jpeg?ex=68353000&is=6833de80&hm=b646e94405d5b37013800dc76964544a6b18e7a0a46badd1331d3ca665623379&",
-        "easy": 6,
-        "normal": 12,
-        "hard": 16,
-        "expert": 24,
-        "master": 28,
-        "append": None
-    },
-    {
-        "title": "Fire◎Flower (Rerec)",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376400357537611796/image.jpeg?ex=68353039&is=6833deb9&hm=257605d3a67703894f6f543fd5207737c42a93aa5f71ec57371a39ec32262cf8&",
-        "easy": 8,
-        "normal": 13,
-        "hard": 17,
-        "expert": 25,
-        "master": 29,
-        "append": None
-    },
-    {
-        "title": "三日月ステップ",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376400673175896104/image.jpeg?ex=68353084&is=6833df04&hm=4733e98ab8277c35d8a4b74bd8b48d7ff1a2e2b2f3616a2220323520bdd571b2&",
-        "easy": 7,
-        "normal": 12,
-        "hard": 17,
-        "expert": 25,
-        "master": 28,
-        "append": None
-    },
-    {
-        "title": "オーバーライド",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376400818210869258/image.jpeg?ex=683530a7&is=6833df27&hm=a105fd3a74186fc2acf6b46f992863bac52030260e888ab457fb57aa5541db47&",
-        "easy": 9,
-        "normal": 14,
-        "hard": 18,
-        "expert": 26,
-        "master": 31,
-        "append": None
-    },
-    {
-        "title": "Packaged",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376401071047573606/image.jpeg?ex=683530e3&is=6833df63&hm=a6060a5abcfb5bf7b6e10609701a37bc005e2da9cfa1f61464919a4f8b258541&",
-        "easy": 6,
-        "normal": 12,
-        "hard": 16,
-        "expert": 22,
-        "master": 26,
-        "append": None
-    },
-    {
-        "title": "ライアーダンサー",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376401260139249715/image.jpeg?ex=68353110&is=6833df90&hm=4e1fae0940649a22479ccb836c37782b6a958991bbcd9256f6f70e728b235857&",
-        "easy": 7,
-        "normal": 12,
-        "hard": 18,
-        "expert": 26,
-        "master": 31,
-        "append": None
-    },
-    {
-        "title": "プラネットヒーロー",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376401402125090887/image.jpeg?ex=68353132&is=6833dfb2&hm=ad37663cb141f9dad11306f4a919289ec6d87c298a50e415c8d452d350830c49&",
-        "easy": 9,
-        "normal": 13,
-        "hard": 19,
-        "expert": 28,
-        "master": 33,
-        "append": None
-    },
-    {
-        "title": "透明エレジー",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376401564477952100/image.jpeg?ex=68353159&is=6833dfd9&hm=090204a74285ae98b45a135894372f886329834f8210c306f168a0818eda872e&",
-        "easy": 9,
-        "normal": 12,
-        "hard": 17,
-        "expert": 25,
-        "master": 30,
-        "append": None
-    },
-    {
-        "title": "D/N/A",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376401809979084840/image.jpeg?ex=68353193&is=6833e013&hm=5e91a0199a25056b2dad238ab2e0ca7aff9d7434c179784b5af3640819e35feb&",
-        "easy": 7,
-        "normal": 12,
-        "hard": 18,
-        "expert": 26,
-        "master": 31,
-        "append": None
-    },
-    {
-        "title": "ドレミファロンド",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376402016905199666/image.jpeg?ex=683531c5&is=6833e045&hm=cd664d0d000abe3b1ce02ba2563da84d6bbe2ab524490a02e1a7127315563e59&",
-        "easy": 6,
-        "normal": 12,
-        "hard": 17,
-        "expert": 23,
-        "master": 27,
-        "append": None
-    },
-    {
-        "title": "Sympathy",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376402223654895677/image.jpeg?ex=683531f6&is=6833e076&hm=cb73d2e5c8ae33b41169fedc4381f2305cc13d3b1d92e735ffc00222521a6bc6&",
-        "easy": 8,
-        "normal": 13,
-        "hard": 17,
-        "expert": 24,
-        "master": 28,
-        "append": 29
-    },
-    {
-        "title": "Call!!",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376402421844283473/image.jpeg?ex=68353225&is=6833e0a5&hm=bcaa50f857cde920aab3f77d1bce4dcd8b909c9d822296752ba6794c76e3f995&",
-        "easy": 5,
-        "normal": 12,
-        "hard": 17,
-        "expert": 25,
-        "master": 28,
-        "append": None
-    },
-    {
-        "title": "吉腹ラメント 再来盤",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376402892990447616/image.jpeg?ex=68353296&is=6833e116&hm=e2c66a9238b0ef02ecf7025728e00e8abb25d05d14a304646b0f1da9d1831613&",
-        "easy": 8,
-        "normal": 13,
-        "hard": 17,
-        "expert": 25,
-        "master": 29,
-        "append": None
-    },
-    {
-        "title": "マンハッタン",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376403074087653477/image.jpeg?ex=683532c1&is=6833e141&hm=388b2444f42f38132b5a3bf80d4e635655d482abe8aed17da8330a48e2c79f2b&",
-        "easy": 6,
-        "normal": 14,
-        "hard": 18,
-        "expert": 27,
-        "master": 32,
-        "append": None
-    },
-    {
-        "title": "クイーンオブハート",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376403262785192007/image.jpeg?ex=683532ee&is=6833e16e&hm=3255726c1dd9db7e360f15c6501f84be39f613cb8586ac28ba6c769de3247451&",
-        "easy": 9,
-        "normal": 13,
-        "hard": 17,
-        "expert": 25,
-        "master": 31,
-        "append": None
-    },
-    {
-        "title": "バレリーコ",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376403465152102590/image.jpeg?ex=6835331e&is=6833e19e&hm=b566cd6e1ed4cf0747edb288e91a41a633016959eef0c3b0936e244c556d15e9&",
-        "easy": 7,
-        "normal": 13,
-        "hard": 17,
-        "expert": 25,
-        "master": 29,
-        "append": None
-    },
-    {
-        "title": "花に風",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376403612347142164/image.png?ex=68353341&is=6833e1c1&hm=0ac01cae19b36ca908f4d4d13f843e3b18755da34ab74f7b7622abf2be8b53a6&",
-        "easy": 6,
-        "normal": 13,
-        "hard": 17,
-        "expert": 24,
-        "master": 28,
-        "append": None
-    },
-    {
-        "title": "スーサイドパレヱド",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376403813291917434/image.jpeg?ex=68353371&is=6833e1f1&hm=6e3b387dbef854beb09a0301e6ecdc5870239e04438e3c4674d7a80e89296410&",
-        "easy": 8,
-        "normal": 13,
-        "hard": 19,
-        "expert": 26,
-        "master": 31,
-        "append": 32
-    },
-    {
-        "title": "星宙メランコリア",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376404002572337204/image.jpeg?ex=6835339e&is=6833e21e&hm=6b4a998f08c95338ceab237dc820b62687688448ef036e9921ab4599093c3a93&",
-        "easy": 8,
-        "normal": 13,
-        "hard": 18,
-        "expert": 26,
-        "master": 30,
-        "append": None
-    },
-    {
-        "title": "回る空うさぎ",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376404141248745565/image.png?ex=683533bf&is=6833e23f&hm=e9f381cd42cca41bd123e2a82bb1fb6a04d611af628071198230bac3f6322580&",
-        "easy": 5,
-        "normal": 12,
-        "hard": 16,
-        "expert": 21,
-        "master": 26,
-        "append": None
-    },
-    {
-        "title": "オールセーブチャレンジ",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376404292486955038/image.jpeg?ex=683533e3&is=6833e263&hm=d87e630fb541414f7a66d56982d15d538e2bb58d0bb63e17e41b73d69bf2d448&",
-        "easy": 7,
-        "normal": 13,
-        "hard": 19,
-        "expert": 26,
-        "master": 30,
-        "append": None
-    },
-    {
-        "title": "チルノのパーフェクトさんすう学園",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376404545638498364/image.png?ex=68353420&is=6833e2a0&hm=5a6071f63f627176f33e0bcd1a574af7de7855f67978241144ae7bf7dd8b20b2&",
-        "easy": 9,
-        "normal": 13,
-        "hard": 18,
-        "expert": 26,
-        "master": 31,
-        "append": 33
-    },
-    {
-        "title": "とうほう☆ワンダーランド",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376404700785807420/image.png?ex=68353445&is=6833e2c5&hm=a8ea79c76384fcf58dc0f191c77b8d993308870eba792456525e498ee95557f1&",
-        "easy": 9,
-        "normal": 13,
-        "hard": 18,
-        "expert": 26,
-        "master": 31,
-        "append": 32
-    },
-    {
-        "title": "超ナイト・オブ・ナイツ",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376404881891528754/image.png?ex=68353470&is=6833e2f0&hm=d849b810268d0592afa64ca91f4765c6511e56ecbfcf849013523f23b6709276&",
-        "easy": 8,
-        "normal": 13,
-        "hard": 20,
-        "expert": 27,
-        "master": 33,
-        "append": 36
-    },
-    {
-        "title": "虚無さん",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376405035428347944/image.jpeg?ex=68353494&is=6833e314&hm=e3a6f928d22e4337dcdd4e0aa7566ca7aff0a73ea9f49dd70418313c6c3f96ce&",
-        "easy": 5,
-        "normal": 13,
-        "hard": 18,
-        "expert": 24,
-        "master": 29,
-        "append": None
-    },
-    {
-        "title": "紗痲",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376405306736902295/image.png?ex=683534d5&is=6833e355&hm=c270e6b66f8da2831e37f32e67d7d04ecec45dd5d769e476b901e9ab1041ab63&",
-        "easy": 8,
-        "normal": 13,
-        "hard": 18,
-        "expert": 26,
-        "master": 30,
-        "append": None
-    },
-    {
-        "title": "失敗作少女",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376405439968841758/image.jpeg?ex=683534f5&is=6833e375&hm=45be4a4342804f65bac53d3007c406f9fb59a80d032a373a6c311ae7b6e6c6c7&",
-        "easy": 5,
-        "normal": 12,
-        "hard": 18,
-        "expert": 25,
-        "master": 29,
-        "append": None
-    },
-    {
-        "title": "フィッシュアンドTips",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376405601449545779/image.jpeg?ex=6835351b&is=6833e39b&hm=6521147cdbfba642beec32b4d625ef42f2dc38e095d91073dd2369960780340a&",
-        "easy": 7,
-        "normal": 13,
-        "hard": 19,
-        "expert": 26,
-        "master": 30,
-        "append": None
-    },
-    {
-        "title": "Connecting",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376405772283678823/image.jpeg?ex=68353544&is=6833e3c4&hm=36cb011f29f124f9c5d7c69cfba32e51dd8b61bcde7639f383a0f3cd115b2b3c&",
-        "easy": 6,
-        "normal": 12,
-        "hard": 16,
-        "expert": 23,
-        "master": 27,
-        "append": None
-    },
-    {
-        "title": "エンヴィキャットウォーク",
-        "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376457090020937728/image.jpeg?ex=6835650f&is=6834138f&hm=9ae836fc4d1eab845107c2a6bcb5da2127c26a64e2e3e0926ea439e29c77560e&",
-        "easy": 8,
-        "normal": 12,
-        "hard": 18,
-        "expert": 26,
-        "master": 30,
-        "append": None
-    },
-    {
-        "title": "イレヴンス",
-        "image_url": "https://cdn.discordapp.com/attachments/1376551906570408040/1377991188203704442/image.jpeg?ex=683af9cd&is=6839a84d&hm=2476656fa6663d6d6e6486416c533215995bf9e835987840033801da29545dd3&",
-        "easy": 6,
-        "normal": 12,
-        "hard": 16,
-        "expert": 23,
-        "master": 27,
-        "append": None
-    },
-    {
-        "title": "光線歌",
-        "image_url": "",
-        "easy": 6,
-        "normal": 12,
-        "hard": 17,
-        "expert": 24,
-        "master": 28,
-        "append": None
-    }
-]
-
+    [
+  {
+    "title": "余花にみとれて",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376388911764340846/image.jpeg?ex=68352590&is=6833d410&hm=4e0187821d6eb2a30d0c2e2469ba830ca140e5e0ac07db8d5ac5ce1843902fc3&",
+    "easy": 5,
+    "normal": 11,
+    "hard": 15,
+    "expert": 21,
+    "master": 25,
+    "append": null
+  },
+  {
+    "title": "シークレット・シーカー",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376389076227199007/image.jpeg?ex=683525b7&is=6833d437&hm=3284a7208226e18272863117a47636eca6ffb45c8041fb06622c9a9acd7424a1&",
+    "easy": 8,
+    "normal": 13,
+    "hard": 18,
+    "expert": 26,
+    "master": 30,
+    "append": null
+  },
+  {
+    "title": "はしる! とおく! とどく!",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376389294884651088/image.jpeg?ex=683525eb&is=6833d46b&hm=39bbe524a95cc7f67daa1ca9dd9196ce599b17ceb1725d7623189142f8537f7e&",
+    "easy": 8,
+    "normal": 13,
+    "hard": 17,
+    "expert": 25,
+    "master": 29,
+    "append": null
+  },
+  {
+    "title": "花溺れ",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376389492612530227/image.jpeg?ex=6835261b&is=6833d49b&hm=e59f55d8fd6126d295b1d9833326dfc9ea1cf0dff41b8536af10ec1afb6c12e5&",
+    "easy": 6,
+    "normal": 12,
+    "hard": 17,
+    "expert": 26,
+    "master": 29,
+    "append": null
+  },
+  {
+    "title": "はじまりの未来",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376389637819465778/image.jpeg?ex=6835263d&is=6833d4bd&hm=be383f2b79139b28e1a482c2b8503255b09de108e49c42a90fda9a6c357d99c7&",
+    "easy": 7,
+    "normal": 12,
+    "hard": 17,
+    "expert": 24,
+    "master": 28,
+    "append": null
+  },
+  {
+    "title": "混沌ブギ",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376389808649273445/image.jpeg?ex=68352666&is=6833d4e6&hm=8500ffdcf175381bc92b5a344814df751ad87aaf34966512f9a5529bd5263b00&",
+    "easy": 9,
+    "normal": 14,
+    "hard": 19,
+    "expert": 25,
+    "master": 30,
+    "append": 33
+  },
+  {
+    "title": "アンヘル",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376389950836047982/image.jpeg?ex=68352688&is=6833d508&hm=fd92d3472b228ed425a0aab3feabbc4bdae66a331aa429543aa3ab293591e3b9&",
+    "easy": 8,
+    "normal": 12,
+    "hard": 19,
+    "expert": 27,
+    "master": 31,
+    "append": 33
+  },
+  {
+    "title": "プロトディスコ",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376390161134518282/image.jpeg?ex=683526ba&is=6833d53a&hm=dc6a330ed61489ae025b6705b50466239c9a204716c3d37c425e82e3f1c1893e&",
+    "easy": 6,
+    "normal": 12,
+    "hard": 18,
+    "expert": 26,
+    "master": 32,
+    "append": 34
+  },
+  {
+    "title": "CH4NGE",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376390307544830012/image.jpeg?ex=683526dd&is=6833d55d&hm=b505521a898df40d51742f735ae77a1e1caadd413d088e2d83e1f243ede1044d&",
+    "easy": 6,
+    "normal": 11,
+    "hard": 17,
+    "expert": 24,
+    "master": 28,
+    "append": null
+  },
+  {
+    "title": "snooze",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376390462021177467/image.jpeg?ex=68352702&is=6833d582&hm=871001e07ee7f77d8825550f5b37ba220305860697b9400f4d6b22388812422c&",
+    "easy": 7,
+    "normal": 13,
+    "hard": 19,
+    "expert": 26,
+    "master": 32,
+    "append": 33
+  },
+  {
+    "title": "ワールドランプシェード [reunion]",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376390715084374116/image.jpeg?ex=6835273e&is=6833d5be&hm=ed602a3eb0b2a582fe63906678410f76c2c74a8754d57a2042349782decaf382&",
+    "easy": 8,
+    "normal": 14,
+    "hard": 18,
+    "expert": 25,
+    "master": 30,
+    "append": null
+  },
+  {
+    "title": "のだ",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376391334503387166/image.jpeg?ex=683527d2&is=6833d652&hm=8b541b339f0f4084804d2da0d81a36e1f1c0ef813e71bc935c704efcf9830ed0&",
+    "easy": 6,
+    "normal": 12,
+    "hard": 18,
+    "expert": 25,
+    "master": 30,
+    "append": 33
+  },
+  {
+    "title": "サイハテ",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376391481815990383/image.jpeg?ex=683527f5&is=6833d675&hm=4f58f303d54cea2a890325120d086b285f4631d7e4be6b8fa6066d7b9aa17bc6&",
+    "easy": 6,
+    "normal": 12,
+    "hard": 17,
+    "expert": 23,
+    "master": 28,
+    "append": null
+  },
+  {
+    "title": "Henceforth",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376391698170773595/image.jpeg?ex=68352828&is=6833d6a8&hm=5d00c72c1062c9049f2e417087d28650c863f5069de89cf4ebf305686db32007&",
+    "easy": 7,
+    "normal": 12,
+    "hard": 18,
+    "expert": 25,
+    "master": 29,
+    "append": null
+  },
+  {
+    "title": "厨病激発ボーイ",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376391969496109170/image.jpeg?ex=68352869&is=6833d6e9&hm=16867d450f92863ae35ead93d8f9a0c3a1ed14685c1ac7ceeea4fb6eaa23eba4&",
+    "easy": 9,
+    "normal": 13,
+    "hard": 19,
+    "expert": 27,
+    "master": 32,
+    "append": null
+  },
+  {
+    "title": "ヘイヴン",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376392114794926190/image.jpeg?ex=6835288c&is=6833d70c&hm=0376f0a85bd76ee2e2145927f49ca4e1229810ddac0d38eab74cab254a33b735&",
+    "easy": 7,
+    "normal": 12,
+    "hard": 19,
+    "expert": 26,
+    "master": 30,
+    "append": null
+  },
+  {
+    "title": "夏に透明",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376392114794926190/image.jpeg?ex=6835288c&is=6833d70c&hm=0376f0a85bd76ee2e2145927f49ca4e1229810ddac0d38eab74cab254a33b735&",
+    "easy": 6,
+    "normal": 13,
+    "hard": 17,
+    "expert": 24,
+    "master": 28,
+    "append": null
+  },
+  {
+    "title": "パンダヒーロー",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376392476033679480/image.jpeg?ex=683528e2&is=6833d762&hm=55b6cb30e5e70098ebf8d7c08e913d2d43250369453dc07ddf6ecdffec674aaa&",
+    "easy": 8,
+    "normal": 13,
+    "hard": 18,
+    "expert": 24,
+    "master": 30,
+    "append": null
+  },
+  {
+    "title": "結ンデ開イテ羅刹ト骸",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376392647383711774/image.jpeg?ex=6835290b&is=6833d78b&hm=cf91a1eff8f90dec0ee3843fe5f7a333b523b108b55656ebd3e70545f0aba3dc&",
+    "easy": 7,
+    "normal": 13,
+    "hard": 18,
+    "expert": 24,
+    "master": 29,
+    "append": null
+  },
+  {
+    "title": "ファイアダンス",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376392784486989896/image.jpeg?ex=6835292b&is=6833d7ab&hm=0a5dbff4c0068a007c67d2b45d355d196efe463995b3fd1f203ba2a9a13ad79e&",
+    "easy": 6,
+    "normal": 12,
+    "hard": 18,
+    "expert": 25,
+    "master": 29,
+    "append": null
+  },
+  {
+    "title": "そこに在る、光。",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376398085756031037/image.jpeg?ex=68352e1b&is=6833dc9b&hm=0c26ad8c2a9487101a3428f96d0937070fef32b4d70bca4746293efdbbff02e3&",
+    "easy": 6,
+    "normal": 12,
+    "hard": 16,
+    "expert": 22,
+    "master": 27,
+    "append": null
+  },
+  {
+    "title": "Worlders",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376398288395173938/image.jpeg?ex=68352e4c&is=6833dccc&hm=feb8270a16d1b94f378407d432335127d56369693633c44fb5d8b09d8ef793ff&",
+    "easy": 7,
+    "normal": 13,
+    "hard": 18,
+    "expert": 24,
+    "master": 28,
+    "append": null
+  },
+  {
+    "title": "FUN!!",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376398471644446841/image.jpeg?ex=68352e77&is=6833dcf7&hm=e00397f67256c3e06e9b64e99319548f26fa694ddef55ee986b5639f1e57b9b9&",
+    "easy": 8,
+    "normal": 13,
+    "hard": 17,
+    "expert": 25,
+    "master": 29,
+    "append": null
+  },
+  {
+    "title": "終焉逃避行",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376398657968013352/image.jpeg?ex=68352ea4&is=6833dd24&hm=9784bbd577060866bd1ea9503b165c92ec9611e01d9dabf6027c5e2e4ee34e06&",
+    "easy": 6,
+    "normal": 12,
+    "hard": 18,
+    "expert": 25,
+    "master": 29,
+    "append": null
+  },
+  {
+    "title": "スマイル*シンフォニー",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376398840143417386/image.jpeg?ex=68352ecf&is=6833dd4f&hm=ef52197a679c53ab7e700910f8d7783f0b22cd6f12d0f4efa1da5988ccb1a5fe&",
+    "easy": 5,
+    "normal": 12,
+    "hard": 17,
+    "expert": 24,
+    "master": 28,
+    "append": null
+  },
+  {
+    "title": "SToRY",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376398965209174157/image.jpeg?ex=68352eed&is=6833dd6d&hm=e2f56641e05c3af67278d93e4f3c2b1d5ad67c053574bfb64a14cb9024640685&",
+    "easy": 8,
+    "normal": 13,
+    "hard": 18,
+    "expert": 25,
+    "master": 29,
+    "append": null
+  },
+  {
+    "title": "クリスタルスノウ",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376399105999503511/image.jpeg?ex=68352f0f&is=6833dd8f&hm=b44d8dc66cacfb8e72e3e4b91523bd33318c41dfe52b588eb85c29c18db0cc09&",
+    "easy": 6,
+    "normal": 12,
+    "hard": 17,
+    "expert": 23,
+    "master": 26,
+    "append": null
+  },
+  {
+    "title": "ハローセカイ",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376399307783274647/image.jpeg?ex=68352f3f&is=6833ddbf&hm=2f83c9293c1ab2c919f799ee07c3f25efe83f05788f337faf62c36607cd8fbba&",
+    "easy": 7,
+    "normal": 12,
+    "hard": 17,
+    "expert": 24,
+    "master": 28,
+    "append": null
+  },
+  {
+    "title": "アンチユー",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376399453195604118/image.jpeg?ex=68352f61&is=6833dde1&hm=4111a659e596adb2a848c0fc91d86aa9163212042b9675728e7844d2f329a541&",
+    "easy": 6,
+    "normal": 12,
+    "hard": 17,
+    "expert": 24,
+    "master": 28,
+    "append": null
+  },
+  {
+    "title": "ルルブ",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376399592815329371/image.jpeg?ex=68352f83&is=6833de03&hm=ca52e09e822c4624c349ab507f30248def56b3153c1b9bbfe7efb47e7c5a84d9&",
+    "easy": 9,
+    "normal": 14,
+    "hard": 18,
+    "expert": 27,
+    "master": 31,
+    "append": null
+  },
+  {
+    "title": "フュージョン",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376399765411069952/image.jpeg?ex=68352fac&is=6833de2c&hm=9f66b6e64fe6f0a8ee402a3ab495117e8b4fee0ab5c32e3c5b30e6a3e0a2ed52&",
+    "easy": 8,
+    "normal": 13,
+    "hard": 18,
+    "expert": 27,
+    "master": 30,
+    "append": 34
+  },
+  {
+    "title": "ルーマー",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376400117191413840/image.jpeg?ex=68353000&is=6833de80&hm=b646e94405d5b37013800dc76964544a6b18e7a0a46badd1331d3ca665623379&",
+    "easy": 6,
+    "normal": 12,
+    "hard": 16,
+    "expert": 24,
+    "master": 28,
+    "append": null
+  },
+  {
+    "title": "Fire◎Flower (Rerec)",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376400357537611796/image.jpeg?ex=68353039&is=6833deb9&hm=257605d3a67703894f6f543fd5207737c42a93aa5f71ec57371a39ec32262cf8&",
+    "easy": 8,
+    "normal": 13,
+    "hard": 17,
+    "expert": 25,
+    "master": 29,
+    "append": null
+  },
+  {
+    "title": "三日月ステップ",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376400673175896104/image.jpeg?ex=68353084&is=6833df04&hm=4733e98ab8277c35d8a4b74bd8b48d7ff1a2e2b2f3616a2220323520bdd571b2&",
+    "easy": 7,
+    "normal": 12,
+    "hard": 17,
+    "expert": 25,
+    "master": 28,
+    "append": null
+  },
+  {
+    "title": "オーバーライド",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376400818210869258/image.jpeg?ex=683530a7&is=6833df27&hm=a105fd3a74186fc2acf6b46f992863bac52030260e888ab457fb57aa5541db47&",
+    "easy": 9,
+    "normal": 14,
+    "hard": 18,
+    "expert": 26,
+    "master": 31,
+    "append": null
+  },
+  {
+    "title": "Packaged",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376401071047573606/image.jpeg?ex=683530e3&is=6833df63&hm=a6060a5abcfb5bf7b6e10609701a37bc005e2da9cfa1f61464919a4f8b258541&",
+    "easy": 6,
+    "normal": 12,
+    "hard": 16,
+    "expert": 22,
+    "master": 26,
+    "append": null
+  },
+  {
+    "title": "ライアーダンサー",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376401260139249715/image.jpeg?ex=68353110&is=6833df90&hm=4e1fae0940649a22479ccb836c37782b6a958991bbcd9256f6f70e728b235857&",
+    "easy": 7,
+    "normal": 12,
+    "hard": 18,
+    "expert": 26,
+    "master": 31,
+    "append": null
+  },
+  {
+    "title": "プラネットヒーロー",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376401402125090887/image.jpeg?ex=68353132&is=6833dfb2&hm=ad37663cb141f9dad11306f4a919289ec6d87c298a50e415c8d452d350830c49&",
+    "easy": 9,
+    "normal": 13,
+    "hard": 19,
+    "expert": 28,
+    "master": 33,
+    "append": null
+  },
+  {
+    "title": "透明エレジー",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376401564477952100/image.jpeg?ex=68353159&is=6833dfd9&hm=090204a74285ae98b45a135894372f886329834f8210c306f168a0818eda872e&",
+    "easy": 9,
+    "normal": 12,
+    "hard": 17,
+    "expert": 25,
+    "master": 30,
+    "append": null
+  },
+  {
+    "title": "D/N/A",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376401809979084840/image.jpeg?ex=68353193&is=6833e013&hm=5e91a0199a25056b2dad238ab2e0ca7aff9d7434c179784b5af3640819e35feb&",
+    "easy": 7,
+    "normal": 12,
+    "hard": 18,
+    "expert": 26,
+    "master": 31,
+    "append": null
+  },
+  {
+    "title": "ドレミファロンド",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376402016905199666/image.jpeg?ex=683531c5&is=6833e045&hm=cd664d0d000abe3b1ce02ba2563da84d6bbe2ab524490a02e1a7127315563e59&",
+    "easy": 6,
+    "normal": 12,
+    "hard": 17,
+    "expert": 23,
+    "master": 27,
+    "append": null
+  },
+  {
+    "title": "Sympathy",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376402223654895677/image.jpeg?ex=683531f6&is=6833e076&hm=cb73d2e5c8ae33b41169fedc4381f2305cc13d3b1d92e735ffc00222521a6bc6&",
+    "easy": 8,
+    "normal": 13,
+    "hard": 17,
+    "expert": 24,
+    "master": 28,
+    "append": 29
+  },
+  {
+    "title": "Call!!",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376402421844283473/image.jpeg?ex=68353225&is=6833e0a5&hm=bcaa50f857cde920aab3f77d1bce4dcd8b909c9d822296752ba6794c76e3f995&",
+    "easy": 5,
+    "normal": 12,
+    "hard": 17,
+    "expert": 25,
+    "master": 28,
+    "append": null
+  },
+  {
+    "title": "吉腹ラメント 再来盤",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376402892990447616/image.jpeg?ex=68353296&is=6833e116&hm=e2c66a9238b0ef02ecf7025728e00e8abb25d05d14a304646b0f1da9d1831613&",
+    "easy": 8,
+    "normal": 13,
+    "hard": 17,
+    "expert": 25,
+    "master": 29,
+    "append": null
+  },
+  {
+    "title": "マンハッタン",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376403074087653477/image.jpeg?ex=683532c1&is=6833e141&hm=388b2444f42f38132b5a3bf80d4e635655d482abe8aed17da8330a48e2c79f2b&",
+    "easy": 6,
+    "normal": 14,
+    "hard": 18,
+    "expert": 27,
+    "master": 32,
+    "append": null
+  },
+  {
+    "title": "クイーンオブハート",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376403262785192007/image.jpeg?ex=683532ee&is=6833e16e&hm=3255726c1dd9db7e360f15c6501f84be39f613cb8586ac28ba6c769de3247451&",
+    "easy": 9,
+    "normal": 13,
+    "hard": 17,
+    "expert": 25,
+    "master": 31,
+    "append": null
+  },
+  {
+    "title": "バレリーコ",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376403465152102590/image.jpeg?ex=6835331e&is=6833e19e&hm=b566cd6e1ed4cf0747edb288e91a41a633016959eef0c3b0936e244c556d15e9&",
+    "easy": 7,
+    "normal": 13,
+    "hard": 17,
+    "expert": 25,
+    "master": 29,
+    "append": null
+  },
+  {
+    "title": "花に風",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376403612347142164/image.png?ex=68353341&is=6833e1c1&hm=0ac01cae19b36ca908f4d4d13f843e3b18755da34ab74f7b7622abf2be8b53a6&",
+    "easy": 6,
+    "normal": 13,
+    "hard": 17,
+    "expert": 24,
+    "master": 28,
+    "append": null
+  },
+  {
+    "title": "スーサイドパレヱド",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376403813291917434/image.jpeg?ex=68353371&is=6833e1f1&hm=6e3b387dbef854beb09a0301e6ecdc5870239e04438e3c4674d7a80e89296410&",
+    "easy": 8,
+    "normal": 13,
+    "hard": 19,
+    "expert": 26,
+    "master": 31,
+    "append": 32
+  },
+  {
+    "title": "星宙メランコリア",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376404002572337204/image.jpeg?ex=6835339e&is=6833e21e&hm=6b4a998f08c95338ceab237dc820b62687688448ef036e9921ab4599093c3a93&",
+    "easy": 8,
+    "normal": 13,
+    "hard": 18,
+    "expert": 26,
+    "master": 30,
+    "append": null
+  },
+  {
+    "title": "回る空うさぎ",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376404141248745565/image.png?ex=683533bf&is=6833e23f&hm=e9f381cd42cca41bd123e2a82bb1fb6a04d611af628071198230bac3f6322580&",
+    "easy": 5,
+    "normal": 12,
+    "hard": 16,
+    "expert": 21,
+    "master": 26,
+    "append": null
+  },
+  {
+    "title": "オールセーブチャレンジ",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376404292486955038/image.jpeg?ex=683533e3&is=6833e263&hm=d87e630fb541414f7a66d56982d15d538e2bb58d0bb63e17e41b73d69bf2d448&",
+    "easy": 7,
+    "normal": 13,
+    "hard": 19,
+    "expert": 26,
+    "master": 30,
+    "append": null
+  },
+  {
+    "title": "チルノのパーフェクトさんすう学園",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376404545638498364/image.png?ex=68353420&is=6833e2a0&hm=5a6071f63f627176f33e0bcd1a574af7de7855f67978241144ae7bf7dd8b20b2&",
+    "easy": 9,
+    "normal": 13,
+    "hard": 18,
+    "expert": 26,
+    "master": 31,
+    "append": 33
+  },
+  {
+    "title": "とうほう☆ワンダーランド",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376404700785807420/image.png?ex=68353445&is=6833e2c5&hm=a8ea79c76384fcf58dc0f191c77b8d993308870eba792456525e498ee95557f1&",
+    "easy": 9,
+    "normal": 13,
+    "hard": 18,
+    "expert": 26,
+    "master": 31,
+    "append": 32
+  },
+  {
+    "title": "超ナイト・オブ・ナイツ",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376404881891528754/image.png?ex=68353470&is=6833e2f0&hm=d849b810268d0592afa64ca91f4765c6511e56ecbfcf849013523f23b6709276&",
+    "easy": 8,
+    "normal": 13,
+    "hard": 20,
+    "expert": 27,
+    "master": 33,
+    "append": 36
+  },
+  {
+    "title": "虚無さん",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376405035428347944/image.jpeg?ex=68353494&is=6833e314&hm=e3a6f928d22e4337dcdd4e0aa7566ca7aff0a73ea9f49dd70418313c6c3f96ce&",
+    "easy": 5,
+    "normal": 13,
+    "hard": 18,
+    "expert": 24,
+    "master": 29,
+    "append": null
+  },
+  {
+    "title": "紗痲",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376405306736902295/image.png?ex=683534d5&is=6833e355&hm=c270e6b66f8da2831e37f32e67d7d04ecec45dd5d769e476b901e9ab1041ab63&",
+    "easy": 8,
+    "normal": 13,
+    "hard": 18,
+    "expert": 26,
+    "master": 30,
+    "append": null
+  },
+  {
+    "title": "失敗作少女",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376405439968841758/image.jpeg?ex=683534f5&is=6833e375&hm=45be4a4342804f65bac53d3007c406f9fb59a80d032a373a6c311ae7b6e6c6c7&",
+    "easy": 5,
+    "normal": 12,
+    "hard": 18,
+    "expert": 25,
+    "master": 29,
+    "append": null
+  },
+  {
+    "title": "フィッシュアンドTips",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376405601449545779/image.jpeg?ex=6835351b&is=6833e39b&hm=6521147cdbfba642beec32b4d625ef42f2dc38e095d91073dd2369960780340a&",
+    "easy": 7,
+    "normal": 13,
+    "hard": 19,
+    "expert": 26,
+    "master": 30,
+    "append": null
+  },
+  {
+    "title": "Connecting",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376405772283678823/image.jpeg?ex=68353544&is=6833e3c4&hm=36cb011f29f124f9c5d7c69cfba32e51dd8b61bcde7639f383a0f3cd115b2b3c&",
+    "easy": 6,
+    "normal": 12,
+    "hard": 16,
+    "expert": 23,
+    "master": 27,
+    "append": null
+  },
+  {
+    "title": "エンヴィキャットウォーク",
+    "image_url": "https://cdn.discordapp.com/attachments/1356037575793578227/1376457090020937728/image.jpeg?ex=6835650f&is=6834138f&hm=9ae836fc4d1eab845107c2a6bcb5da2127c26a64e2e3e0926ea439e29c77560e&",
+    "easy": 8,
+    "normal": 12,
+    "hard": 18,
+    "expert": 26,
+    "master": 30,
+    "append": null
+  },
+  {
+    "title": "イレヴンス",
+    "image_url": "https://cdn.discordapp.com/attachments/1376551906570408040/1377991188203704442/image.jpeg?ex=683af9cd&is=6839a84d&hm=2476656fa6663d6d6e6486416c533215995bf9e835987840033801da29545dd3&",
+    "easy": 6,
+    "normal": 12,
+    "hard": 16,
+    "expert": 23,
+    "master": 27,
+    "append": null
+  },
+  {
+    "title": "光線歌",
+    "image_url": "",
+    "easy": 6,
+    "normal": 12,
+    "hard": 17,
+    "expert": 24,
+    "master": 28,
+    "append": null
+  }
+    ]
+    
 VALID_DIFFICULTIES = ['EASY', 'NORMAL', 'HARD', 'EXPERT', 'MASTER', 'APPEND']
 }
