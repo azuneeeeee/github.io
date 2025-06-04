@@ -90,8 +90,8 @@ class MyBot(commands.Bot):
         for extension in self.initial_extensions:
             logging.info(f"Attempting to load {extension}...")
             try:
-                # ★重要: load_extension に songs_data や valid_difficulties を渡さない
-                # コグの setup 関数が引数を受け取るように変更されているため、ここで直接渡す必要はない
+                # ★修正: load_extension に songs_data や valid_difficulties を渡さない
+                # これらのデータはコグがロードされた後、get_cog() でインスタンスを取得して設定します。
                 await self.load_extension(extension)
                 logging.info(f"Successfully loaded {extension}")
             except Exception as e:
@@ -120,11 +120,10 @@ class MyBot(commands.Bot):
             # PjskRecordResult コグにデータを設定
             record_result_cog = self.get_cog("PjskRecordResult")
             if record_result_cog:
-                # PjskRecordResult の __init__ が songs_data を受け取るように変更されている
-                # setup 関数で songs_data を渡すため、ここでは直接設定は不要だが、念のため参照を更新
-                # setup 関数で渡されたデータが優先されるため、この行は冗長になる可能性あり
-                # しかし、安全のため、ここでも設定を試みる
+                # PjskRecordResult の __init__ が songs_data を受け取るように変更されているため、
+                # setup 関数で渡されたデータが優先されますが、念のためここでも参照を更新します。
                 record_result_cog.songs_data = self.proseka_songs_data
+                # 必要であれば、SONG_DATA_MAPもここで更新を呼び出す
                 record_result_cog.SONG_DATA_MAP = record_result_cog._create_song_data_map(self.proseka_songs_data)
                 logging.info("Set songs_data and updated SONG_DATA_MAP in PjskRecordResult cog.")
             else:
