@@ -11,7 +11,7 @@ import logging
 # ロギング設定は main.py で一元的に行われるため、ここでは追加設定は不要
 
 # songs.py のデータを SONGS_DATA_MAP に変換する関数
-# ★修正: この関数をコグクラスの外に移動し、グローバル関数として定義
+# この関数をコグクラスの外に移動し、グローバル関数として定義
 def _create_song_data_map(songs_list):
     song_map = {}
     for song in songs_list:
@@ -145,7 +145,7 @@ class AccuracyRecordModal(Modal, title="新規記録"):
             logging.error(f"Failed to get original response message after AccuracyRecordModal submit: {e}", exc_info=True)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        logging.error(f"Error in AccuracyRecordModal for user {interaction.user.name}: {error}", exc_info=True)
+        logging.error(f"モーダル送信中にエラーが発生しました: `{error}`", exc_info=True)
         await interaction.response.send_message(
             f"モーダル送信中にエラーが発生しました: `{error}`",
             ephemeral=True
@@ -285,7 +285,7 @@ class UpdateRecordModal(Modal, title="記録を更新"):
             logging.error(f"Failed to get original response message after UpdateRecordModal submit: {e}", exc_info=True)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        logging.error(f"モーダル送信中にエラーが発生しました: `{error}`", exc_info=True) # ログメッセージを修正
+        logging.error(f"モーダル送信中にエラーが発生しました: `{error}`", exc_info=True)
         await interaction.response.send_message(
             f"モーダル送信中にエラーが発生しました: `{error}`",
             ephemeral=True
@@ -547,7 +547,7 @@ class PjskRecordResult(commands.Cog):
     def __init__(self, bot: commands.Bot, songs_data: list = None):
         self.bot = bot
         self.songs_data = songs_data if songs_data is not None else []
-        # ★修正: グローバル関数 _create_song_data_map を直接呼び出す
+        # グローバル関数 _create_song_data_map を直接呼び出す
         self.SONG_DATA_MAP = _create_song_data_map(self.songs_data)
         logging.info("PjskRecordResult Cog initialized.")
         logging.debug(f"SONG_DATA_MAP created with {len(self.SONG_DATA_MAP)} entries.")
