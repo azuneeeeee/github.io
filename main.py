@@ -90,7 +90,8 @@ class MyBot(commands.Bot):
         for extension in self.initial_extensions:
             logging.info(f"Attempting to load {extension}...")
             try:
-                # ★修正: load_extension に songs_data や valid_difficulties を渡さない
+                # ★★★ ここが重要な修正点です！ ★★★
+                # load_extension に songs_data や valid_difficulties を渡さないでください。
                 # これらのデータはコグがロードされた後、get_cog() でインスタンスを取得して設定します。
                 await self.load_extension(extension)
                 logging.info(f"Successfully loaded {extension}")
@@ -124,7 +125,13 @@ class MyBot(commands.Bot):
                 # setup 関数で渡されたデータが優先されますが、念のためここでも参照を更新します。
                 record_result_cog.songs_data = self.proseka_songs_data
                 # 必要であれば、SONG_DATA_MAPもここで更新を呼び出す
-                record_result_cog.SONG_DATA_MAP = record_result_cog._create_song_data_map(self.proseka_songs_data)
+                # _create_song_data_map は PjskRecordResult クラスの静的メソッドまたはヘルパー関数として存在することを想定
+                if hasattr(record_result_cog, '_create_song_data_map'):
+                    record_result_cog.SONG_DATA_MAP = record_result_cog._create_song_data_map(self.proseka_songs_data)
+                else:
+                    # もし _create_song_data_map が PjskRecordResult クラスにない場合、
+                    # グローバルスコープの _create_song_data_map を呼び出すか、エラーをログに記録
+                    logging.warning("'_create_song_data_map' method not found in PjskRecordResult cog. Cannot update SONG_DATA_MAP directly here.")
                 logging.info("Set songs_data and updated SONG_DATA_MAP in PjskRecordResult cog.")
             else:
                 logging.warning("PjskRecordResult cog not found after loading.")
