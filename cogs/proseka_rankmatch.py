@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 import traceback
 import logging
-import asyncio # asyncio をインポート
+import asyncio
 
 load_dotenv()
 
@@ -44,7 +44,8 @@ class ProsekaRankMatchCommands(commands.Cog):
         
         self.ap_fc_rate_cog = None
 
-        self.should_update_ap_fc_rate_display = False 
+        # ★修正: AP/FCレート表示の自動更新を無効にする
+        self.should_update_ap_fc_rate_display = False
         logging.info(f"AP/FCレート表示の自動更新は現在 {'有効' if self.should_update_ap_fc_rate_display else '無効'} に設定されています。")
 
         self.RANK_LEVEL_MAP = {
@@ -93,13 +94,12 @@ class ProsekaRankMatchCommands(commands.Cog):
     ):
         logging.info(f"Command '/pjsk_rankmatch_song' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
         
-        # ボットが完全に準備完了しているかチェック
         if not self.bot.is_bot_ready:
             logging.warning(f"Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}. Sending 'bot not ready' message.")
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message("ボットがまだ起動中です。しばらくお待ちください。", ephemeral=True)
-                return # 応答したら処理を中断
+                return
             except discord.errors.InteractionResponded:
                 logging.warning(f"Interaction for '{interaction.command.name}' was already responded to before 'bot not ready' check. Skipping send_message.")
                 return
@@ -108,8 +108,6 @@ class ProsekaRankMatchCommands(commands.Cog):
                 return
 
         logging.info(f"Bot is ready. Proceeding with defer for '{interaction.command.name}'.")
-        # コマンド開始直後に遅延応答（defer）を呼び出す
-        # ここで発生する NotFound はグローバルエラーハンドラーで捕捉される
         try:
             # わずかな遅延を挿入
             await asyncio.sleep(0.1) 
@@ -117,7 +115,6 @@ class ProsekaRankMatchCommands(commands.Cog):
             logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
         except discord.errors.NotFound:
             logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound). This will be caught by global error handler.", exc_info=True)
-            # ここでエラーが発生した場合、これ以上処理を続行しても無意味なのでreturn
             return
         except Exception as e:
             logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
@@ -196,7 +193,6 @@ class ProsekaRankMatchCommands(commands.Cog):
             description=f"難易度: **{selected_difficulty_for_display}** {level_display_str}\nランク: **{rank}**",
             color=embed_color
         )
-        # selected_song ではなく selected_song_candidate を使用
         if selected_song_candidate.get("image_url"):
             embed.set_thumbnail(url=selected_song_candidate["image_url"])
 
@@ -210,7 +206,8 @@ class ProsekaRankMatchCommands(commands.Cog):
             except Exception as e:
                 logging.error(f"Error updating AP/FC rate display for /pjsk_rankmatch_song: {e}", exc_info=True)
         else:
-            logging.info("AP/FC rate display update skipped for /pjsk_rankmatch_song (cog not available or update disabled).")
+            # ★修正: 自動更新が無効であることを明示的にログ出力
+            logging.info("AP/FC rate display update skipped for /pjsk_rankmatch_song (cog not available or auto-update disabled).")
 
 
 async def setup(bot):
