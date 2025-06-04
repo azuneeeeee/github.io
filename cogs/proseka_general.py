@@ -58,30 +58,24 @@ class ProsekaGeneralCommands(commands.Cog):
 
     @app_commands.command(name="pjsk_list_songs", description="プロジェクトセカイの楽曲一覧をメニューで並べ替えて表示します。")
     async def pjsk_list_songs(self, interaction: discord.Interaction):
-        # ★追加: ボットが完全に準備完了しているかチェック
+        # ★修正: ボットが完全に準備完了しているかチェック
         if not self.bot.is_bot_ready:
-            print(f"DEBUG: Bot not ready for command /pjsk_list_songs. User: {interaction.user.name}")
+            print(f"DEBUG: Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}")
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message("ボットがまだ起動中です。しばらくお待ちください。", ephemeral=True)
+                return
             except discord.errors.InteractionResponded:
-                pass
+                print(f"WARNING: Interaction for '{interaction.command.name}' was already responded to before 'bot not ready' check.")
+                return
             except Exception as e:
-                print(f"ERROR: Failed to send 'bot not ready' message for /pjsk_list_songs: {e}")
-            return
+                print(f"ERROR: Failed to send 'bot not ready' message for '{interaction.command.name}': {e}")
+                return
 
         print(f"DEBUG: /pjsk_list_songs command invoked by {interaction.user.name}.")
-        try:
-            await interaction.response.defer(ephemeral=False)
-            print("DEBUG: interaction.response.defer() successful.")
-        except Exception as e:
-            print(f"ERROR: Failed to defer interaction: {e}")
-            traceback.print_exc()
-            try:
-                await interaction.followup.send("コマンド処理中にエラーが発生しました。時間をおいて再度お試しください。", ephemeral=True)
-            except Exception as fe:
-                print(f"ERROR: Failed to send fallback error message: {fe}")
-            return
+        # defer() の呼び出しは try-except で囲まない（グローバルエラーハンドラーに任せる）
+        await interaction.response.defer(ephemeral=False)
+        print("DEBUG: interaction.response.defer() successful.")
 
         if not self.songs_data:
             await interaction.followup.send("現在、登録されている楽曲がありません。", ephemeral=False)
@@ -129,17 +123,19 @@ class ProsekaGeneralCommands(commands.Cog):
         level_min: app_commands.Range[int, 1, 37] = None,
         level_max: app_commands.Range[int, 1, 37] = None
     ):
-        # ★追加: ボットが完全に準備完了しているかチェック
+        # ★修正: ボットが完全に準備完了しているかチェック
         if not self.bot.is_bot_ready:
-            print(f"DEBUG: Bot not ready for command /pjsk_random_song. User: {interaction.user.name}")
+            print(f"DEBUG: Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}")
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message("ボットがまだ起動中です。しばらくお待ちください。", ephemeral=True)
+                return
             except discord.errors.InteractionResponded:
-                pass
+                print(f"WARNING: Interaction for '{interaction.command.name}' was already responded to before 'bot not ready' check.")
+                return
             except Exception as e:
-                print(f"ERROR: Failed to send 'bot not ready' message for /pjsk_random_song: {e}")
-            return
+                print(f"ERROR: Failed to send 'bot not ready' message for '{interaction.command.name}': {e}")
+                return
 
         await interaction.response.defer(ephemeral=False)
         print(f"DEBUG: /pjsk_random_song called with difficulty='{difficulty}', level_min={level_min}, level_max={level_max}")
