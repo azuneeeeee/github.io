@@ -5,6 +5,16 @@ from typing import List, Tuple, Dict, Any
 import traceback
 import logging
 
+# pjsk_record_result.py から SUPPORT_GUILD_ID をインポート
+# これにより、ギルドIDをグローバルに利用可能にする
+try:
+    from cogs.pjsk_record_result import SUPPORT_GUILD_ID
+except ImportError:
+    logging.error("Failed to import SUPPORT_GUILD_ID from cogs.pjsk_record_result. Please ensure pjsk_record_result.py is correctly set up and defines SUPPORT_GUILD_ID.")
+    # インポートに失敗した場合のフォールバック (ただし、これは問題を示す)
+    SUPPORT_GUILD_ID = 0 # デフォルト値。実際にはmain.pyでbot.GUILD_IDが設定されるはずだが、念のため。
+
+
 class RankmatchResultModal(ui.Modal, title="ランクマッチ結果入力"):
     """
     最大5人までのプレイヤーのランクマッチ結果を入力するためのモーダル。
@@ -259,13 +269,11 @@ class RankmatchResultModal(ui.Modal, title="ランクマッチ結果入力"):
 class ProsekaRankmatchResult(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # コグの初期化時に bot.GUILD_ID を取得して保存
-        self.guild_id = bot.GUILD_ID if hasattr(bot, 'GUILD_ID') else 0
-        logging.info(f"ProsekaRankmatchResult cog initialized with guild_id: {self.guild_id}.") # ロギングを追加
+        logging.info("ProsekaRankmatchResult cog initialized.") # ロギングを追加
 
     @app_commands.command(name="pjsk_rankmatch_result", description="ランクマッチの結果を投稿・集計します。(最大5人対応)")
-    # クラス属性 self.guild_id を使用
-    @app_commands.guilds(discord.Object(id=self.guild_id))
+    # SUPPORT_GUILD_ID を直接使用
+    @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
     async def pjsk_rankmatch_result(self, interaction: discord.Interaction):
         """ランクマッチの結果を入力するためのモーダルを表示します。"""
         logging.info(f"Command '/pjsk_rankmatch_result' invoked by {interaction.user.name} (ID: {interaction.user.id}).") # ロギングを追加
