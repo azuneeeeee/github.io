@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 import os
-import json
+import json # songs.py を読み込む場合でも、jsonは他の場所で使う可能性があるので残しておく
 import asyncio
 import traceback
 import logging
@@ -20,43 +20,43 @@ TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 
 # GUILD_ID はサポートギルドIDとして使用されるため、必須。設定されていない場合はエラーログを出力し、デフォルト値を使用。
 _guild_id_str = os.getenv('GUILD_ID')
-if _guild_id_str is None:
-    logging.critical("GUILD_ID environment variable is not set. Please set it in Render's Environment settings or .env file.")
-    GUILD_ID = 0 # デフォルト値として0を設定（無効なIDとして扱う）
-else:
+if _guild_id_str: # Noneや空文字列でないことを確認
     try:
         GUILD_ID = int(_guild_id_str)
     except ValueError:
-        logging.critical(f"GUILD_ID environment variable '{_guild_id_str}' is not a valid integer. Please check Render's Environment settings.")
+        logging.critical(f"GUILD_ID environment variable '{_guild_id_str}' is not a valid integer. Using default 0.", exc_info=True)
         GUILD_ID = 0
+else:
+    logging.critical("GUILD_ID environment variable is not set. Using default 0. Please set it in Render's Environment settings or .env file.")
+    GUILD_ID = 0
 
 # OWNER_ID はボットのオーナーIDとして使用されるため、必須。設定されていない場合はエラーログを出力し、デフォルト値を使用。
 _owner_id_str = os.getenv('OWNER_ID')
-if _owner_id_str is None:
-    logging.critical("OWNER_ID environment variable is not set. Please set it in Render's Environment settings or .env file.")
-    OWNER_ID = 0 # デフォルト値として0を設定（無効なIDとして扱う）
-else:
+if _owner_id_str: # Noneや空文字列でないことを確認
     try:
         OWNER_ID = int(_owner_id_str)
     except ValueError:
-        logging.critical(f"OWNER_ID environment variable '{_owner_id_str}' is not a valid integer. Please check Render's Environment settings.")
+        logging.critical(f"OWNER_ID environment variable '{_owner_id_str}' is not a valid integer. Using default 0.", exc_info=True)
         OWNER_ID = 0
+else:
+    logging.critical("OWNER_ID environment variable is not set. Using default 0. Please set it in Render's Environment settings or .env file.")
+    OWNER_ID = 0
 
 # APPLICATION_ID はボットのアプリケーションIDとして使用されるため、必須。設定されていない場合はエラーログを出力し、デフォルト値を使用。
 _application_id_str = os.getenv('APPLICATION_ID')
-if _application_id_str is None:
-    logging.critical("APPLICATION_ID environment variable is not set. Please set it in Render's Environment settings or .env file.")
-    APPLICATION_ID = 0 # デフォルト値として0を設定（無効なIDとして扱う）
-else:
+if _application_id_str: # Noneや空文字列でないことを確認
     try:
         APPLICATION_ID = int(_application_id_str)
     except ValueError:
-        logging.critical(f"APPLICATION_ID environment variable '{_application_id_str}' is not a valid integer. Please check Render's Environment settings.")
+        logging.critical(f"APPLICATION_ID environment variable '{_application_id_str}' is not a valid integer. Using default 0.", exc_info=True)
         APPLICATION_ID = 0
+else:
+    logging.critical("APPLICATION_ID environment variable is not set. Using default 0. Please set it in Render's Environment settings or .env file.")
+    APPLICATION_ID = 0
 
 
-# 楽曲データファイルのパス
-SONGS_FILE = 'data/songs.json'
+# ★修正: SONGS_FILE を songs.py に戻す
+SONGS_FILE = 'data/songs.py'
 
 class MyBot(commands.Bot):
     def __init__(self):
@@ -67,40 +67,71 @@ class MyBot(commands.Bot):
         super().__init__(
             command_prefix=commands.when_mentioned_or('!'), # プレフィックスコマンドも考慮する場合
             intents=intents,
-            application_id=APPLICATION_ID # ★修正: 安全に読み込んだ APPLICATION_ID を使用
+            application_id=APPLICATION_ID # 安全に読み込んだ APPLICATION_ID を使用
         )
+        # ★修正: initial_extensions リストを整理し、重複がないことを確認
         self.initial_extensions = [
-            'cogs.proseka_general',
-            'cogs.proseka_rankmatch',
-            'cogs.pjsk_ap_fc_rate',
-            'cogs.pjsk_record_result'
+            'cogs.pjsk_ap_fc_rate',      # AP/FCレートコグ
+            'cogs.proseka_general',      # 汎用コマンドコグ
+            # 'cogs.help_command',       # もしhelp_commandを別途用意するならここに含める
+            'cogs.proseka_rankmatch',    # ランクマッチ選曲コグ
+            'cogs.pjsk_rankmatch_result',# ランクマッチリザルトコグ (もしあれば)
+            'cogs.pjsk_record_result'    # 精度記録コグ
         ]
         self.proseka_songs_data = [] # 楽曲データをボットインスタンスに保持
+        self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"] # 難易度データをここに保持
         self.is_bot_ready = False # ボットの準備状態を管理するフラグ
 
         # コグ参照のための属性を初期化
         self.proseka_general_cog = None
         self.proseka_rankmatch_cog = None
         self.pjsk_ap_fc_rate_cog = None
-        self.pjsk_record_result_cog = None # 追加
+        self.pjsk_record_result_cog = None
+        # self.pjsk_rankmatch_result_cog = None # もしpjsk_rankmatch_resultコグがあるならこれも追加
 
         logging.info("Bot instance created.")
+
+    # ★修正: songs.py を読み込むための非同期関数を再導入
+    async def _load_songs_data_async(self):
+        """data/songs.py から楽曲データを非同期で読み込む"""
+        logging.info(f"Attempting to load songs data from {SONGS_FILE} asynchronously.")
+        try:
+            loop = asyncio.get_running_loop()
+            with open(SONGS_FILE, 'r', encoding='utf-8') as f:
+                file_content = await loop.run_in_executor(None, f.read)
+            
+            _globals = {}
+            # songs.py の内容を実行し、proseka_songs と VALID_DIFFICULTIES を取得
+            await loop.run_in_executor(None, exec, file_content, _globals)
+
+            self.proseka_songs_data = _globals.get('proseka_songs', [])
+            self.valid_difficulties_data = _globals.get('VALID_DIFFICULTIES', ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"])
+            
+            if not isinstance(self.proseka_songs_data, list):
+                logging.error(f"proseka_songs in {SONGS_FILE} is not a list. Type: {type(self.proseka_songs_data)}. Using empty list.")
+                self.proseka_songs_data = []
+
+            if not isinstance(self.valid_difficulties_data, list):
+                logging.error(f"VALID_DIFFICULTIES in {SONGS_FILE} is not a list. Type: {type(self.valid_difficulties_data)}. Using default list.")
+                self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
+
+            logging.info(f"{SONGS_FILE} から {len(self.proseka_songs_data)} 曲の楽曲データを非同期で正常に読み込みました。")
+
+        except FileNotFoundError:
+            logging.critical(f"{SONGS_FILE} が見つかりません。'data'フォルダにあることを確認してください。", exc_info=True)
+            self.proseka_songs_data = []
+            self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
+        except Exception as e:
+            logging.critical(f"Error executing {SONGS_FILE} or converting data: {e}", exc_info=True)
+            self.proseka_songs_data = []
+            self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
+
 
     async def setup_hook(self):
         logging.info("Starting setup_hook...")
         
-        # 楽曲データの読み込み
-        logging.info(f"Attempting to load songs from {SONGS_FILE}...")
-        try:
-            with open(SONGS_FILE, 'r', encoding='utf-8') as f:
-                self.proseka_songs_data = json.load(f)
-            logging.info(f"Successfully loaded {len(self.proseka_songs_data)} songs.")
-        except FileNotFoundError:
-            logging.error(f"Songs data file not found: {SONGS_FILE}. Please ensure it exists.")
-        except json.JSONDecodeError:
-            logging.error(f"Error decoding JSON from {SONGS_FILE}. Check file format.", exc_info=True)
-        except Exception as e:
-            logging.error(f"An unexpected error occurred while loading songs: {e}", exc_info=True)
+        # ★修正: songs.py から楽曲データを読み込む
+        await self._load_songs_data_async()
 
         # コグのロード
         for extension in self.initial_extensions:
@@ -117,25 +148,27 @@ class MyBot(commands.Bot):
         self.proseka_rankmatch_cog = self.get_cog("ProsekaRankMatchCommands")
         self.pjsk_ap_fc_rate_cog = self.get_cog("PjskApFcRateCommands")
         self.pjsk_record_result_cog = self.get_cog("PjskRecordResult")
+        # self.pjsk_rankmatch_result_cog = self.get_cog("PjskRankMatchResult") # もしpjsk_rankmatch_resultコグがあるならこれも取得
 
 
         if self.proseka_general_cog:
             self.proseka_general_cog.songs_data = self.proseka_songs_data
-            # ProsekaGeneralCommandsのvalid_difficultiesも更新（もしあれば）
-            # self.proseka_general_cog.valid_difficulties = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
+            self.proseka_general_cog.valid_difficulties = self.valid_difficulties_data
             logging.info("Set songs_data and valid_difficulties in ProsekaGeneralCommands.")
         else:
             logging.warning("ProsekaGeneralCommands cog not found after loading.")
 
         if self.proseka_rankmatch_cog:
             self.proseka_rankmatch_cog.songs_data = self.proseka_songs_data
-            logging.info("Set songs_data in ProsekaRankMatchCommands.")
+            self.proseka_rankmatch_cog.valid_difficulties = self.valid_difficulties_data
+            logging.info("Set songs_data and valid_difficulties in ProsekaRankMatchCommands.")
         else:
             logging.warning("ProsekaRankMatchCommands cog not found after loading.")
 
         if self.pjsk_record_result_cog:
             # PjskRecordResult cogにsongs_dataを渡し、内部でSONG_DATA_MAPを再構築させる
             # _create_song_data_map は pjsk_record_result.py からインポート済み
+            # ★修正: pjsk_record_result.py からの_create_song_data_mapインポートをsetup_hook内からモジュールトップレベルに移動
             self.pjsk_record_result_cog.songs_data = self.proseka_songs_data
             self.pjsk_record_result_cog.SONG_DATA_MAP = _create_song_data_map(self.proseka_songs_data)
             logging.info("Set songs_data and updated SONG_DATA_MAP in PjskRecordResult cog.")
@@ -147,14 +180,15 @@ class MyBot(commands.Bot):
         if self.proseka_general_cog and self.pjsk_ap_fc_rate_cog:
             self.proseka_general_cog.ap_fc_rate_cog = self.pjsk_ap_fc_rate_cog
             logging.info("Set ap_fc_rate_cog reference in ProsekaGeneralCommands.")
+        else:
+            logging.warning("Could not link ProsekaGeneralCommands and PjskApFcRateCommands cog.")
+
         if self.proseka_rankmatch_cog and self.pjsk_ap_fc_rate_cog:
             self.proseka_rankmatch_cog.ap_fc_rate_cog = self.pjsk_ap_fc_rate_cog
             logging.info("Set ap_fc_rate_cog reference in ProsekaRankMatchCommands.")
+        else:
+            logging.warning("Could not link ProsekaRankMatchCommands and PjskApFcRateCommands cog.")
         
-        if not self.proseka_rankmatch_cog or not self.pjsk_ap_fc_rate_cog:
-            logging.warning("Could not get ProsekaRankMatchCommands or PjskApFcRateCommands cog for linking. Check cog names or load order.")
-
-
         # コマンドの同期
         logging.info("Attempting to sync commands...")
         try:
@@ -169,7 +203,7 @@ class MyBot(commands.Bot):
                 synced_guild_commands = await self.tree.sync(guild=support_guild)
                 logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {GUILD_ID}.")
             else:
-                logging.warning("GUILD_ID is not set or invalid. Skipping guild command sync.")
+                logging.warning("GUILD_ID is not set or invalid (0). Skipping guild command sync.")
 
         except Exception as e:
             logging.error(f"Failed to sync commands: {e}", exc_info=True)
@@ -189,7 +223,7 @@ class MyBot(commands.Bot):
         for song in self.proseka_songs_data:
             # "easy", "normal", "hard", "expert", "master", "append" のキーを持つか確認
             # 存在すれば譜面としてカウント
-            total_charts += sum(1 for diff in ["easy", "normal", "hard", "expert", "master", "append"] if diff in song and song[diff] is not None)
+            total_charts += sum(1 for diff in self.valid_difficulties_data if diff.lower() in song and song[diff.lower()] is not None)
         
         activity_message = f"{total_songs}曲/{total_charts}譜面が登録済み"
         await self.change_presence(activity=discord.Game(name=activity_message))
@@ -253,6 +287,7 @@ class MyBot(commands.Bot):
 
 
 # _create_song_data_map 関数は pjsk_record_result.py にあるため、ここからインポート
+# main.py の setup_hook で使用するために必要
 from cogs.pjsk_record_result import _create_song_data_map
 
 
