@@ -1,40 +1,17 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from discord.ui import Button, View, Modal, TextInput
+from discord.ui import Button, View, Modal, TextInput, Select # Select もインポート
 import json
 import os
 import re
 import traceback
-import logging # logging モジュールをインポート
+import logging
 
 # ロギング設定は main.py で一元的に行われるため、ここでは追加設定は不要
 
-# ★削除: songs.py の直接インポートとパス操作を削除
-# current_cog_dir = os.path.dirname(os.path.abspath(__file__))
-# project_root_dir = os.path.abspath(os.path.join(current_cog_dir, '..'))
-# data_dir = os.path.join(project_root_dir, 'data')
-# if data_dir not in sys.path:
-#     sys.path.insert(0, data_dir)
-# try:
-#     from songs import proseka_songs
-#     SONG_DATA_MAP = {}
-#     for song_data in proseka_songs:
-#         if "title" in song_data:
-#             SONG_DATA_MAP[song_data["title"].lower()] = song_data
-#     print("DEBUG: songs.py loaded successfully and SONG_DATA_MAP created.")
-# except ImportError:
-#     print("ERROR: songs.py not found. Song data (images, levels) will not be available.")
-#     print(f"DEBUG: sys.path contents: {sys.path}")
-#     SONG_DATA_MAP = {}
-# except Exception as e:
-#     print(f"ERROR: Failed to load songs.py or create SONG_DATA_MAP: {e}")
-#     traceback.print_exc()
-#     SONG_DATA_MAP = {}
-# finally:
-#     pass
-
 # songs.py のデータを SONGS_DATA_MAP に変換する関数
+# ★修正: この関数をコグクラスの外に移動し、グローバル関数として定義
 def _create_song_data_map(songs_list):
     song_map = {}
     for song in songs_list:
@@ -72,11 +49,11 @@ def save_all_records(data):
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 class AccuracyRecordModal(Modal, title="新規記録"):
-    def __init__(self, bot: commands.Bot, user_id: int, song_data_map: dict): # ★追加: song_data_map を引数に追加
+    def __init__(self, bot: commands.Bot, user_id: int, song_data_map: dict):
         super().__init__()
         self.bot = bot
         self.user_id = str(user_id)
-        self.song_data_map = song_data_map # ★追加: song_data_map をインスタンス変数に保存
+        self.song_data_map = song_data_map
 
         self.song_name = TextInput(
             label="曲名",
@@ -151,11 +128,11 @@ class AccuracyRecordModal(Modal, title="新規記録"):
         logging.info(f"New record saved for user {interaction.user.name}: Song '{song_name_input}', Difficulty '{difficulty_input}'.")
 
         current_record = user_data["records"][song_name_input][difficulty_input]
-        embed = UpdateRecordModal.create_display_embed(interaction.user, song_name_input, difficulty_input, current_record, self.song_data_map) # ★変更: song_data_map を渡す
+        embed = UpdateRecordModal.create_display_embed(interaction.user, song_name_input, difficulty_input, current_record, self.song_data_map)
         embed.title = "新しい記録を作成しました！"
         embed.description = "この記録を更新するには「リザルトを更新」ボタンを使用してください。"
 
-        view = RecordAccuracyView(self.bot, int(self.user_id), song_name_input, difficulty_input, self.song_data_map) # ★変更: song_data_map を渡す
+        view = RecordAccuracyView(self.bot, int(self.user_id), song_name_input, difficulty_input, self.song_data_map)
         view.set_button_states(has_record=True)
 
         await interaction.response.send_message(embed=embed, view=view)
@@ -175,13 +152,13 @@ class AccuracyRecordModal(Modal, title="新規記録"):
         )
 
 class UpdateRecordModal(Modal, title="記録を更新"):
-    def __init__(self, bot: commands.Bot, user_id: int, song_name: str, difficulty: str, song_data_map: dict): # ★追加: song_data_map を引数に追加
+    def __init__(self, bot: commands.Bot, user_id: int, song_name: str, difficulty: str, song_data_map: dict):
         super().__init__()
         self.bot = bot
         self.user_id = str(user_id)
         self.song_name = song_name
         self.difficulty = difficulty
-        self.song_data_map = song_data_map # ★追加: song_data_map をインスタンス変数に保存
+        self.song_data_map = song_data_map
 
         self.accuracy = TextInput(
             label="精度 (GREAT-GOOD-BAD-MISS)",
@@ -292,10 +269,10 @@ class UpdateRecordModal(Modal, title="記録を更新"):
         save_all_records(all_records)
         logging.info(f"Record updated for user {interaction.user.name}: Song '{self.song_name}', Difficulty '{self.difficulty}'.")
 
-        updated_embed = self.create_display_embed(interaction.user, self.song_name, self.difficulty, current_record, self.song_data_map) # ★変更: song_data_map を渡す
+        updated_embed = self.create_display_embed(interaction.user, self.song_name, self.difficulty, current_record, self.song_data_map)
         updated_embed.description = "記録が更新されました！"
 
-        view = RecordAccuracyView(self.bot, int(self.user_id), self.song_name, self.difficulty, self.song_data_map) # ★変更: song_data_map を渡す
+        view = RecordAccuracyView(self.bot, int(self.user_id), self.song_name, self.difficulty, self.song_data_map)
         view.set_button_states(has_record=True)
 
         await interaction.response.send_message(embed=updated_embed, view=view)
@@ -315,8 +292,8 @@ class UpdateRecordModal(Modal, title="記録を更新"):
         )
 
     @staticmethod
-    def create_display_embed(user: discord.Member, song: str, diff: str, record: dict, song_data_map: dict): # ★追加: song_data_map を引数に追加
-        song_info = song_data_map.get(song.lower()) # ★変更: 渡された song_data_map を使用
+    def create_display_embed(user: discord.Member, song: str, diff: str, record: dict, song_data_map: dict):
+        song_info = song_data_map.get(song.lower())
 
         logging.debug(f"create_display_embed called for song: '{song}', diff: '{diff}'.")
         logging.debug(f"retrieved song_info: {song_info}")
@@ -394,13 +371,13 @@ class UpdateRecordModal(Modal, title="記録を更新"):
         return embed
 
 class ConfirmResetView(View):
-    def __init__(self, bot: commands.Bot, user_id: int, song_data_map: dict): # ★追加: song_data_map を引数に追加
+    def __init__(self, bot: commands.Bot, user_id: int, song_data_map: dict):
         super().__init__(timeout=86400) # 24時間
         self.bot = bot
         self.user_id = user_id
         self.confirmed_step_1 = False
         self.message = None
-        self.song_data_map = song_data_map # ★追加: song_data_map をインスタンス変数に保存
+        self.song_data_map = song_data_map
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user_id:
@@ -433,8 +410,7 @@ class ConfirmResetView(View):
                     color=discord.Color.red()
                 )
                 if self.message:
-                    # RecordAccuracyView を再生成する際に song_data_map を渡す必要がある
-                    original_command_view = RecordAccuracyView(self.bot, self.user_id, song_data_map=self.song_data_map) # ★変更: song_data_map を渡す
+                    original_command_view = RecordAccuracyView(self.bot, self.user_id, song_data_map=self.song_data_map)
                     original_command_view.set_button_states(has_record=False)
 
                     try:
@@ -482,14 +458,14 @@ class ConfirmResetView(View):
                 logging.error(f"Error removing ConfirmResetView on timeout: {e}", exc_info=True)
 
 class RecordAccuracyView(View):
-    def __init__(self, bot: commands.Bot, user_id: int, song_name: str = None, difficulty: str = None, song_data_map: dict = None): # ★追加: song_data_map を引数に追加
+    def __init__(self, bot: commands.Bot, user_id: int, song_name: str = None, difficulty: str = None, song_data_map: dict = None):
         super().__init__(timeout=86400) # 24時間
         self.bot = bot
         self.user_id = user_id
         self.current_song = song_name
         self.current_difficulty = difficulty
         self.message = None
-        self.song_data_map = song_data_map # ★追加: song_data_map をインスタンス変数に保存
+        self.song_data_map = song_data_map
         logging.info("RecordAccuracyView initialized.")
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -516,7 +492,7 @@ class RecordAccuracyView(View):
     @discord.ui.button(label="精度を記録", style=discord.ButtonStyle.primary, custom_id="record_accuracy_button")
     async def record_accuracy_button_callback(self, interaction: discord.Interaction, button: Button):
         logging.info(f"User {interaction.user.name} clicked 'Record Accuracy'.")
-        modal = AccuracyRecordModal(self.bot, self.user_id, self.song_data_map) # ★変更: song_data_map を渡す
+        modal = AccuracyRecordModal(self.bot, self.user_id, self.song_data_map)
         await interaction.response.send_modal(modal)
 
     @discord.ui.button(label="リザルトを更新", style=discord.ButtonStyle.success, custom_id="update_record_button")
@@ -527,7 +503,7 @@ class RecordAccuracyView(View):
             await interaction.response.send_message("更新する曲と難易度が特定できません。`/pjsk_record_result`を再実行し、まず新規記録を作成してください。", ephemeral=True)
             return
 
-        modal = UpdateRecordModal(self.bot, self.user_id, self.current_song, self.current_difficulty, self.song_data_map) # ★変更: song_data_map を渡す
+        modal = UpdateRecordModal(self.bot, self.user_id, self.current_song, self.current_difficulty, self.song_data_map)
         await interaction.response.send_modal(modal)
 
     @discord.ui.button(label="リセット", style=discord.ButtonStyle.danger, custom_id="reset_accuracy_button")
@@ -538,7 +514,7 @@ class RecordAccuracyView(View):
             description="本当に全ての精度記録をリセットしますか？この操作は取り消せません。",
             color=discord.Color.orange()
         )
-        confirm_view = ConfirmResetView(self.bot, self.user_id, self.song_data_map) # ★変更: song_data_map を渡す
+        confirm_view = ConfirmResetView(self.bot, self.user_id, self.song_data_map)
 
         confirm_view.message = self.message
 
@@ -565,11 +541,10 @@ class RecordAccuracyView(View):
 
 
 class PjskRecordResult(commands.Cog):
-    # ★変更: songs_data を引数として受け取る
     def __init__(self, bot: commands.Bot, songs_data: list = None):
         self.bot = bot
-        # ★変更: 外部から渡されたデータを使用
         self.songs_data = songs_data if songs_data is not None else []
+        # ★修正: グローバル関数 _create_song_data_map を直接呼び出す
         self.SONG_DATA_MAP = _create_song_data_map(self.songs_data)
         logging.info("PjskRecordResult Cog initialized.")
         logging.debug(f"SONG_DATA_MAP created with {len(self.SONG_DATA_MAP)} entries.")
@@ -624,14 +599,12 @@ class PjskRecordResult(commands.Cog):
                 last_song = last_record_data.get("song")
                 last_difficulty = last_record_data.get("difficulty")
 
-        # ★変更: RecordAccuracyView に song_data_map を渡す
         view = RecordAccuracyView(self.bot, interaction.user.id, last_song, last_difficulty, self.SONG_DATA_MAP)
 
         embed = None
         if has_user_records and last_song and last_difficulty and \
            last_song in user_data["records"] and last_difficulty in user_data["records"][last_song]:
             current_record = user_data["records"][last_song][last_difficulty]
-            # ★変更: create_display_embed に song_data_map を渡す
             embed = UpdateRecordModal.create_display_embed(interaction.user, last_song, last_difficulty, current_record, self.SONG_DATA_MAP)
 
             embed.description = "以下のボタンから操作を選択してください。"
@@ -672,19 +645,11 @@ class PjskRecordResult(commands.Cog):
                     pass
 
 
-# ★変更: setup 関数が songs_data を引数として受け取る
 async def setup(bot: commands.Bot):
     os.makedirs(DATA_DIR, exist_ok=True)
     # main.py から songs_data が設定されるのを待つ
     # setup_hookの実行順序により、bot.proseka_songs_data は既に設定されているはず
     songs_data = bot.proseka_songs_data if hasattr(bot, 'proseka_songs_data') else []
-    cog = PjskRecordResult(bot, songs_data=songs_data) # ★変更: 引数を渡す
+    cog = PjskRecordResult(bot, songs_data=songs_data)
     await bot.add_cog(cog)
     logging.info("PjskRecordResult cog loaded.")
-
-    # ログ出力は main.py の setup_hook で一元的に行うため、ここでは不要
-    # for command in bot.tree.walk_commands():
-    #     if command.name == "pjsk_record_result":
-    #         logging.debug(f"'/pjsk_record_result' command found in bot.tree after cog load setup.")
-    #         logging.debug(f"- Command name: {command.name}")
-    #         break
