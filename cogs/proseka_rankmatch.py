@@ -5,6 +5,8 @@ import random
 import os
 from dotenv import load_dotenv
 import traceback
+import json # ★追加: JSONファイルを扱うために必要
+import time # ★追加: 処理時間計測のために必要
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -74,24 +76,35 @@ class ProsekaRankMatchCommands(commands.Cog):
 
     def _load_songs_data(self):
         """
-        data/songs.py から楽曲データを読み込み、ProsekaGeneralCommands と同じ形式に変換して返します。
+        data/songs.json から楽曲データを読み込み、適切な形式に変換して返します。
         """
+        json_file_path = 'data/songs.json'
+        start_time = time.time() # ★追加: 処理時間計測開始
+        print(f"DEBUG: Starting _load_songs_data from {json_file_path}...")
         try:
-            _globals = {}
-            with open('data/songs.py', 'r', encoding='utf-8') as f:
-                exec(f.read(), _globals)
+            with open(json_file_path, 'r', encoding='utf-8') as f:
+                loaded_data = json.load(f) # ★変更: json.load() を使用
 
-            loaded_proseka_songs = _globals.get('proseka_songs', [])
-            self.valid_difficulties = _globals.get('VALID_DIFFICULTIES', ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"])
+            # songs.jsonが直接リストの場合と、{"proseka_songs": [...], "VALID_DIFFICULTIES": [...]} のオブジェクトの場合に対応
+            if isinstance(loaded_data, dict):
+                loaded_proseka_songs = loaded_data.get('proseka_songs', [])
+                self.valid_difficulties = loaded_data.get('VALID_DIFFICULTIES', ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"])
+            elif isinstance(loaded_data, list):
+                loaded_proseka_songs = loaded_data
+                self.valid_difficulties = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"] # リストの場合はデフォルトを使用
+            else:
+                print(f"ERROR (rankmatch): Unexpected data format in {json_file_path}. Expected dict or list. Type: {type(loaded_data)}. Returning empty list.")
+                return []
+
 
             formatted_songs = []
             if not isinstance(loaded_proseka_songs, list):
-                print(f"ERROR (rankmatch): proseka_songs in data/songs.py is not a list. Type: {type(loaded_proseka_songs)}. Returning empty list.")
+                print(f"ERROR (rankmatch): 'proseka_songs' in {json_file_path} is not a list. Type: {type(loaded_proseka_songs)}. Returning empty list.")
                 return []
 
             for i, song_item in enumerate(loaded_proseka_songs):
                 if not isinstance(song_item, dict):
-                    print(f"WARNING (rankmatch): Item {i+1} in proseka_songs is not a dictionary. Skipping: {song_item}")
+                    print(f"WARNING (rankmatch): Item {i+1} in {json_file_path} is not a dictionary. Skipping: {song_item}")
                     continue
 
                 formatted_song = {
@@ -107,13 +120,18 @@ class ProsekaRankMatchCommands(commands.Cog):
 
                 formatted_songs.append(formatted_song)
 
+            print(f"DEBUG: Successfully loaded {len(formatted_songs)} songs from {json_file_path} in {time.time() - start_time:.4f} seconds.") # ★変更: 処理時間出力
             return formatted_songs
 
         except FileNotFoundError:
-            print("CRITICAL ERROR (rankmatch): data/songs.py not found. Please ensure it's in the 'data' folder. Returning empty list.")
+            print(f"CRITICAL ERROR (rankmatch): {json_file_path} not found. Please ensure it's in the 'data' folder. Returning empty list.")
+            return []
+        except json.JSONDecodeError as e: # ★追加: JSON形式エラーのハンドリング
+            print(f"CRITICAL ERROR (rankmatch): Error decoding JSON from {json_file_path}: {e}. Please check JSON format. Returning empty list.")
+            traceback.print_exc()
             return []
         except Exception as e:
-            print(f"CRITICAL ERROR (rankmatch): Error loading data/songs.py or converting data: {e}. Returning empty list.")
+            print(f"CRITICAL ERROR (rankmatch): Error loading or converting data from {json_file_path}: {e}. Returning empty list.")
             traceback.print_exc()
             return []
 
@@ -218,7 +236,6 @@ class ProsekaRankMatchCommands(commands.Cog):
         await interaction.followup.send(embed=embed, ephemeral=False)
 
         # AP/FCレート表示がある場合、既存のメッセージを削除して更新する
-        # ★ここを修正しました★
         if self.ap_fc_rate_cog:
             try:
                 await self.ap_fc_rate_cog.update_ap_fc_rate_display(interaction.user.id, interaction.channel)
