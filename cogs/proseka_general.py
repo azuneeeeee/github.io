@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 import asyncio
 import traceback
 import logging
-from discord.ui import Button, View, Modal, TextInput, Select # ★修正: Button をインポート
+from discord.ui import Button, View, Modal, TextInput, Select # Button をインポート
 
 load_dotenv()
 
@@ -78,7 +78,7 @@ class ProsekaGeneralCommands(commands.Cog):
 
         logging.info(f"Bot is ready. Proceeding with defer for '{interaction.command.name}'.")
         try:
-            # ★修正: わずかな遅延を挿入
+            # わずかな遅延を挿入
             await asyncio.sleep(0.1)
             await interaction.response.defer(ephemeral=False)
             logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
@@ -150,7 +150,7 @@ class ProsekaGeneralCommands(commands.Cog):
 
         logging.info(f"Bot is ready. Proceeding with defer for '{interaction.command.name}'.")
         try:
-            # ★修正: わずかな遅延を挿入
+            # わずかな遅延を挿入
             await asyncio.sleep(0.1)
             await interaction.response.defer(ephemeral=False)
             logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
