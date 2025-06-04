@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord import app_commands, ui
 from typing import List, Tuple, Dict, Any
 import traceback
-import logging # ロギングを追加
+import logging
 
 class RankmatchResultModal(ui.Modal, title="ランクマッチ結果入力"):
     """
@@ -259,11 +259,13 @@ class RankmatchResultModal(ui.Modal, title="ランクマッチ結果入力"):
 class ProsekaRankmatchResult(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        logging.info("ProsekaRankmatchResult cog initialized.") # ロギングを追加
+        # コグの初期化時に bot.GUILD_ID を取得して保存
+        self.guild_id = bot.GUILD_ID if hasattr(bot, 'GUILD_ID') else 0
+        logging.info(f"ProsekaRankmatchResult cog initialized with guild_id: {self.guild_id}.") # ロギングを追加
 
     @app_commands.command(name="pjsk_rankmatch_result", description="ランクマッチの結果を投稿・集計します。(最大5人対応)")
-    # bot.GUILD_ID を直接使用する
-    @app_commands.guilds(discord.Object(id=bot.GUILD_ID))
+    # クラス属性 self.guild_id を使用
+    @app_commands.guilds(discord.Object(id=self.guild_id))
     async def pjsk_rankmatch_result(self, interaction: discord.Interaction):
         """ランクマッチの結果を入力するためのモーダルを表示します。"""
         logging.info(f"Command '/pjsk_rankmatch_result' invoked by {interaction.user.name} (ID: {interaction.user.id}).") # ロギングを追加
