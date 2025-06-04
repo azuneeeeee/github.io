@@ -63,14 +63,17 @@ class ProsekaGeneralCommands(commands.Cog):
     async def pjsk_list_songs(self, interaction: discord.Interaction):
         logging.info(f"Command '/pjsk_list_songs' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
         
+        # defer を最速で試みる
         try:
             await interaction.response.defer(ephemeral=False)
             logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
         except discord.errors.NotFound:
             logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound). This will be caught by global error handler.", exc_info=True)
+            # deferに失敗した場合は、これ以上処理を進めない
             return
         except Exception as e:
             logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
+            # deferに失敗した場合は、これ以上処理を進めない
             return
 
         if not self.bot.is_bot_ready:
@@ -246,18 +249,17 @@ class SongListView(discord.ui.View):
 
         filter_display_name = self.current_difficulty_filter if self.current_difficulty_filter else "なし"
 
-        # ★ここから修正
+        # フッターの楽曲総数表示を修正
         total_songs_count_for_footer = len(self.original_songs_data)
         total_songs_label = "全"
 
-        if self.current_difficulty_filter == "APPEND":
+        if self.current_difficulty_filter and self.current_difficulty_filter.lower() == "append":
             # APPEND譜面がある楽曲のみをカウント
             total_songs_with_append = sum(1 for song in self.original_songs_data if self.get_difficulty_level_func(song, "APPEND") is not None)
             total_songs_count_for_footer = total_songs_with_append
             total_songs_label = "APPEND譜面あり" # ラベルを変更
 
         embed.set_footer(text=f"{total_songs_label} {total_songs_count_for_footer} 曲 | ページ {self.current_page + 1}/{self.total_pages} | ソート: {sort_display_name} | フィルター: {filter_display_name}")
-        # ★ここまで修正
 
         return embed
 
@@ -284,6 +286,8 @@ class SongListView(discord.ui.View):
                 await self.message.edit(embed=embed, view=self)
                 logging.info(f"SongListView message {self.message.id} updated.")
             else:
+                # interaction.response.edit_message は interaction.response.defer() が既に成功している場合にのみ使用可能
+                # ここでは defer が成功している前提なので問題ない
                 await interaction.response.edit_message(embed=embed, view=self)
                 logging.info(f"SongListView interaction response edited.")
         except discord.NotFound:
