@@ -1,4 +1,4 @@
-[
+{
   "proseka_songs": [
     {
       "title": "Tell Your World",
@@ -5491,4 +5491,5 @@
     "master": 28,
     "append": null
   }
-]
+ ]
+}
