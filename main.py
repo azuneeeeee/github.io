@@ -93,6 +93,7 @@ class MyBot(commands.Bot):
                 # ★★★ ここが重要な修正点です！ ★★★
                 # load_extension に songs_data や valid_difficulties を渡さないでください。
                 # これらのデータはコグがロードされた後、get_cog() でインスタンスを取得して設定します。
+                # あなたのログの 87行目と 89行目のエラーは、この部分がまだ修正されていないことを示しています。
                 await self.load_extension(extension)
                 logging.info(f"Successfully loaded {extension}")
             except Exception as e:
