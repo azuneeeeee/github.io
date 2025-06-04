@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from data.songs import proseka_songs, VALID_DIFFICULTIES
+# from data.songs import proseka_songs, VALID_DIFFICULTIES # ★削除: 直接インポートを削除
 import random
 import os
 from dotenv import load_dotenv
@@ -11,7 +11,17 @@ import traceback
 # .envファイルから環境変数を読み込む
 load_dotenv()
 
-OWNER_ID = int(os.getenv('OWNER_ID'))
+# OWNER_ID の処理は main.py と同じようにする
+_owner_id_str = os.getenv('OWNER_ID')
+if _owner_id_str is None:
+    print("CRITICAL ERROR: OWNER_ID environment variable is not set. Please set it in Render's Environment settings.")
+    OWNER_ID = -1
+else:
+    try:
+        OWNER_ID = int(_owner_id_str)
+    except ValueError:
+        print(f"CRITICAL ERROR: OWNER_ID environment variable '{_owner_id_str}' is not a valid integer. Please check Render's Environment settings.")
+        OWNER_ID = -1
 
 def is_owner_global(interaction: discord.Interaction) -> bool:
     """
@@ -20,7 +30,8 @@ def is_owner_global(interaction: discord.Interaction) -> bool:
     return interaction.user.id == OWNER_ID
 
 class ProsekaGeneralCommands(commands.Cog):
-    def __init__(self, bot):
+    # ★変更: songs_data と valid_difficulties を引数として受け取る
+    def __init__(self, bot, songs_data: list = None, valid_difficulties: list = None):
         self.bot = bot
         self.owner_id = OWNER_ID
 
@@ -34,11 +45,17 @@ class ProsekaGeneralCommands(commands.Cog):
             "APPEND": discord.Color(0xFFC0CB)
         }
 
-        self.songs_data = proseka_songs
-        self.valid_difficulties = VALID_DIFFICULTIES
+        # ★変更: 外部から渡されたデータを使用
+        self.songs_data = songs_data if songs_data is not None else []
+        self.valid_difficulties = valid_difficulties if valid_difficulties is not None else ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
 
         # main.py で設定されることを期待する ap_fc_rate_cog の参照
         self.ap_fc_rate_cog = None  # 初期化時はNoneのまま。main.pyでセットされる。
+
+        # ★追加: AP/FCレート表示の更新を有効にするかどうかのフラグ
+        # False に設定することで、デフォルトで更新を行わないようにします。
+        self.should_update_ap_fc_rate_display = False
+        print(f"INFO: ProsekaGeneralCommands - AP/FCレート表示の自動更新は現在 {'有効' if self.should_update_ap_fc_rate_display else '無効'} に設定されています。")
 
         print("DEBUG: ProsekaGeneralCommands.__init__ completed.")
         print(f"DEBUG: ProsekaGeneralCommands __init__ - initial ap_fc_rate_cog: {self.ap_fc_rate_cog}")
@@ -47,15 +64,6 @@ class ProsekaGeneralCommands(commands.Cog):
         else:
             print("DEBUG: No songs loaded or songs_data is empty.")
         print("DEBUG: Valid Difficulties loaded:", self.valid_difficulties)
-
-    # ★ cog_load メソッドを削除しました。ap_fc_rate_cog の設定は main.py で行われます。
-    # async def cog_load(self):
-    #     await self.bot.wait_until_ready()
-    #     self.ap_fc_rate_cog = self.bot.get_cog("PjskApFcRateCommands")
-    #     if self.ap_fc_rate_cog:
-    #         print("DEBUG: Successfully got PjskApFcRateCommands cog in ProsekaGeneralCommands.")
-    #     else:
-    #         print("WARNING: PjskApFcRateCommands cog not found in ProsekaGeneralCommands. AP/FC rate integration will not work.")
 
     def _get_difficulty_level(self, song: dict, difficulty_name: str) -> int | None:
         """
@@ -256,34 +264,16 @@ class ProsekaGeneralCommands(commands.Cog):
         await interaction.followup.send(embed=embed, ephemeral=False)
         print("DEBUG: Embed sent successfully.")
 
-        # AP/FCレート表示がある場合、既存のメッセージを削除して更新する
-        if self.ap_fc_rate_cog:
-            # ap_fc_rate_cog.get_last_message_info が存在することを確認
-            if hasattr(self.ap_fc_rate_cog, 'get_last_message_info'):
-                last_msg_info = self.ap_fc_rate_cog.get_last_message_info(interaction.user.id)
-                # auto_update のデフォルト値は True にしておく (情報がない場合は自動更新を想定)
-                if last_msg_info and last_msg_info.get('auto_update', True): 
-                    try:
-                        await self.ap_fc_rate_cog.update_ap_fc_rate_display(interaction.user.id, interaction.channel)
-                        print("DEBUG: AP/FC rate display updated for /pjsk_random_song.")
-                    except Exception as e:
-                        print(f"ERROR: Error updating AP/FC rate display for /pjsk_random_song: {e}")
-                        traceback.print_exc()
-                else:
-                    print(f"DEBUG: AP/FC rate auto-update is disabled for user {interaction.user.id}. Skipping update.")
-            else:
-                print("WARNING: ap_fc_rate_cog does not have 'get_last_message_info' method. Skipping auto-update.")
+        # AP/FCレート表示がある場合、かつ should_update_ap_fc_rate_display が True の場合のみ更新
+        if self.ap_fc_rate_cog and self.should_update_ap_fc_rate_display: # ★変更: フラグを追加
+            try:
+                await self.ap_fc_rate_cog.update_ap_fc_rate_display(interaction.user.id, interaction.channel)
+                print("DEBUG: AP/FC rate display updated for /pjsk_random_song.")
+            except Exception as e:
+                print(f"ERROR: Error updating AP/FC rate display for /pjsk_random_song: {e}")
+                traceback.print_exc()
         else:
-            print("DEBUG: ap_fc_rate_cog not available for /pjsk_random_song, skipping update.")
-
-
-async def setup(bot):
-    """
-    コグをボットに追加します。
-    """
-    cog = ProsekaGeneralCommands(bot)
-    await bot.add_cog(cog)
-    print("ProsekaGeneralCommands cog loaded and commands added.")
+            print("DEBUG: AP/FC rate display update skipped for /pjsk_random_song (cog not available or update disabled).")
 
 
 # SongListViewクラス群 (変更なし)
@@ -535,17 +525,16 @@ class SongListView(discord.ui.View):
                     if hasattr(item, 'disabled'): # ボタンやセレクトメニューにdisabled属性があるか確認
                         item.disabled = True
                 await self.message.edit(view=self)
-            # discord.NotFound は、既にメッセージが削除されている場合に発生。無視して良い。
             except discord.NotFound:
                 pass
             except Exception as e:
                 print(f"ERROR: Failed to disable buttons on timeout for user {self.original_user_id}: {e}")
                 traceback.print_exc()
 
-async def setup(bot):
-    """
-    コグをボットに追加します。
-    """
-    cog = ProsekaGeneralCommands(bot)
+
+# ★変更: setup 関数が songs_data と valid_difficulties を引数として受け取る
+async def setup(bot, songs_data: list, valid_difficulties: list):
+    cog = ProsekaGeneralCommands(bot, songs_data=songs_data, valid_difficulties=valid_difficulties) # ★変更: 引数を渡す
     await bot.add_cog(cog)
     print("ProsekaGeneralCommands cog loaded and commands added.")
+
