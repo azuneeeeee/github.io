@@ -3,7 +3,7 @@ from discord.ext import commands
 import os
 from dotenv import load_dotenv
 import traceback
-from data.songs import proseka_songs, VALID_DIFFICULTIES
+import asyncio # asyncio をインポート
 
 load_dotenv()
 
@@ -30,20 +30,76 @@ class MyBot(commands.Bot):
             'cogs.pjsk_ap_fc_rate',      
             'cogs.proseka_general',      
             'cogs.help_command',
-            'cogs.proseka_rankmatch', # このコグ
+            'cogs.proseka_rankmatch',
             'cogs.pjsk_rankmatch_result',
             'cogs.pjsk_record_result'    
         ]
 
         self.total_songs = 0
         self.total_charts = 0
+        self.proseka_songs_data = [] # 楽曲データをここに保持
+        self.valid_difficulties_data = [] # 難易度データをここに保持
+
+    async def _load_songs_data_async(self):
+        """data/songs.py から楽曲データを非同期で読み込む"""
+        songs_file_path = 'data/songs.py'
+        try:
+            loop = asyncio.get_running_loop()
+            with open(songs_file_path, 'r', encoding='utf-8') as f:
+                file_content = await loop.run_in_executor(None, f.read)
+            
+            _globals = {}
+            await loop.run_in_executor(None, exec, file_content, _globals)
+
+            self.proseka_songs_data = _globals.get('proseka_songs', [])
+            self.valid_difficulties_data = _globals.get('VALID_DIFFICULTIES', ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"])
+            
+            # 読み込んだデータがリストであることを確認
+            if not isinstance(self.proseka_songs_data, list):
+                print(f"ERROR (main.py): proseka_songs in {songs_file_path} is not a list. Type: {type(self.proseka_songs_data)}. Using empty list.")
+                self.proseka_songs_data = []
+
+            if not isinstance(self.valid_difficulties_data, list):
+                print(f"ERROR (main.py): VALID_DIFFICULTIES in {songs_file_path} is not a list. Type: {type(self.valid_difficulties_data)}. Using default list.")
+                self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
+
+            print(f"DEBUG (main.py): {songs_file_path} から {len(self.proseka_songs_data)} 曲の楽曲データを非同期で正常に読み込みました。")
+
+        except FileNotFoundError:
+            print(f"CRITICAL ERROR (main.py): {songs_file_path} が見つかりません。'data'フォルダにあることを確認してください。")
+            self.proseka_songs_data = []
+            self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"] # デフォルトを設定
+        except Exception as e:
+            print(f"CRITICAL ERROR (main.py): Error executing {songs_file_path} or converting data: {e}.")
+            traceback.print_exc()
+            self.proseka_songs_data = []
+            self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"] # デフォルトを設定
 
     async def setup_hook(self) -> None:
         print("Running setup_hook...")
+        # まず楽曲データを非同期で読み込む
+        await self._load_songs_data_async()
+
         for extension in self.initial_extensions:
             print(f"DEBUG: Attempting to load {extension}...")
             try:
-                await self.load_extension(extension)
+                # ★修正: ProsekaGeneralCommands と ProsekaRankMatchCommands に楽曲データを渡す
+                if extension == 'cogs.proseka_general':
+                    cog_instance = self.get_cog("ProsekaGeneralCommands")
+                    if cog_instance: # 既にロード済みの場合があるためチェック
+                        cog_instance.songs_data = self.proseka_songs_data
+                        cog_instance.valid_difficulties = self.valid_difficulties_data
+                    else:
+                        await self.load_extension(extension, songs_data=self.proseka_songs_data, valid_difficulties=self.valid_difficulties_data)
+                elif extension == 'cogs.proseka_rankmatch':
+                    cog_instance = self.get_cog("ProsekaRankMatchCommands")
+                    if cog_instance: # 既にロード済みの場合があるためチェック
+                        cog_instance.songs_data = self.proseka_songs_data
+                        cog_instance.valid_difficulties = self.valid_difficulties_data
+                    else:
+                        await self.load_extension(extension, songs_data=self.proseka_songs_data, valid_difficulties=self.valid_difficulties_data)
+                else:
+                    await self.load_extension(extension)
                 print(f"DEBUG: Successfully loaded {extension}")
             except Exception as e:
                 print(f"ERROR: Failed to load {extension}: {e}")
@@ -52,7 +108,7 @@ class MyBot(commands.Bot):
         try:
             proseka_general_cog = self.get_cog("ProsekaGeneralCommands")
             ap_fc_rate_cog = self.get_cog("PjskApFcRateCommands") 
-            rankmatch_cog = self.get_cog("ProsekaRankMatchCommands") # ★ ProsekaRankMatchCommands を取得
+            rankmatch_cog = self.get_cog("ProsekaRankMatchCommands")
 
             print(f"DEBUG: setup_hook - After loading cogs. proseka_general_cog: {proseka_general_cog}, ap_fc_rate_cog: {ap_fc_rate_cog}, rankmatch_cog: {rankmatch_cog}") 
 
@@ -62,7 +118,6 @@ class MyBot(commands.Bot):
             else:
                 print("WARNING: Could not get ProsekaGeneralCommands or PjskApFcRateCommands cog for linking. Check cog names or load order.")
 
-            # ★ ここにPjskRankMatchCommands への参照設定を追加します
             if rankmatch_cog and ap_fc_rate_cog:
                 rankmatch_cog.ap_fc_rate_cog = ap_fc_rate_cog
                 print("DEBUG: Set ap_fc_rate_cog reference in ProsekaRankMatchCommands.")
@@ -95,11 +150,12 @@ class MyBot(commands.Bot):
         print(f'Logged in as {self.user} (ID: {self.user.id})')
         print('------')
 
-        self.total_songs = len(proseka_songs)
+        # ★修正: 読み込んだデータを使用
+        self.total_songs = len(self.proseka_songs_data)
         self.total_charts = 0
-        for song in proseka_songs:
+        for song in self.proseka_songs_data:
             chart_count_for_song = 0
-            for diff_key in VALID_DIFFICULTIES:
+            for diff_key in self.valid_difficulties_data:
                 if song.get(diff_key.lower()) is not None:
                     chart_count_for_song += 1
             self.total_charts += chart_count_for_song
