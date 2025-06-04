@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import asyncio
 import traceback
 import logging
+from discord.ui import Button, View, Modal, TextInput, Select # ★修正: Button をインポート
 
 load_dotenv()
 
