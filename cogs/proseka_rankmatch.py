@@ -6,11 +6,8 @@ import os
 from dotenv import load_dotenv
 import traceback
 
-# .envファイルから環境変数を読み込む
 load_dotenv()
 
-# main.py の OWNER_ID と同じ値をここに設定してください
-# 環境変数から読み込む
 _owner_id_str = os.getenv('OWNER_ID')
 if _owner_id_str is None:
     print("CRITICAL ERROR: OWNER_ID environment variable is not set. Please set it in Render's Environment settings.")
@@ -90,27 +87,27 @@ class ProsekaRankMatchCommands(commands.Cog):
         interaction: discord.Interaction,
         rank: str,
     ):
-        # ★追加: ボットが完全に準備完了しているかチェック
+        # ★修正: ボットが完全に準備完了しているかチェック
         if not self.bot.is_bot_ready:
-            print(f"DEBUG: Bot not ready for command /pjsk_rankmatch_song. User: {interaction.user.name}")
-            # interaction.response.defer() の前に応答する必要があるため、followup.send は使えない
-            # 既に defer() が失敗している状況なので、直接 interaction.response.send_message を試みる
-            # ただし、これも失敗する可能性があるので、try-except で囲む
+            print(f"DEBUG: Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}")
+            # defer() の前に応答する必要があるため、ここで直接応答を試みる
+            # ただし、既にタイムアウトしている可能性もあるため、try-except で囲む
             try:
-                # すでに応答済みでないことを確認してから応答
                 if not interaction.response.is_done():
                     await interaction.response.send_message("ボットがまだ起動中です。しばらくお待ちください。", ephemeral=True)
-                else:
-                    # 既に応答済みの場合（例: 別のエラーハンドラが応答した）、何もしない
-                    pass
+                return # 応答したら処理を中断
             except discord.errors.InteractionResponded:
-                # すでに応答済みの場合の例外を捕捉
-                pass
+                # 既に何らかの理由で応答済みの場合、何もしない（グローバルエラーハンドラーが捕捉する可能性）
+                print(f"WARNING: Interaction for '{interaction.command.name}' was already responded to before 'bot not ready' check.")
+                return
             except Exception as e:
-                print(f"ERROR: Failed to send 'bot not ready' message for /pjsk_rankmatch_song: {e}")
-            return
+                print(f"ERROR: Failed to send 'bot not ready' message for '{interaction.command.name}': {e}")
+                # ここで例外が発生した場合、defer()も失敗する可能性が高いので、
+                # コマンドの残りの処理は実行しない
+                return
 
         # コマンド開始直後に遅延応答（defer）を呼び出す
+        # ここで発生する NotFound はグローバルエラーハンドラーで捕捉される
         await interaction.response.defer(ephemeral=False)
 
         if not self.songs_data:
