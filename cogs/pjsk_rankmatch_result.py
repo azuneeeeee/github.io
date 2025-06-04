@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands, ui
 from typing import List, Tuple, Dict, Any
 import traceback
+import logging # ロギングを追加
 
 class RankmatchResultModal(ui.Modal, title="ランクマッチ結果入力"):
     """
@@ -109,12 +110,21 @@ class RankmatchResultModal(ui.Modal, title="ランクマッチ結果入力"):
         except ValueError as e:
             return False, {}, f"{player_label}の入力値が無効です。数字とハイフン、カンマを正しく使用してください。({e})"
         except Exception as e:
-            traceback.print_exc()
+            logging.error(f"Error parsing player data for {player_label}: {e}", exc_info=True) # ロギングを追加
             return False, {}, f"{player_label}の解析中に予期せぬエラーが発生しました。({e})"
 
     async def on_submit(self, interaction: discord.Interaction):
         """モーダルが送信されたときの処理"""
-        await interaction.response.defer(ephemeral=False) # 計算に時間がかかる可能性を考慮し、応答を遅延
+        logging.info(f"RankmatchResultModal submitted by {interaction.user.name} (ID: {interaction.user.id}).") # ロギングを追加
+        try:
+            await interaction.response.defer(ephemeral=False) # 計算に時間がかかる可能性を考慮し、応答を遅延
+            logging.info(f"Successfully deferred interaction for RankmatchResultModal.") # ロギングを追加
+        except discord.errors.NotFound:
+            logging.error(f"Failed to defer interaction for RankmatchResultModal: Unknown interaction (404 NotFound). This will be caught by global error handler.", exc_info=True)
+            return
+        except Exception as e:
+            logging.error(f"Unexpected error during defer for RankmatchResultModal: {e}", exc_info=True)
+            return
 
         players_results = []
         inputs = {
@@ -128,18 +138,21 @@ class RankmatchResultModal(ui.Modal, title="ランクマッチ結果入力"):
         for i, (player_label, input_str) in enumerate(inputs.items(), 1):
             success, data, error_msg = self._parse_player_data(player_label, input_str, i)
             if not success:
+                logging.warning(f"Invalid input for {player_label} from {interaction.user.name}: {error_msg}") # ロギングを追加
                 await interaction.followup.send(error_msg, ephemeral=True)
                 return
             if data: # データがある（未入力ではない）場合のみ追加
                 players_results.append(data)
 
         if not players_results:
+            logging.warning(f"No player data entered by {interaction.user.name}.") # ロギングを追加
             await interaction.followup.send("プレイヤーのデータが一つも入力されていません。", ephemeral=True)
             return
 
         # 同順位判定のためのソート
         # スコアの高い順 -> Perfect数の高い順 -> 最大コンボ数の高い順
         players_results.sort(key=lambda x: (x["score"], x["perfect_count"], x["max_combo"]), reverse=True)
+        logging.info(f"Rankmatch results sorted for {len(players_results)} players.") # ロギングを追加
 
         embed = discord.Embed(
             title=f"⚔️ ランクマッチ結果", 
@@ -178,31 +191,31 @@ class RankmatchResultModal(ui.Modal, title="ランクマッチ結果入力"):
 
                 rank_str += f"**引き分け！**\n\n"
                 rank_str += f"**{player1['name']}**\n"
-                rank_str += f"  スコア: {player1['score']:,}\n"
-                rank_str += f"  Perfect数: {player1['perfect_count']:,}\n"
-                rank_str += f"  最大コンボ: {player1['max_combo']:,}\n"
-                rank_str += f"  精度詳細: {accuracy_str1}\n\n" # 修正された表示形式
+                rank_str += f"  スコア: {player1['score']:,}\n"
+                rank_str += f"  Perfect数: {player1['perfect_count']:,}\n"
+                rank_str += f"  最大コンボ: {player1['max_combo']:,}\n"
+                rank_str += f"  精度詳細: {accuracy_str1}\n\n" # 修正された表示形式
 
                 rank_str += f"**{player2['name']}**\n"
-                rank_str += f"  スコア: {player2['score']:,}\n"
-                rank_str += f"  Perfect数: {player2['perfect_count']:,}\n"
-                rank_str += f"  最大コンボ: {player2['max_combo']:,}\n"
-                rank_str += f"  精度詳細: {accuracy_str2}\n\n" # 修正された表示形式
+                rank_str += f"  スコア: {player2['score']:,}\n"
+                rank_str += f"  Perfect数: {player2['perfect_count']:,}\n"
+                rank_str += f"  最大コンボ: {player2['max_combo']:,}\n"
+                rank_str += f"  精度詳細: {accuracy_str2}\n\n" # 修正された表示形式
             else:
                 rank_str += f"**勝者: {player1['name']}**\n"
                 rank_str += f"**敗者: {player2['name']}**\n\n"
 
                 rank_str += f"**{player1['name']} (勝ち)**\n"
-                rank_str += f"  スコア: {player1['score']:,}\n"
-                rank_str += f"  Perfect数: {player1['perfect_count']:,}\n"
-                rank_str += f"  最大コンボ: {player1['max_combo']:,}\n"
-                rank_str += f"  精度詳細: {accuracy_str1}\n\n" # 修正された表示形式
+                rank_str += f"  スコア: {player1['score']:,}\n"
+                rank_str += f"  Perfect数: {player1['perfect_count']:,}\n"
+                rank_str += f"  最大コンボ: {player1['max_combo']:,}\n"
+                rank_str += f"  精度詳細: {accuracy_str1}\n\n" # 修正された表示形式
 
                 rank_str += f"**{player2['name']} (負け)**\n"
-                rank_str += f"  スコア: {player2['score']:,}\n"
-                rank_str += f"  Perfect数: {player2['perfect_count']:,}\n"
-                rank_str += f"  最大コンボ: {player2['max_combo']:,}\n"
-                rank_str += f"  精度詳細: {accuracy_str2}\n\n" # 修正された表示形式
+                rank_str += f"  スコア: {player2['score']:,}\n"
+                rank_str += f"  Perfect数: {player2['perfect_count']:,}\n"
+                rank_str += f"  最大コンボ: {player2['max_combo']:,}\n"
+                rank_str += f"  精度詳細: {accuracy_str2}\n\n" # 修正された表示形式
         else: # 3人以上の場合
             current_rank = 1
             for i, player in enumerate(players_results):
@@ -217,8 +230,8 @@ class RankmatchResultModal(ui.Modal, title="ランクマッチ結果入力"):
 
                 # 前のプレイヤーと比較して同順位か判定
                 if i > 0 and (player["score"] == players_results[i-1]["score"] and
-                              player["perfect_count"] == players_results[i-1]["perfect_count"] and
-                              player["max_combo"] == players_results[i-1]["max_combo"]):
+                                player["perfect_count"] == players_results[i-1]["perfect_count"] and
+                                player["max_combo"] == players_results[i-1]["max_combo"]):
                     # 同順位であれば、順位を更新しない
                     pass 
                 else:
@@ -226,33 +239,45 @@ class RankmatchResultModal(ui.Modal, title="ランクマッチ結果入力"):
                     current_rank = i + 1 
 
                 rank_str += f"**{current_rank}位**: {player['name']}\n"
-                rank_str += f"  スコア: {player['score']:,}\n"
-                rank_str += f"  Perfect数: {player['perfect_count']:,}\n"
-                rank_str += f"  最大コンボ: {player['max_combo']:,}\n"
-                rank_str += f"  精度詳細: {accuracy_str}\n\n" # 修正された表示形式
+                rank_str += f"  スコア: {player['score']:,}\n"
+                rank_str += f"  Perfect数: {player['perfect_count']:,}\n"
+                rank_str += f"  最大コンボ: {player['max_combo']:,}\n"
+                rank_str += f"  精度詳細: {accuracy_str}\n\n" # 修正された表示形式
 
         embed.add_field(name="順位", value=rank_str, inline=False)
         embed.set_footer(text=f"集計者: {interaction.user.display_name}")
 
         await interaction.followup.send(embed=embed, ephemeral=False)
+        logging.info(f"Rankmatch result embed sent for {interaction.user.name}.") # ロギングを追加
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         """モーダル処理中にエラーが発生した場合の処理"""
+        logging.error(f"Error in RankmatchResultModal for user {interaction.user.name}: {error}", exc_info=True) # ロギングを追加
         await interaction.response.send_message("モーダル処理中にエラーが発生しました。", ephemeral=True)
-        print(f"Error in RankmatchResultModal: {error}")
-        traceback.print_exc()
 
 
 class ProsekaRankmatchResult(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        logging.info("ProsekaRankmatchResult cog initialized.") # ロギングを追加
 
     @app_commands.command(name="pjsk_rankmatch_result", description="ランクマッチの結果を投稿・集計します。(最大5人対応)")
+    # bot.GUILD_ID を直接使用する
+    @app_commands.guilds(discord.Object(id=bot.GUILD_ID))
     async def pjsk_rankmatch_result(self, interaction: discord.Interaction):
         """ランクマッチの結果を入力するためのモーダルを表示します。"""
-        modal = RankmatchResultModal()
-        await interaction.response.send_modal(modal)
+        logging.info(f"Command '/pjsk_rankmatch_result' invoked by {interaction.user.name} (ID: {interaction.user.id}).") # ロギングを追加
+        try:
+            modal = RankmatchResultModal()
+            await interaction.response.send_modal(modal)
+            logging.info(f"RankmatchResultModal sent to {interaction.user.name}.") # ロギングを追加
+        except Exception as e:
+            logging.error(f"Failed to send RankmatchResultModal to {interaction.user.name}: {e}", exc_info=True) # ロギングを追加
+            if not interaction.response.is_done():
+                await interaction.response.send_message("ランクマッチ結果入力モーダルの表示に失敗しました。", ephemeral=True)
+
 
 async def setup(bot):
-    await bot.add_cog(ProsekaRankmatchResult(bot))
-    print("ProsekaRankmatchResult cog loaded.")
+    cog = ProsekaRankmatchResult(bot)
+    await bot.add_cog(cog)
+    logging.info("ProsekaRankmatchResult cog loaded.") # ロギングを追加
