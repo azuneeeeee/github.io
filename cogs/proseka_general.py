@@ -45,7 +45,6 @@ class ProsekaGeneralCommands(commands.Cog):
 
         self.ap_fc_rate_cog = None
 
-        # ★修正: AP/FCレート表示の自動更新を無効にする
         self.should_update_ap_fc_rate_display = False
         logging.info(f"ProsekaGeneralCommands - AP/FCレート表示の自動更新は現在 {'有効' if self.should_update_ap_fc_rate_display else '無効'} に設定されています。")
 
@@ -79,8 +78,7 @@ class ProsekaGeneralCommands(commands.Cog):
 
         logging.info(f"Bot is ready. Proceeding with defer for '{interaction.command.name}'.")
         try:
-            # わずかな遅延を挿入
-            await asyncio.sleep(0.1)
+            # ★修正: asyncio.sleep(0.1) を削除
             await interaction.response.defer(ephemeral=False)
             logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
         except discord.errors.NotFound:
@@ -126,7 +124,6 @@ class ProsekaGeneralCommands(commands.Cog):
             except Exception as e:
                 logging.error(f"Error updating AP/FC rate display for /pjsk_list_songs: {e}", exc_info=True)
         else:
-            # ★修正: 自動更新が無効であることを明示的にログ出力
             logging.info("AP/FC rate display update skipped for /pjsk_list_songs (cog not available or auto-update disabled).")
 
 
@@ -159,8 +156,7 @@ class ProsekaGeneralCommands(commands.Cog):
 
         logging.info(f"Bot is ready. Proceeding with defer for '{interaction.command.name}'.")
         try:
-            # わずかな遅延を挿入
-            await asyncio.sleep(0.1)
+            # ★修正: asyncio.sleep(0.1) を削除
             await interaction.response.defer(ephemeral=False)
             logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
         except discord.errors.NotFound:
@@ -304,7 +300,6 @@ class ProsekaGeneralCommands(commands.Cog):
             except Exception as e:
                 logging.error(f"Error updating AP/FC rate display for /pjsk_random_song: {e}", exc_info=True)
         else:
-            # ★修正: 自動更新が無効であることを明示的にログ出力
             logging.info("AP/FC rate display update skipped for /pjsk_random_song (cog not available or auto-update disabled).")
 
 
