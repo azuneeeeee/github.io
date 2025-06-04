@@ -237,23 +237,6 @@ class MyBot(commands.Bot):
                 except discord.errors.InteractionResponded:
                     pass
 
-    @app_commands.command(name="ping", description="ボットの応答性をテストします。")
-    async def ping(self, interaction: discord.Interaction):
-        logging.info(f"/ping command invoked by {interaction.user.name}.")
-        start_time = discord.utils.utcnow()
-        try:
-            await interaction.response.defer(ephemeral=True)
-            latency = (discord.utils.utcnow() - start_time).total_seconds() * 1000
-            await interaction.followup.send(f"Pong! 🏓\nボットのレイテンシ: {self.latency * 1000:.2f}ms\n応答までの時間: {latency:.2f}ms", ephemeral=True)
-            logging.info(f"/ping command successful for {interaction.user.name}. Latency: {self.latency * 1000:.2f}ms, Response time: {latency:.2f}ms.")
-        except Exception as e:
-            logging.error(f"Error processing /ping command for {interaction.user.name}: {e}", exc_info=True)
-            if not interaction.response.is_done():
-                try:
-                    await interaction.response.send_message("Pingコマンドの処理中にエラーが発生しました。", ephemeral=True)
-                except discord.errors.InteractionResponded:
-                    pass
-
 
 bot = MyBot()
 
