@@ -63,7 +63,6 @@ class ProsekaGeneralCommands(commands.Cog):
     async def pjsk_list_songs(self, interaction: discord.Interaction):
         logging.info(f"Command '/pjsk_list_songs' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
         
-        # ★修正: defer を最初に実行
         try:
             await interaction.response.defer(ephemeral=False)
             logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
@@ -74,7 +73,6 @@ class ProsekaGeneralCommands(commands.Cog):
             logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
             return
 
-        # ★修正: ボットの準備完了チェックを defer の後に移動
         if not self.bot.is_bot_ready:
             logging.warning(f"Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}. Sending 'bot not ready' message via followup.")
             await interaction.followup.send("ボットがまだ起動中です。しばらくお待ちください。", ephemeral=True)
@@ -119,174 +117,6 @@ class ProsekaGeneralCommands(commands.Cog):
             logging.info("AP/FC rate display update skipped for /pjsk_list_songs (cog not available or auto-update disabled).")
 
 
-    @app_commands.command(name="pjsk_random_song", description="プロジェクトセカイの楽曲をランダムで選曲します。(難易度: 複数可, カンマ区切り例: EASY,HARD,MASTER)")
-    @app_commands.describe(
-        difficulty="難易度指定 (複数可, カンマ区切り例: EASY,HARD,MASTER)",
-        level_min="最小レベル (1～37)",
-        level_max="最大レベル (1～37)"
-    )
-    async def pjsk_random_song(
-        self, interaction: discord.Interaction,
-        difficulty: str = None,
-        level_min: app_commands.Range[int, 1, 37] = None,
-        level_max: app_commands.Range[int, 1, 37] = None
-    ):
-        logging.info(f"Command '/pjsk_random_song' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
-        
-        # ★修正: defer を最初に実行
-        try:
-            await interaction.response.defer(ephemeral=False)
-            logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
-        except discord.errors.NotFound:
-            logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound). This will be caught by global error handler.", exc_info=True)
-            return
-        except Exception as e:
-            logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
-            return
-
-        # ★修正: ボットの準備完了チェックを defer の後に移動
-        if not self.bot.is_bot_ready:
-            logging.warning(f"Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}. Sending 'bot not ready' message via followup.")
-            await interaction.followup.send("ボットがまだ起動中です。しばらくお待ちください。", ephemeral=True)
-            return
-
-        logging.info(f"'/pjsk_random_song' called with difficulty='{difficulty}', level_min={level_min}, level_max={level_max}")
-
-        selected_difficulties_from_input = []
-        if difficulty:
-            selected_difficulties_from_input = [d.strip().upper() for d in difficulty.split(',')]
-            invalid_difficulties = [d for d in selected_difficulties_from_input if d not in self.valid_difficulties]
-            if invalid_difficulties:
-                logging.warning(f"Invalid difficulties provided for '{interaction.command.name}': {invalid_difficulties}")
-                await interaction.followup.send(f"指定された難易度 `{', '.join(invalid_difficulties)}` は無効です。有効な難易度は {', '.join(self.valid_difficulties)} です。", ephemeral=False)
-                return
-
-        difficulties_to_filter = selected_difficulties_from_input if selected_difficulties_from_input else self.valid_difficulties
-        logging.debug(f"Filtering with difficulties: {difficulties_to_filter}")
-
-        options_to_use = {
-            "difficulties": difficulties_to_filter,
-            "level_min": level_min,
-            "level_max": level_max
-        }
-
-        logging.debug(f"pjsk_random_song final options for selection: {options_to_use}")
-
-        filtered_songs = []
-        if self.songs_data:
-            logging.debug(f"Total songs available for filtering: {len(self.songs_data)}")
-            for song in self.songs_data:
-                song_matched_by_difficulty = False
-
-                for target_diff_name in options_to_use["difficulties"]:
-                    level = self._get_difficulty_level(song, target_diff_name)
-
-                    if level is None:
-                        continue
-
-                    level_ok = True
-                    if options_to_use.get("level_min") is not None and level < options_to_use["level_min"]:
-                        level_ok = False
-                    if options_to_use.get("level_max") is not None and level > options_to_use["level_max"]:
-                        level_ok = False
-
-                    if level_ok:
-                        song_matched_by_difficulty = True
-                        break
-
-                if song_matched_by_difficulty:
-                    filtered_songs.append(song)
-
-        logging.info(f"Final number of filtered songs: {len(filtered_songs)}")
-        if not filtered_songs:
-            logging.info(f"No songs found for random selection with provided criteria for '{interaction.command.name}'.")
-            await interaction.followup.send("申し訳ありません、指定された条件に合う楽曲が見つかりませんでした。", ephemeral=False)
-            return
-
-        selected_song = random.choice(filtered_songs)
-        logging.info(f"Randomly selected song: {selected_song.get('title')}")
-
-        display_difficulty_str = ""
-        embed_color = discord.Color.blue()
-
-        selected_diff_name_for_display = None
-
-        candidate_display_difficulties = []
-        for target_diff_name in options_to_use["difficulties"]:
-            level = self._get_difficulty_level(selected_song, target_diff_name)
-
-            if level is None:
-                continue
-
-            level_ok = True
-            if options_to_use.get("level_min") is not None and level < options_to_use["level_min"]:
-                level_ok = False
-            if options_to_use.get("level_max") is not None and level > options_to_use["level_max"]:
-                level_ok = False
-
-            if level_ok:
-                candidate_display_difficulties.append(target_diff_name)
-
-        if candidate_display_difficulties:
-            selected_diff_name_for_display = random.choice(candidate_display_difficulties)
-            logging.debug(f"Displaying difficulty selected from candidates: {selected_diff_name_for_display}")
-        else:
-            sort_priority = {'APPEND': 0, 'MASTER': 1, 'EXPERT': 2, 'HARD': 3, 'NORMAL': 4, 'EASY': 5}
-
-            available_difficulties_in_song = []
-            for d in self.valid_difficulties:
-                level = self._get_difficulty_level(selected_song, d)
-                if level is not None:
-                    available_difficulties_in_song.append((d, level))
-
-            if available_difficulties_in_song:
-                selected_diff_name_for_display = sorted(
-                    available_difficulties_in_song,
-                    key=lambda item: (sort_priority.get(item[0], 99), -item[1])
-                )[0][0]
-                logging.debug(f"Fallback difficulty for display (no candidates): {selected_diff_name_for_display}")
-            else:
-                logging.debug("No valid difficulty found for display in fallback.")
-
-
-        if selected_diff_name_for_display:
-            level = self._get_difficulty_level(selected_song, selected_diff_name_for_display)
-            if level is not None:
-                level_str = f" Lv.{level}"
-                display_difficulty_str = f"【{selected_diff_name_for_display}{level_str}】"
-                embed_color = self.DIFFICULTY_COLORS.get(selected_diff_name_for_display, discord.Color.blue())
-                logging.debug(f"Display string: {display_difficulty_str}, Color: {embed_color}")
-            else:
-                display_difficulty_str = f"【{selected_diff_name_for_display} (レベル情報なし)】"
-                logging.debug(f"Display string: {display_difficulty_str} (level missing)")
-        else:
-            display_difficulty_str = "【難易度情報なし】"
-            logging.debug("Display string: 【難易度情報なし】 (no difficulty selected)")
-
-        embed = discord.Embed(
-            title=f"🎧 {selected_song['title']}",
-            description=f"難易度: {display_difficulty_str}",
-            color=embed_color
-        )
-        if selected_song.get("image_url"):
-            embed.set_thumbnail(url=selected_song["image_url"])
-            logging.debug(f"Thumbnail set to: {selected_song['image_url']}")
-        else:
-            logging.debug("No image_url found for thumbnail.")
-
-        await interaction.followup.send(embed=embed, ephemeral=False)
-        logging.info("Embed sent successfully.")
-
-        if self.ap_fc_rate_cog and self.should_update_ap_fc_rate_display:
-            try:
-                await self.ap_fc_rate_cog.update_ap_fc_rate_display(interaction.user.id, interaction.channel)
-                logging.info("AP/FC rate display updated for /pjsk_random_song.")
-            except Exception as e:
-                logging.error(f"Error updating AP/FC rate display for /pjsk_random_song: {e}", exc_info=True)
-        else:
-            logging.info("AP/FC rate display update skipped for /pjsk_random_song (cog not available or auto-update disabled).")
-
-
 class SongListView(discord.ui.View):
     def __init__(self, original_songs_data, valid_difficulties, difficulty_colors, original_user_id, get_difficulty_level_func):
         super().__init__(timeout=86400)
@@ -319,10 +149,12 @@ class SongListView(discord.ui.View):
         filtered_songs_by_difficulty = []
         if self.current_difficulty_filter and self.current_difficulty_filter != "None":
             for song in self.indexed_songs_data:
+                # 難易度フィルターが適用されている場合、その難易度が存在する楽曲のみをフィルタリング
                 if self.get_difficulty_level_func(song, self.current_difficulty_filter) is not None:
                     filtered_songs_by_difficulty.append(song)
             logging.debug(f"Songs filtered by difficulty '{self.current_difficulty_filter}': {len(filtered_songs_by_difficulty)} songs.")
         else:
+            # フィルターなしの場合、すべての楽曲を使用
             filtered_songs_by_difficulty = list(self.indexed_songs_data)
             logging.debug("No difficulty filter, using all songs.")
 
@@ -414,7 +246,18 @@ class SongListView(discord.ui.View):
 
         filter_display_name = self.current_difficulty_filter if self.current_difficulty_filter else "なし"
 
-        embed.set_footer(text=f"全 {len(self.original_songs_data)} 曲 | ページ {self.current_page + 1}/{self.total_pages} | ソート: {sort_display_name} | フィルター: {filter_display_name}")
+        # ★ここから修正
+        total_songs_count_for_footer = len(self.original_songs_data)
+        total_songs_label = "全"
+
+        if self.current_difficulty_filter == "APPEND":
+            # APPEND譜面がある楽曲のみをカウント
+            total_songs_with_append = sum(1 for song in self.original_songs_data if self.get_difficulty_level_func(song, "APPEND") is not None)
+            total_songs_count_for_footer = total_songs_with_append
+            total_songs_label = "APPEND譜面あり" # ラベルを変更
+
+        embed.set_footer(text=f"{total_songs_label} {total_songs_count_for_footer} 曲 | ページ {self.current_page + 1}/{self.total_pages} | ソート: {sort_display_name} | フィルター: {filter_display_name}")
+        # ★ここまで修正
 
         return embed
 
@@ -460,7 +303,7 @@ class SongListView(discord.ui.View):
             logging.info(f"User {interaction.user.id} went to previous page: {self.current_page}.")
         else:
             await interaction.followup.send("これ以上前のページはありません。", ephemeral=True)
-            logging.info(f"User {interaction.user.id} tried to go before first page.")
+            logging.info(f"User {interaction.user.id} tried to go beyond first page.")
 
     @discord.ui.button(label="次へ →", style=discord.ButtonStyle.primary, custom_id="next_page", row=1)
     async def next_page(self, interaction: discord.Interaction, button: Button):
