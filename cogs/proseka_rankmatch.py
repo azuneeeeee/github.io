@@ -10,12 +10,25 @@ import traceback
 load_dotenv()
 
 # main.py の OWNER_ID と同じ値をここに設定してください
-# 環境変数から読み込む場合は以下のように変更
-OWNER_ID = int(os.getenv('OWNER_ID'))
+# 環境変数から読み込む
+_owner_id_str = os.getenv('OWNER_ID')
+if _owner_id_str is None:
+    print("CRITICAL ERROR: OWNER_ID environment variable is not set. Please set it in Render's Environment settings.")
+    # OWNER_IDが設定されていない場合、Botが正しく動作しないことを明確にする
+    # int(None)エラーを回避しつつ、問題を早期に発見できるように無効なIDを設定
+    OWNER_ID = -1
+else:
+    try:
+        OWNER_ID = int(_owner_id_str)
+    except ValueError:
+        print(f"CRITICAL ERROR: OWNER_ID environment variable '{_owner_id_str}' is not a valid integer. Please check Render's Environment settings.")
+        # 無効な値の場合も無効なIDを設定
+        OWNER_ID = -1
 
 # オーナーチェック用の関数 (このファイル内にも定義)
 def is_owner_global(interaction: discord.Interaction) -> bool:
-    return interaction.user.id == OWNER_ID
+    # OWNER_IDが-1の場合は常にFalseを返すことで、未設定時の誤動作を防ぐ
+    return interaction.user.id == OWNER_ID and OWNER_ID != -1
 
 class ProsekaRankMatchCommands(commands.Cog):
     def __init__(self, bot):
@@ -128,7 +141,7 @@ class ProsekaRankMatchCommands(commands.Cog):
     async def pjsk_rankmatch_song(
         self,
         interaction: discord.Interaction,
-        rank: str,        # 必須引数
+        rank: str,         # 必須引数
     ):
         await interaction.response.defer(ephemeral=False)
 
