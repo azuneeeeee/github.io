@@ -1,34 +1,34 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-# from data.songs import proseka_songs, VALID_DIFFICULTIES # ★削除済み
 import random
 import os
 from dotenv import load_dotenv
 import asyncio
 import traceback
+import logging
 
 load_dotenv()
 
 _owner_id_str = os.getenv('OWNER_ID')
 if _owner_id_str is None:
-    print("CRITICAL ERROR: OWNER_ID environment variable is not set. Please set it in Render's Environment settings.")
+    logging.critical("OWNER_ID environment variable is not set. Please set it in Render's Environment settings.")
     OWNER_ID = -1
 else:
     try:
         OWNER_ID = int(_owner_id_str)
     except ValueError:
-        print(f"CRITICAL ERROR: OWNER_ID environment variable '{_owner_id_str}' is not a valid integer. Please check Render's Environment settings.")
+        logging.critical(f"OWNER_ID environment variable '{_owner_id_str}' is not a valid integer. Please check Render's Environment settings.")
         OWNER_ID = -1
 
 def is_owner_global(interaction: discord.Interaction) -> bool:
     return interaction.user.id == OWNER_ID
 
 class ProsekaGeneralCommands(commands.Cog):
-    # ★変更: songs_data と valid_difficulties を __init__ の引数から削除
     def __init__(self, bot):
         self.bot = bot
         self.owner_id = OWNER_ID
+        logging.info("ProsekaGeneralCommands.__init__ started.")
 
         self.DIFFICULTY_COLORS = {
             "EASY": discord.Color(0x76B66B),
@@ -39,48 +39,58 @@ class ProsekaGeneralCommands(commands.Cog):
             "APPEND": discord.Color(0xFFC0CB)
         }
 
-        # ★変更: 初期値を空のリストで設定 (main.py で後から設定される)
         self.songs_data = []
         self.valid_difficulties = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
 
         self.ap_fc_rate_cog = None
 
         self.should_update_ap_fc_rate_display = False
-        print(f"INFO: ProsekaGeneralCommands - AP/FCレート表示の自動更新は現在 {'有効' if self.should_update_ap_fc_rate_display else '無効'} に設定されています。")
+        logging.info(f"ProsekaGeneralCommands - AP/FCレート表示の自動更新は現在 {'有効' if self.should_update_ap_fc_rate_display else '無効'} に設定されています。")
 
-        print("DEBUG: ProsekaGeneralCommands.__init__ completed.")
-        print(f"DEBUG: ProsekaGeneralCommands __init__ - initial ap_fc_rate_cog: {self.ap_fc_rate_cog}")
+        logging.info("ProsekaGeneralCommands.__init__ completed.")
+        logging.debug(f"ProsekaGeneralCommands __init__ - initial ap_fc_rate_cog: {self.ap_fc_rate_cog}")
         if self.songs_data:
-            print(f"DEBUG: Loaded {len(self.songs_data)} songs.")
+            logging.debug(f"Loaded {len(self.songs_data)} songs.")
         else:
-            print("DEBUG: No songs loaded or songs_data is empty.")
-        print("DEBUG: Valid Difficulties loaded:", self.valid_difficulties)
+            logging.debug("No songs loaded or songs_data is empty.")
+        logging.debug("Valid Difficulties loaded:", self.valid_difficulties)
 
     def _get_difficulty_level(self, song: dict, difficulty_name: str) -> int | None:
         return song.get(difficulty_name.lower())
 
     @app_commands.command(name="pjsk_list_songs", description="プロジェクトセカイの楽曲一覧をメニューで並べ替えて表示します。")
     async def pjsk_list_songs(self, interaction: discord.Interaction):
+        logging.info(f"Command '/pjsk_list_songs' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
+        
         if not self.bot.is_bot_ready:
-            print(f"DEBUG: Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}")
+            logging.warning(f"Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}. Sending 'bot not ready' message.")
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message("ボットがまだ起動中です。しばらくお待ちください。", ephemeral=True)
                 return
             except discord.errors.InteractionResponded:
-                print(f"WARNING: Interaction for '{interaction.command.name}' was already responded to before 'bot not ready' check.")
+                logging.warning(f"Interaction for '{interaction.command.name}' was already responded to before 'bot not ready' check. Skipping send_message.")
                 return
             except Exception as e:
-                print(f"ERROR: Failed to send 'bot not ready' message for '{interaction.command.name}': {e}")
+                logging.error(f"Failed to send 'bot not ready' message for '{interaction.command.name}': {e}", exc_info=True)
                 return
 
-        print(f"DEBUG: /pjsk_list_songs command invoked by {interaction.user.name}.")
-        await interaction.response.defer(ephemeral=False)
-        print("DEBUG: interaction.response.defer() successful.")
+        logging.info(f"Bot is ready. Proceeding with defer for '{interaction.command.name}'.")
+        try:
+            # ★修正: わずかな遅延を挿入
+            await asyncio.sleep(0.1)
+            await interaction.response.defer(ephemeral=False)
+            logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
+        except discord.errors.NotFound:
+            logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound). This will be caught by global error handler.", exc_info=True)
+            return
+        except Exception as e:
+            logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
+            return
 
         if not self.songs_data:
+            logging.warning(f"songs_data is empty for '{interaction.command.name}'. Sending error message.")
             await interaction.followup.send("現在、登録されている楽曲がありません。", ephemeral=False)
-            print("DEBUG: No songs found, sending empty message.")
             return
 
         try:
@@ -91,10 +101,9 @@ class ProsekaGeneralCommands(commands.Cog):
                 original_user_id=interaction.user.id,
                 get_difficulty_level_func=self._get_difficulty_level
             )
-            print("DEBUG: SongListView instance created.")
+            logging.info("SongListView instance created.")
         except Exception as e:
-            print(f"ERROR: Failed to create SongListView instance: {e}")
-            traceback.print_exc()
+            logging.error(f"Failed to create SongListView instance for '{interaction.command.name}': {e}", exc_info=True)
             await interaction.followup.send("楽曲リストの初期化中にエラーが発生しました。", ephemeral=False)
             return
 
@@ -102,14 +111,13 @@ class ProsekaGeneralCommands(commands.Cog):
             initial_embed = view.get_current_embed()
             response_message = await interaction.followup.send(embed=initial_embed, view=view, ephemeral=False)
             view.message = response_message
-            print("DEBUG: Initial list message sent via followup.send. View message set.")
+            logging.info(f"Initial list message sent via followup.send for '{interaction.command.name}'. View message set.")
         except Exception as e:
-            print(f"ERROR: Failed to send initial list message: {e}")
-            traceback.print_exc()
+            logging.error(f"Failed to send initial list message for '{interaction.command.name}': {e}", exc_info=True)
             await interaction.followup.send("楽曲リストの送信中にエラーが発生しました。", ephemeral=False)
             return
 
-        print(f"DEBUG: /pjsk_list_songs - self.ap_fc_rate_cog: {self.ap_fc_rate_cog}. Skipping AP/FC rate update as requested.")
+        logging.info(f"'/pjsk_list_songs' - self.ap_fc_rate_cog: {self.ap_fc_rate_cog}. Skipping AP/FC rate update as requested.")
 
 
     @app_commands.command(name="pjsk_random_song", description="プロジェクトセカイの楽曲をランダムで選曲します。(難易度: 複数可, カンマ区切り例: EASY,HARD,MASTER)")
@@ -124,33 +132,47 @@ class ProsekaGeneralCommands(commands.Cog):
         level_min: app_commands.Range[int, 1, 37] = None,
         level_max: app_commands.Range[int, 1, 37] = None
     ):
+        logging.info(f"Command '/pjsk_random_song' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
+        
         if not self.bot.is_bot_ready:
-            print(f"DEBUG: Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}")
+            logging.warning(f"Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}. Sending 'bot not ready' message.")
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message("ボットがまだ起動中です。しばらくお待ちください。", ephemeral=True)
                 return
             except discord.errors.InteractionResponded:
-                print(f"WARNING: Interaction for '{interaction.command.name}' was already responded to before 'bot not ready' check.")
+                logging.warning(f"Interaction for '{interaction.command.name}' was already responded to before 'bot not ready' check. Skipping send_message.")
                 return
             except Exception as e:
-                print(f"ERROR: Failed to send 'bot not ready' message for '{interaction.command.name}': {e}")
+                logging.error(f"Failed to send 'bot not ready' message for '{interaction.command.name}': {e}", exc_info=True)
                 return
 
-        await interaction.response.defer(ephemeral=False)
-        print(f"DEBUG: /pjsk_random_song called with difficulty='{difficulty}', level_min={level_min}, level_max={level_max}")
+        logging.info(f"Bot is ready. Proceeding with defer for '{interaction.command.name}'.")
+        try:
+            # ★修正: わずかな遅延を挿入
+            await asyncio.sleep(0.1)
+            await interaction.response.defer(ephemeral=False)
+            logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
+        except discord.errors.NotFound:
+            logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound). This will be caught by global error handler.", exc_info=True)
+            return
+        except Exception as e:
+            logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
+            return
+
+        logging.info(f"'/pjsk_random_song' called with difficulty='{difficulty}', level_min={level_min}, level_max={level_max}")
 
         selected_difficulties_from_input = []
         if difficulty:
             selected_difficulties_from_input = [d.strip().upper() for d in difficulty.split(',')]
             invalid_difficulties = [d for d in selected_difficulties_from_input if d not in self.valid_difficulties]
             if invalid_difficulties:
+                logging.warning(f"Invalid difficulties provided for '{interaction.command.name}': {invalid_difficulties}")
                 await interaction.followup.send(f"指定された難易度 `{', '.join(invalid_difficulties)}` は無効です。有効な難易度は {', '.join(self.valid_difficulties)} です。", ephemeral=False)
-                print(f"DEBUG: Invalid difficulties provided: {invalid_difficulties}")
                 return
 
         difficulties_to_filter = selected_difficulties_from_input if selected_difficulties_from_input else self.valid_difficulties
-        print(f"DEBUG: Filtering with difficulties: {difficulties_to_filter}")
+        logging.debug(f"Filtering with difficulties: {difficulties_to_filter}")
 
         options_to_use = {
             "difficulties": difficulties_to_filter,
@@ -158,11 +180,11 @@ class ProsekaGeneralCommands(commands.Cog):
             "level_max": level_max
         }
 
-        print(f"DEBUG: pjsk_random_song final options for selection: {options_to_use}")
+        logging.debug(f"pjsk_random_song final options for selection: {options_to_use}")
 
         filtered_songs = []
         if self.songs_data:
-            print(f"DEBUG: Total songs available for filtering: {len(self.songs_data)}")
+            logging.debug(f"Total songs available for filtering: {len(self.songs_data)}")
             for song in self.songs_data:
                 song_matched_by_difficulty = False
 
@@ -185,14 +207,14 @@ class ProsekaGeneralCommands(commands.Cog):
                 if song_matched_by_difficulty:
                     filtered_songs.append(song)
 
-        print(f"DEBUG: Final number of filtered songs: {len(filtered_songs)}")
+        logging.info(f"Final number of filtered songs: {len(filtered_songs)}")
         if not filtered_songs:
+            logging.info(f"No songs found for random selection with provided criteria for '{interaction.command.name}'.")
             await interaction.followup.send("申し訳ありません、指定された条件に合う楽曲が見つかりませんでした。", ephemeral=False)
-            print(f"DEBUG: No songs found for random selection with provided criteria.")
             return
 
         selected_song = random.choice(filtered_songs)
-        print(f"DEBUG: Randomly selected song: {selected_song.get('title')}")
+        logging.info(f"Randomly selected song: {selected_song.get('title')}")
 
         display_difficulty_str = ""
         embed_color = discord.Color.blue()
@@ -217,7 +239,7 @@ class ProsekaGeneralCommands(commands.Cog):
 
         if candidate_display_difficulties:
             selected_diff_name_for_display = random.choice(candidate_display_difficulties)
-            print(f"DEBUG: Displaying difficulty selected from candidates: {selected_diff_name_for_display}")
+            logging.debug(f"Displaying difficulty selected from candidates: {selected_diff_name_for_display}")
         else:
             sort_priority = {'APPEND': 0, 'MASTER': 1, 'EXPERT': 2, 'HARD': 3, 'NORMAL': 4, 'EASY': 5}
 
@@ -232,9 +254,9 @@ class ProsekaGeneralCommands(commands.Cog):
                     available_difficulties_in_song,
                     key=lambda item: (sort_priority.get(item[0], 99), -item[1])
                 )[0][0]
-                print(f"DEBUG: Fallback difficulty for display (no candidates): {selected_diff_name_for_display}")
+                logging.debug(f"Fallback difficulty for display (no candidates): {selected_diff_name_for_display}")
             else:
-                print("DEBUG: No valid difficulty found for display in fallback.")
+                logging.debug("No valid difficulty found for display in fallback.")
 
 
         if selected_diff_name_for_display:
@@ -243,13 +265,13 @@ class ProsekaGeneralCommands(commands.Cog):
                 level_str = f" Lv.{level}"
                 display_difficulty_str = f"【{selected_diff_name_for_display}{level_str}】"
                 embed_color = self.DIFFICULTY_COLORS.get(selected_diff_name_for_display, discord.Color.blue())
-                print(f"DEBUG: Display string: {display_difficulty_str}, Color: {embed_color}")
+                logging.debug(f"Display string: {display_difficulty_str}, Color: {embed_color}")
             else:
                 display_difficulty_str = f"【{selected_diff_name_for_display} (レベル情報なし)】"
-                print(f"DEBUG: Display string: {display_difficulty_str} (level missing)")
+                logging.debug(f"Display string: {display_difficulty_str} (level missing)")
         else:
             display_difficulty_str = "【難易度情報なし】"
-            print("DEBUG: Display string: 【難易度情報なし】 (no difficulty selected)")
+            logging.debug("Display string: 【難易度情報なし】 (no difficulty selected)")
 
         embed = discord.Embed(
             title=f"🎧 {selected_song['title']}",
@@ -258,22 +280,21 @@ class ProsekaGeneralCommands(commands.Cog):
         )
         if selected_song.get("image_url"):
             embed.set_thumbnail(url=selected_song["image_url"])
-            print(f"DEBUG: Thumbnail set to: {selected_song['image_url']}")
+            logging.debug(f"Thumbnail set to: {selected_song['image_url']}")
         else:
-            print("DEBUG: No image_url found for thumbnail.")
+            logging.debug("No image_url found for thumbnail.")
 
         await interaction.followup.send(embed=embed, ephemeral=False)
-        print("DEBUG: Embed sent successfully.")
+        logging.info("Embed sent successfully.")
 
         if self.ap_fc_rate_cog and self.should_update_ap_fc_rate_display:
             try:
                 await self.ap_fc_rate_cog.update_ap_fc_rate_display(interaction.user.id, interaction.channel)
-                print("DEBUG: AP/FC rate display updated for /pjsk_random_song.")
+                logging.info("AP/FC rate display updated for /pjsk_random_song.")
             except Exception as e:
-                print(f"ERROR: Error updating AP/FC rate display for /pjsk_random_song: {e}")
-                traceback.print_exc()
+                logging.error(f"Error updating AP/FC rate display for /pjsk_random_song: {e}", exc_info=True)
         else:
-            print("DEBUG: AP/FC rate display update skipped for /pjsk_random_song (cog not available or update disabled).")
+            logging.info("AP/FC rate display update skipped for /pjsk_random_song (cog not available or update disabled).")
 
 
 class SongListView(discord.ui.View):
@@ -290,6 +311,7 @@ class SongListView(discord.ui.View):
         self.message = None
         self.original_user_id = original_user_id
         self.get_difficulty_level_func = get_difficulty_level_func
+        logging.info("SongListView.__init__ started.")
 
         self.indexed_songs_data = []
         for i, song in enumerate(self.original_songs_data):
@@ -300,18 +322,19 @@ class SongListView(discord.ui.View):
         self._update_sorted_songs()
         self._set_difficulty_select_options()
         self._update_sort_buttons()
-        print("DEBUG: SongListView initialized.")
+        logging.info("SongListView initialized.")
 
     def _update_sorted_songs(self):
+        logging.debug("Updating sorted songs.")
         filtered_songs_by_difficulty = []
         if self.current_difficulty_filter and self.current_difficulty_filter != "None":
             for song in self.indexed_songs_data:
                 if self.get_difficulty_level_func(song, self.current_difficulty_filter) is not None:
                     filtered_songs_by_difficulty.append(song)
-            print(f"DEBUG: Songs filtered by difficulty '{self.current_difficulty_filter}': {len(filtered_songs_by_difficulty)} songs.")
+            logging.debug(f"Songs filtered by difficulty '{self.current_difficulty_filter}': {len(filtered_songs_by_difficulty)} songs.")
         else:
             filtered_songs_by_difficulty = list(self.indexed_songs_data)
-            print("DEBUG: No difficulty filter, using all songs.")
+            logging.debug("No difficulty filter, using all songs.")
 
         if self.current_sort_key == "release_order":
             self.sorted_songs = sorted(
@@ -319,14 +342,14 @@ class SongListView(discord.ui.View):
                 key=lambda x: x.get("_original_index", 0),
                 reverse=self.current_sort_reverse
             )
-            print(f"DEBUG: Sorted by release order {'descending' if self.current_sort_reverse else 'ascending'}.")
+            logging.debug(f"Sorted by release order {'descending' if self.current_sort_reverse else 'ascending'}.")
         elif self.current_sort_key == "title":
             self.sorted_songs = sorted(
                 filtered_songs_by_difficulty, 
                 key=lambda x: x.get("title", ""),
                 reverse=self.current_sort_reverse
             )
-            print(f"DEBUG: Sorted by title {'descending' if self.current_sort_reverse else 'ascending'}.")
+            logging.debug(f"Sorted by title {'descending' if self.current_sort_reverse else 'ascending'}.")
         elif self.current_sort_key == "level":
             if self.current_difficulty_filter and self.current_difficulty_filter != "None":
                 self.sorted_songs = sorted(
@@ -334,7 +357,7 @@ class SongListView(discord.ui.View):
                     key=lambda x: self.get_difficulty_level_func(x, self.current_difficulty_filter) if self.get_difficulty_level_func(x, self.current_difficulty_filter) is not None else -1,
                     reverse=self.current_sort_reverse
                 )
-                print(f"DEBUG: Sorted by level for difficulty {self.current_difficulty_filter} {'descending' if self.current_sort_reverse else 'ascending'}.")
+                logging.debug(f"Sorted by level for difficulty {self.current_difficulty_filter} {'descending' if self.current_sort_reverse else 'ascending'}.")
             else:
                 self.sorted_songs = sorted(
                     list(self.indexed_songs_data),
@@ -342,15 +365,16 @@ class SongListView(discord.ui.View):
                     reverse=self.current_sort_reverse
                 )
                 self.current_sort_key = "release_order"
-                print("DEBUG: Level sort requested without difficulty filter, reset to release order (with current sort reverse).")
+                logging.debug("Level sort requested without difficulty filter, reset to release order (with current sort reverse).")
 
         self.total_pages = (len(self.sorted_songs) + self.items_per_page - 1) // self.items_per_page
         self.current_page = min(self.current_page, self.total_pages - 1) if self.total_pages > 0 else 0
         if self.current_page < 0: self.current_page = 0
 
-        print(f"DEBUG: Total {len(self.sorted_songs)} songs, {self.total_pages} pages. Current page: {self.current_page}")
+        logging.debug(f"Total {len(self.sorted_songs)} songs, {self.total_pages} pages. Current page: {self.current_page}")
 
     def _update_sort_buttons(self):
+        logging.debug("Updating sort buttons.")
         for item in self.children:
             if isinstance(item, discord.ui.Button):
                 if item.custom_id == "sort_asc":
@@ -359,6 +383,7 @@ class SongListView(discord.ui.View):
                     item.style = discord.ButtonStyle.primary if self.current_sort_reverse else discord.ButtonStyle.secondary
 
     def get_current_embed(self) -> discord.Embed:
+        logging.debug("Getting current embed.")
         start_index = self.current_page * self.items_per_page
         end_index = min(start_index + self.items_per_page, len(self.sorted_songs))
 
@@ -404,6 +429,7 @@ class SongListView(discord.ui.View):
         return embed
 
     def _set_difficulty_select_options(self):
+        logging.debug("Setting difficulty select options.")
         options = [discord.SelectOption(label="フィルターなし", value="None")]
         for diff in self.valid_difficulties:
             options.append(discord.SelectOption(label=diff, value=diff))
@@ -411,10 +437,11 @@ class SongListView(discord.ui.View):
         for item in self.children:
             if isinstance(item, discord.ui.Select) and item.custom_id == "difficulty_select_handler":
                 item.options = options
-                print("DEBUG: Difficulty select options set.")
+                logging.debug("Difficulty select options set.")
                 break
 
     async def _update_message(self, interaction: discord.Interaction):
+        logging.debug("Updating message display.")
         self._update_sorted_songs()
         self._update_sort_buttons()
         embed = self.get_current_embed()
@@ -422,55 +449,58 @@ class SongListView(discord.ui.View):
         try:
             if self.message:
                 await self.message.edit(embed=embed, view=self)
-                print(f"DEBUG: SongListView message {self.message.id} updated.")
+                logging.info(f"SongListView message {self.message.id} updated.")
             else:
                 await interaction.response.edit_message(embed=embed, view=self)
-                print(f"DEBUG: SongListView interaction response edited.")
+                logging.info(f"SongListView interaction response edited.")
         except discord.NotFound:
-            print("WARNING: SongListView message not found, stopping view.")
+            logging.warning("SongListView message not found, stopping view.")
             self.stop()
         except Exception as e:
-            print(f"ERROR: Failed to update SongListView message: {e}")
-            traceback.print_exc()
+            logging.error(f"Failed to update SongListView message: {e}", exc_info=True)
 
 
     @discord.ui.button(label="← 前へ", style=discord.ButtonStyle.primary, custom_id="prev_page", row=1)
-    async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def prev_page(self, interaction: discord.Interaction, button: Button):
+        logging.info(f"User {interaction.user.id} clicked 'Previous Page'.")
         await interaction.response.defer()
         if self.current_page > 0:
             self.current_page -= 1
             await self._update_message(interaction)
-            print(f"DEBUG: User {interaction.user.id} went to previous page: {self.current_page}.")
+            logging.info(f"User {interaction.user.id} went to previous page: {self.current_page}.")
         else:
             await interaction.followup.send("これ以上前のページはありません。", ephemeral=True)
-            print(f"DEBUG: User {interaction.user.id} tried to go before first page.")
+            logging.info(f"User {interaction.user.id} tried to go before first page.")
 
     @discord.ui.button(label="次へ →", style=discord.ButtonStyle.primary, custom_id="next_page", row=1)
-    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def next_page(self, interaction: discord.Interaction, button: Button):
+        logging.info(f"User {interaction.user.id} clicked 'Next Page'.")
         await interaction.response.defer()
         if self.current_page < self.total_pages - 1:
             self.current_page += 1
             await self._update_message(interaction)
-            print(f"DEBUG: User {interaction.user.id} went to next page: {self.current_page}.")
+            logging.info(f"User {interaction.user.id} went to next page: {self.current_page}.")
         else:
             await interaction.followup.send("これ以上次のページはありません。", ephemeral=True)
-            print(f"DEBUG: User {interaction.user.id} tried to go beyond last page.")
+            logging.info(f"User {interaction.user.id} tried to go beyond last page.")
 
     @discord.ui.button(label="昇順", style=discord.ButtonStyle.primary, custom_id="sort_asc", row=2)
-    async def sort_asc(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def sort_asc(self, interaction: discord.Interaction, button: Button):
+        logging.info(f"User {interaction.user.id} clicked 'Sort Ascending'.")
         await interaction.response.defer()
         self.current_sort_reverse = False
         self.current_page = 0
         await self._update_message(interaction)
-        print(f"DEBUG: User {interaction.user.id} set sort order to ascending.")
+        logging.info(f"User {interaction.user.id} set sort order to ascending.")
 
     @discord.ui.button(label="降順", style=discord.ButtonStyle.primary, custom_id="sort_desc", row=2)
-    async def sort_desc(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def sort_desc(self, interaction: discord.Interaction, button: Button):
+        logging.info(f"User {interaction.user.id} clicked 'Sort Descending'.")
         await interaction.response.defer()
         self.current_sort_reverse = True
         self.current_page = 0
         await self._update_message(interaction)
-        print(f"DEBUG: User {interaction.user.id} set sort order to descending.")
+        logging.info(f"User {interaction.user.id} set sort order to descending.")
 
     @discord.ui.select(
         custom_id="difficulty_select_handler",
@@ -478,7 +508,8 @@ class SongListView(discord.ui.View):
         options=[],
         row=0
     )
-    async def select_difficulty_callback(self, interaction: discord.Interaction, select: discord.ui.Select):
+    async def select_difficulty_callback(self, interaction: discord.Interaction, select: Select):
+        logging.info(f"User {interaction.user.id} selected difficulty filter: {select.values[0]}.")
         await interaction.response.defer()
         selected_value = select.values[0]
         self.current_difficulty_filter = selected_value if selected_value != "None" else None
@@ -492,26 +523,25 @@ class SongListView(discord.ui.View):
             self.current_sort_key = "release_order"
 
         await self._update_message(interaction)
-        print(f"DEBUG: User {interaction.user.id} filtered by difficulty: {self.current_difficulty_filter}. Auto-set sort key to {self.current_sort_key}.")
+        logging.info(f"User {interaction.user.id} filtered by difficulty: {self.current_difficulty_filter}. Auto-set sort key to {self.current_sort_key}.")
 
     async def on_timeout(self):
-        print(f"DEBUG: SongListView for user {self.original_user_id} timed out.")
+        logging.info(f"SongListView for user {self.original_user_id} timed out.")
         if self.message:
             try:
                 for item in self.children:
                     if hasattr(item, 'disabled'):
                         item.disabled = True
                 await self.message.edit(view=self)
+                logging.info(f"Disabled buttons for SongListView message {self.message.id} on timeout.")
             except discord.NotFound:
+                logging.warning("SongListView message not found during timeout handling. It might have been deleted.")
                 pass
             except Exception as e:
-                print(f"ERROR: Failed to disable buttons on timeout for user {self.original_user_id}: {e}")
-                traceback.print_exc()
+                logging.error(f"Failed to disable buttons on timeout for user {self.original_user_id}: {e}", exc_info=True)
 
 
-# ★変更: setup 関数から songs_data と valid_difficulties を削除
 async def setup(bot):
-    cog = ProsekaGeneralCommands(bot) # ★変更: 引数を渡さない
+    cog = ProsekaGeneralCommands(bot)
     await bot.add_cog(cog)
-    print("ProsekaGeneralCommands cog loaded and commands added.")
-
+    logging.info("ProsekaGeneralCommands cog loaded and commands added.")
