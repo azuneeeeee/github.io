@@ -75,7 +75,7 @@ class MyBot(commands.Bot):
             'cogs.proseka_general',      # 汎用コマンドコグ
             'cogs.help_command',         # 追加: ヘルプコマンドコグ
             'cogs.proseka_rankmatch',    # ランクマッチ選曲コグ
-            # 'cogs.pjsk_rankmatch_result',# ランクマッチリザルトコグ (もしあれば)
+            'cogs.pjsk_rankmatch_result',# ★修正: ランクマッチリザルトコグのコメントを解除
             'cogs.pjsk_record_result'    # 精度記録コグ
         ]
         self.proseka_songs_data = [] # 楽曲データをボットインスタンスに保持
@@ -87,8 +87,8 @@ class MyBot(commands.Bot):
         self.proseka_rankmatch_cog = None
         self.pjsk_ap_fc_rate_cog = None
         self.pjsk_record_result_cog = None
-        self.help_command_cog = None # 追加
-        # self.pjsk_rankmatch_result_cog = None # もしpjsk_rankmatch_resultコグがあるならこれも追加
+        self.help_command_cog = None
+        self.pjsk_rankmatch_result_cog = None # ★追加: pjsk_rankmatch_resultコグの参照を追加
 
         logging.info("Bot instance created.")
 
@@ -149,8 +149,8 @@ class MyBot(commands.Bot):
         self.proseka_rankmatch_cog = self.get_cog("ProsekaRankMatchCommands")
         self.pjsk_ap_fc_rate_cog = self.get_cog("PjskApFcRateCommands")
         self.pjsk_record_result_cog = self.get_cog("PjskRecordResult")
-        self.help_command_cog = self.get_cog("HelpCommand") # 追加
-        # self.pjsk_rankmatch_result_cog = self.get_cog("PjskRankMatchResult") # もしpjsk_rankmatch_resultコグがあるならこれも取得
+        self.help_command_cog = self.get_cog("HelpCommand")
+        self.pjsk_rankmatch_result_cog = self.get_cog("PjskRankMatchResult") # ★追加: pjsk_rankmatch_resultコグの参照を取得
 
 
         if self.proseka_general_cog:
@@ -175,6 +175,13 @@ class MyBot(commands.Bot):
             logging.info("Set songs_data and updated SONG_DATA_MAP in PjskRecordResult cog.")
         else:
             logging.warning("PjskRecordResult cog not found after loading.")
+
+        # ★追加: pjsk_rankmatch_result_cog が存在する場合に songs_data を設定
+        if self.pjsk_rankmatch_result_cog:
+            self.pjsk_rankmatch_result_cog.songs_data = self.proseka_songs_data
+            logging.info("Set songs_data in PjskRankMatchResult cog.")
+        else:
+            logging.warning("PjskRankMatchResult cog not found after loading.")
 
 
         # 相互参照の設定 (AP/FCレートの自動更新のため)
@@ -202,7 +209,6 @@ class MyBot(commands.Bot):
             # これにより、@app_commands.guilds(discord.Object(id=GUILD_ID)) でマークされたコマンドのみが同期される
             if GUILD_ID != 0: # GUILD_ID がデフォルト値でないことを確認
                 support_guild = discord.Object(id=GUILD_ID)
-                # self.tree.copy_global_to(guild=support_guild) # この行は削除済み
                 synced_guild_commands = await self.tree.sync(guild=support_guild)
                 logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {GUILD_ID}.")
             else:
@@ -296,6 +302,11 @@ from cogs.pjsk_record_result import _create_song_data_map
 
 def run_bot():
     bot = MyBot()
+    # botインスタンスにGUILD_IDとAPPLICATION_IDを直接設定
+    # これはhelp_commandコグでbot.GUILD_IDを参照するために必要
+    bot.GUILD_ID = GUILD_ID
+    bot.APPLICATION_ID = APPLICATION_ID
+
     if TOKEN:
         bot.run(TOKEN)
     else:
