@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord import app_commands # app_commands を明示的にインポート
 import os
 from dotenv import load_dotenv
 import traceback
@@ -37,12 +38,11 @@ class MyBot(commands.Bot):
 
         self.total_songs = 0
         self.total_charts = 0
-        self.proseka_songs_data = [] # 楽曲データをここに保持
-        self.valid_difficulties_data = [] # 難易度データをここに保持
-        self.is_bot_ready = False # ★追加: ボットがコマンドを受け付ける準備ができたかどうかのフラグ
+        self.proseka_songs_data = []
+        self.valid_difficulties_data = []
+        self.is_bot_ready = False 
 
     async def _load_songs_data_async(self):
-        """data/songs.py から楽曲データを非同期で読み込む"""
         songs_file_path = 'data/songs.py'
         try:
             loop = asyncio.get_running_loop()
@@ -55,7 +55,6 @@ class MyBot(commands.Bot):
             self.proseka_songs_data = _globals.get('proseka_songs', [])
             self.valid_difficulties_data = _globals.get('VALID_DIFFICULTIES', ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"])
             
-            # 読み込んだデータがリストであることを確認
             if not isinstance(self.proseka_songs_data, list):
                 print(f"ERROR (main.py): proseka_songs in {songs_file_path} is not a list. Type: {type(self.proseka_songs_data)}. Using empty list.")
                 self.proseka_songs_data = []
@@ -78,26 +77,16 @@ class MyBot(commands.Bot):
 
     async def setup_hook(self) -> None:
         print("Running setup_hook...")
-        # まず楽曲データを非同期で読み込む
         await self._load_songs_data_async()
 
         for extension in self.initial_extensions:
             print(f"DEBUG: Attempting to load {extension}...")
             try:
+                # コグに楽曲データを渡す
                 if extension == 'cogs.proseka_general':
-                    cog_instance = self.get_cog("ProsekaGeneralCommands")
-                    if cog_instance:
-                        cog_instance.songs_data = self.proseka_songs_data
-                        cog_instance.valid_difficulties = self.valid_difficulties_data
-                    else:
-                        await self.load_extension(extension, songs_data=self.proseka_songs_data, valid_difficulties=self.valid_difficulties_data)
+                    await self.load_extension(extension, songs_data=self.proseka_songs_data, valid_difficulties=self.valid_difficulties_data)
                 elif extension == 'cogs.proseka_rankmatch':
-                    cog_instance = self.get_cog("ProsekaRankMatchCommands")
-                    if cog_instance:
-                        cog_instance.songs_data = self.proseka_songs_data
-                        cog_instance.valid_difficulties = self.valid_difficulties_data
-                    else:
-                        await self.load_extension(extension, songs_data=self.proseka_songs_data, valid_difficulties=self.valid_difficulties_data)
+                    await self.load_extension(extension, songs_data=self.proseka_songs_data, valid_difficulties=self.valid_difficulties_data)
                 else:
                     await self.load_extension(extension)
                 print(f"DEBUG: Successfully loaded {extension}")
@@ -163,7 +152,8 @@ class MyBot(commands.Bot):
         await self.change_presence(activity=discord.Game(name=activity_name))
         print(f"Status set to: {activity_name}")
         
-        self.is_bot_ready = True # ★追加: ボットが完全に準備完了
+        self.is_bot_ready = True # ボットが完全に準備完了
+        print("DEBUG: Bot is fully ready.") # ログを追加
 
         print("\nDEBUG (main.py): Checking commands after on_ready:")
         all_commands_in_tree = self.tree.get_commands()
@@ -189,6 +179,59 @@ class MyBot(commands.Bot):
                 print(f"DEBUG (main.py):   - {cmd.name}")
         else:
             print(f"DEBUG (main.py): No commands explicitly found for guild {SUPPORT_GUILD_ID} in bot.tree.")
+
+    # ★追加: グローバルエラーハンドラー
+    async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.CommandInvokeError):
+            # CommandInvokeError は、コマンドのコールバック内で発生した例外をラップしている
+            original_error = error.original
+            if isinstance(original_error, discord.errors.NotFound) and original_error.code == 10062:
+                # Unknown interaction エラーの場合
+                print(f"ERROR: Caught Unknown interaction (10062) for command '{interaction.command.name}' by user '{interaction.user.name}'.")
+                print(f"ERROR Details: {original_error}")
+                # 既にdefer済みでないか、または応答済みでないかを確認
+                if not interaction.response.is_done():
+                    try:
+                        await interaction.response.send_message(
+                            "ボットの起動中または一時的な通信エラーにより、コマンドを処理できませんでした。しばらく待ってからもう一度お試しください。",
+                            ephemeral=True
+                        )
+                        print("DEBUG: Sent 'temporary error' message to user.")
+                    except discord.errors.InteractionResponded:
+                        # 稀にここで二重応答になる可能性も考慮
+                        print("WARNING: Tried to send 'temporary error' message but interaction was already responded to.")
+                    except Exception as e:
+                        print(f"CRITICAL ERROR: Failed to send error message for Unknown interaction: {e}")
+                else:
+                    print("DEBUG: Interaction already responded to, cannot send error message for Unknown interaction.")
+            else:
+                # その他の CommandInvokeError
+                print(f"ERROR: Unhandled CommandInvokeError in command '{interaction.command.name}': {original_error}")
+                traceback.print_exc()
+                if not interaction.response.is_done():
+                    try:
+                        await interaction.response.send_message(
+                            f"コマンドの実行中に予期せぬエラーが発生しました: `{original_error}`",
+                            ephemeral=True
+                        )
+                    except discord.errors.InteractionResponded:
+                        pass
+                    except Exception as e:
+                        print(f"CRITICAL ERROR: Failed to send generic error message: {e}")
+        else:
+            # その他の AppCommandError
+            print(f"ERROR: Unhandled AppCommandError in command '{interaction.command.name}': {error}")
+            traceback.print_exc()
+            if not interaction.response.is_done():
+                try:
+                    await interaction.response.send_message(
+                        f"コマンドの実行中にエラーが発生しました: `{error}`",
+                        ephemeral=True
+                    )
+                except discord.errors.InteractionResponded:
+                    pass
+                except Exception as e:
+                    print(f"CRITICAL ERROR: Failed to send generic error message: {e}")
 
 
 bot = MyBot()
