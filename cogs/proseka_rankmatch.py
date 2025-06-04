@@ -93,22 +93,8 @@ class ProsekaRankMatchCommands(commands.Cog):
     ):
         logging.info(f"Command '/pjsk_rankmatch_song' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
         
-        if not self.bot.is_bot_ready:
-            logging.warning(f"Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}. Sending 'bot not ready' message.")
-            try:
-                if not interaction.response.is_done():
-                    await interaction.response.send_message("ボットがまだ起動中です。しばらくお待ちください。", ephemeral=True)
-                return
-            except discord.errors.InteractionResponded:
-                logging.warning(f"Interaction for '{interaction.command.name}' was already responded to before 'bot not ready' check. Skipping send_message.")
-                return
-            except Exception as e:
-                logging.error(f"Failed to send 'bot not ready' message for '{interaction.command.name}': {e}", exc_info=True)
-                return
-
-        logging.info(f"Bot is ready. Proceeding with defer for '{interaction.command.name}'.")
+        # ★修正: defer を最初に実行
         try:
-            # ★修正: asyncio.sleep(0.1) を削除
             await interaction.response.defer(ephemeral=False)
             logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
         except discord.errors.NotFound:
@@ -116,6 +102,12 @@ class ProsekaRankMatchCommands(commands.Cog):
             return
         except Exception as e:
             logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
+            return
+
+        # ★修正: ボットの準備完了チェックを defer の後に移動
+        if not self.bot.is_bot_ready:
+            logging.warning(f"Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}. Sending 'bot not ready' message via followup.")
+            await interaction.followup.send("ボットがまだ起動中です。しばらくお待ちください。", ephemeral=True)
             return
 
         if not self.songs_data:
