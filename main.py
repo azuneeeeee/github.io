@@ -7,6 +7,9 @@ import traceback
 import asyncio
 import logging
 
+# ★追加: pjsk_record_result モジュールから _create_song_data_map をインポート
+from cogs.pjsk_record_result import _create_song_data_map as pjsk_record_result_create_song_data_map
+
 # ロギング設定
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
@@ -90,10 +93,6 @@ class MyBot(commands.Bot):
         for extension in self.initial_extensions:
             logging.info(f"Attempting to load {extension}...")
             try:
-                # ★★★ ここが重要な修正点です！ ★★★
-                # load_extension に songs_data や valid_difficulties を渡さないでください。
-                # これらのデータはコグがロードされた後、get_cog() でインスタンスを取得して設定します。
-                # あなたのログの 87行目と 89行目のエラーは、この部分がまだ修正されていないことを示しています。
                 await self.load_extension(extension)
                 logging.info(f"Successfully loaded {extension}")
             except Exception as e:
@@ -122,17 +121,9 @@ class MyBot(commands.Bot):
             # PjskRecordResult コグにデータを設定
             record_result_cog = self.get_cog("PjskRecordResult")
             if record_result_cog:
-                # PjskRecordResult の __init__ が songs_data を受け取るように変更されているため、
-                # setup 関数で渡されたデータが優先されますが、念のためここでも参照を更新します。
                 record_result_cog.songs_data = self.proseka_songs_data
-                # 必要であれば、SONG_DATA_MAPもここで更新を呼び出す
-                # _create_song_data_map は PjskRecordResult クラスの静的メソッドまたはヘルパー関数として存在することを想定
-                if hasattr(record_result_cog, '_create_song_data_map'):
-                    record_result_cog.SONG_DATA_MAP = record_result_cog._create_song_data_map(self.proseka_songs_data)
-                else:
-                    # もし _create_song_data_map が PjskRecordResult クラスにない場合、
-                    # グローバルスコープの _create_song_data_map を呼び出すか、エラーをログに記録
-                    logging.warning("'_create_song_data_map' method not found in PjskRecordResult cog. Cannot update SONG_DATA_MAP directly here.")
+                # ★修正: グローバル関数としてインポートした pjsk_record_result_create_song_data_map を使用
+                record_result_cog.SONG_DATA_MAP = pjsk_record_result_create_song_data_map(self.proseka_songs_data)
                 logging.info("Set songs_data and updated SONG_DATA_MAP in PjskRecordResult cog.")
             else:
                 logging.warning("PjskRecordResult cog not found after loading.")
