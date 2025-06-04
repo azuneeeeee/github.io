@@ -7,7 +7,7 @@ import traceback
 import asyncio
 import logging
 
-# ★修正: pjsk_record_result モジュールから _create_song_data_map をインポート
+# pjsk_record_result モジュールから _create_song_data_map をインポート
 # _create_song_data_map は PjskRecordResult クラスの外に定義されているため、モジュールから直接インポートします。
 from cogs.pjsk_record_result import _create_song_data_map as pjsk_record_result_create_song_data_map
 
@@ -124,7 +124,7 @@ class MyBot(commands.Bot):
             record_result_cog = self.get_cog("PjskRecordResult")
             if record_result_cog:
                 record_result_cog.songs_data = self.proseka_songs_data
-                # ★修正: グローバル関数としてインポートした pjsk_record_result_create_song_data_map を直接呼び出す
+                # グローバル関数としてインポートした pjsk_record_result_create_song_data_map を直接呼び出す
                 record_result_cog.SONG_DATA_MAP = pjsk_record_result_create_song_data_map(self.proseka_songs_data)
                 logging.info("Set songs_data and updated SONG_DATA_MAP in PjskRecordResult cog.")
             else:
@@ -236,8 +236,6 @@ class MyBot(commands.Bot):
                     )
                 except discord.errors.InteractionResponded:
                     pass
-                except Exception as e:
-                    logging.critical(f"Failed to send generic error message: {e}", exc_info=True)
 
     @app_commands.command(name="ping", description="ボットの応答性をテストします。")
     async def ping(self, interaction: discord.Interaction):
