@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 import asyncio
 import traceback
 import logging
-from discord.ui import Button, View, Modal, TextInput, Select # Button をインポート
+from discord.ui import Button, View, Modal, TextInput, Select
 
 load_dotenv()
 
@@ -45,6 +45,7 @@ class ProsekaGeneralCommands(commands.Cog):
 
         self.ap_fc_rate_cog = None
 
+        # ★修正: AP/FCレート表示の自動更新を無効にする
         self.should_update_ap_fc_rate_display = False
         logging.info(f"ProsekaGeneralCommands - AP/FCレート表示の自動更新は現在 {'有効' if self.should_update_ap_fc_rate_display else '無効'} に設定されています。")
 
@@ -118,7 +119,15 @@ class ProsekaGeneralCommands(commands.Cog):
             await interaction.followup.send("楽曲リストの送信中にエラーが発生しました。", ephemeral=False)
             return
 
-        logging.info(f"'/pjsk_list_songs' - self.ap_fc_rate_cog: {self.ap_fc_rate_cog}. Skipping AP/FC rate update as requested.")
+        if self.ap_fc_rate_cog and self.should_update_ap_fc_rate_display:
+            try:
+                await self.ap_fc_rate_cog.update_ap_fc_rate_display(interaction.user.id, interaction.channel)
+                logging.info("AP/FC rate display updated for /pjsk_list_songs.")
+            except Exception as e:
+                logging.error(f"Error updating AP/FC rate display for /pjsk_list_songs: {e}", exc_info=True)
+        else:
+            # ★修正: 自動更新が無効であることを明示的にログ出力
+            logging.info("AP/FC rate display update skipped for /pjsk_list_songs (cog not available or auto-update disabled).")
 
 
     @app_commands.command(name="pjsk_random_song", description="プロジェクトセカイの楽曲をランダムで選曲します。(難易度: 複数可, カンマ区切り例: EASY,HARD,MASTER)")
@@ -295,7 +304,8 @@ class ProsekaGeneralCommands(commands.Cog):
             except Exception as e:
                 logging.error(f"Error updating AP/FC rate display for /pjsk_random_song: {e}", exc_info=True)
         else:
-            logging.info("AP/FC rate display update skipped for /pjsk_random_song (cog not available or update disabled).")
+            # ★修正: 自動更新が無効であることを明示的にログ出力
+            logging.info("AP/FC rate display update skipped for /pjsk_random_song (cog not available or auto-update disabled).")
 
 
 class SongListView(discord.ui.View):
