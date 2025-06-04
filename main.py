@@ -7,6 +7,7 @@ import traceback
 import asyncio
 import logging
 
+# ロギング設定
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
 load_dotenv()
@@ -42,12 +43,13 @@ class MyBot(commands.Bot):
 
         self.total_songs = 0
         self.total_charts = 0
-        self.proseka_songs_data = []
-        self.valid_difficulties_data = []
-        self.is_bot_ready = False
+        self.proseka_songs_data = [] # 楽曲データをここに保持
+        self.valid_difficulties_data = [] # 難易度データをここに保持
+        self.is_bot_ready = False # ボットがコマンドを受け付ける準備ができたかどうかのフラグ
         logging.info("MyBot.__init__ completed. is_bot_ready set to False.")
 
     async def _load_songs_data_async(self):
+        """data/songs.py から楽曲データを非同期で読み込む"""
         songs_file_path = 'data/songs.py'
         logging.info(f"Attempting to load songs data from {songs_file_path} asynchronously.")
         try:
@@ -72,7 +74,7 @@ class MyBot(commands.Bot):
             logging.info(f"{songs_file_path} から {len(self.proseka_songs_data)} 曲の楽曲データを非同期で正常に読み込みました。")
 
         except FileNotFoundError:
-            logging.critical(f"{songs_file_path} が見つかりません。'data'フォルダにあることを確認してください。")
+            logging.critical(f"{songs_file_path} が見つかりません。'data'フォルダにあることを確認してください。", exc_info=True)
             self.proseka_songs_data = []
             self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
         except Exception as e:
@@ -88,6 +90,8 @@ class MyBot(commands.Bot):
         for extension in self.initial_extensions:
             logging.info(f"Attempting to load {extension}...")
             try:
+                # ★重要: load_extension に songs_data や valid_difficulties を渡さない
+                # コグの setup 関数が引数を受け取るように変更されているため、ここで直接渡す必要はない
                 await self.load_extension(extension)
                 logging.info(f"Successfully loaded {extension}")
             except Exception as e:
@@ -95,6 +99,7 @@ class MyBot(commands.Bot):
 
         logging.info("Attempting to set cog references and song data.")
         try:
+            # ProsekaGeneralCommands コグにデータを設定
             proseka_general_cog = self.get_cog("ProsekaGeneralCommands")
             if proseka_general_cog:
                 proseka_general_cog.songs_data = self.proseka_songs_data
@@ -103,6 +108,7 @@ class MyBot(commands.Bot):
             else:
                 logging.warning("ProsekaGeneralCommands cog not found after loading.")
 
+            # ProsekaRankMatchCommands コグにデータを設定
             rankmatch_cog = self.get_cog("ProsekaRankMatchCommands")
             if rankmatch_cog:
                 rankmatch_cog.songs_data = self.proseka_songs_data
@@ -111,15 +117,21 @@ class MyBot(commands.Bot):
             else:
                 logging.warning("ProsekaRankMatchCommands cog not found after loading.")
             
-            # ★追加: pjsk_record_result コグにも楽曲データを渡す
+            # PjskRecordResult コグにデータを設定
             record_result_cog = self.get_cog("PjskRecordResult")
             if record_result_cog:
+                # PjskRecordResult の __init__ が songs_data を受け取るように変更されている
+                # setup 関数で songs_data を渡すため、ここでは直接設定は不要だが、念のため参照を更新
+                # setup 関数で渡されたデータが優先されるため、この行は冗長になる可能性あり
+                # しかし、安全のため、ここでも設定を試みる
                 record_result_cog.songs_data = self.proseka_songs_data
-                logging.info("Set songs_data in PjskRecordResult cog.")
+                record_result_cog.SONG_DATA_MAP = record_result_cog._create_song_data_map(self.proseka_songs_data)
+                logging.info("Set songs_data and updated SONG_DATA_MAP in PjskRecordResult cog.")
             else:
                 logging.warning("PjskRecordResult cog not found after loading.")
 
 
+            # AP/FCレートコグの参照設定
             ap_fc_rate_cog = self.get_cog("PjskApFcRateCommands") 
             if proseka_general_cog and ap_fc_rate_cog:
                 proseka_general_cog.ap_fc_rate_cog = ap_fc_rate_cog
@@ -139,9 +151,11 @@ class MyBot(commands.Bot):
 
         logging.info("Attempting to sync commands...")
         try:
+            # グローバルコマンドの同期
             global_synced = await self.tree.sync()
             logging.info(f"Synced {len(global_synced)} global commands.")
 
+            # 特定ギルドへのコマンド同期 (サポートギルドIDを使用)
             support_guild = discord.Object(id=SUPPORT_GUILD_ID)
             guild_synced = await self.tree.sync(guild=support_guild)
             logging.info(f"Synced {len(guild_synced)} commands to support guild {SUPPORT_GUILD_ID}.")
