@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 import traceback
 import logging
-import asyncio # ★追加: asyncio をインポート
+import asyncio # asyncio をインポート
 
 load_dotenv()
 
@@ -111,7 +111,7 @@ class ProsekaRankMatchCommands(commands.Cog):
         # コマンド開始直後に遅延応答（defer）を呼び出す
         # ここで発生する NotFound はグローバルエラーハンドラーで捕捉される
         try:
-            # ★修正: わずかな遅延を挿入
+            # わずかな遅延を挿入
             await asyncio.sleep(0.1) 
             await interaction.response.defer(ephemeral=False)
             logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
@@ -196,7 +196,7 @@ class ProsekaRankMatchCommands(commands.Cog):
             description=f"難易度: **{selected_difficulty_for_display}** {level_display_str}\nランク: **{rank}**",
             color=embed_color
         )
-        # ★修正: selected_song ではなく selected_song_candidate を使用
+        # selected_song ではなく selected_song_candidate を使用
         if selected_song_candidate.get("image_url"):
             embed.set_thumbnail(url=selected_song_candidate["image_url"])
 
