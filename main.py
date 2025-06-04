@@ -88,7 +88,8 @@ class MyBot(commands.Bot):
         self.pjsk_ap_fc_rate_cog = None
         self.pjsk_record_result_cog = None
         self.help_command_cog = None
-        self.pjsk_rankmatch_result_cog = None
+        # ★修正: ProsekaRankmatchResultのクラス名に合わせる
+        self.pjsk_rankmatch_result_cog = None 
 
         logging.info("Bot instance created.")
 
@@ -159,7 +160,8 @@ class MyBot(commands.Bot):
         self.pjsk_ap_fc_rate_cog = self.get_cog("PjskApFcRateCommands")
         self.pjsk_record_result_cog = self.get_cog("PjskRecordResult")
         self.help_command_cog = self.get_cog("HelpCommand")
-        self.pjsk_rankmatch_result_cog = self.get_cog("ProsekaRankmatchResult") # ★修正: PjskRankMatchResultのクラス名に合わせる
+        # ★修正: ProsekaRankmatchResultのクラス名に合わせる
+        self.pjsk_rankmatch_result_cog = self.get_cog("ProsekaRankmatchResult") 
 
 
         if self.proseka_general_cog:
