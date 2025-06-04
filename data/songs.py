@@ -5490,6 +5490,16 @@ proseka_songs = [
         "expert": 24,
         "master": 28,
         "append": None
+    },
+    {
+        "title": "テトリス",
+        "image_url": "https://cdn.discordapp.com/attachments/1376551906570408040/1379863089024995359/image.jpeg?ex=6841c925&is=684077a5&hm=8d974929ccbb20b637020a6ad9f28214af920721d2859186a7884083eb6f07fb&",
+        "easy": 7,
+        "normal": 13,
+        "hard": 19,
+        "expert": 25,
+        "master": 29,
+        "append": 29
     }
 ]
 
