@@ -15,9 +15,45 @@ logging.basicConfig(level=logging.INFO,
 from dotenv import load_dotenv
 load_dotenv()
 
+# ★修正: 環境変数を安全に読み込む
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
-GUILD_ID = int(os.getenv('GUILD_ID'))
-OWNER_ID = int(os.getenv('OWNER_ID'))
+
+# GUILD_ID はサポートギルドIDとして使用されるため、必須。設定されていない場合はエラーログを出力し、デフォルト値を使用。
+_guild_id_str = os.getenv('GUILD_ID')
+if _guild_id_str is None:
+    logging.critical("GUILD_ID environment variable is not set. Please set it in Render's Environment settings or .env file.")
+    GUILD_ID = 0 # デフォルト値として0を設定（無効なIDとして扱う）
+else:
+    try:
+        GUILD_ID = int(_guild_id_str)
+    except ValueError:
+        logging.critical(f"GUILD_ID environment variable '{_guild_id_str}' is not a valid integer. Please check Render's Environment settings.")
+        GUILD_ID = 0
+
+# OWNER_ID はボットのオーナーIDとして使用されるため、必須。設定されていない場合はエラーログを出力し、デフォルト値を使用。
+_owner_id_str = os.getenv('OWNER_ID')
+if _owner_id_str is None:
+    logging.critical("OWNER_ID environment variable is not set. Please set it in Render's Environment settings or .env file.")
+    OWNER_ID = 0 # デフォルト値として0を設定（無効なIDとして扱う）
+else:
+    try:
+        OWNER_ID = int(_owner_id_str)
+    except ValueError:
+        logging.critical(f"OWNER_ID environment variable '{_owner_id_str}' is not a valid integer. Please check Render's Environment settings.")
+        OWNER_ID = 0
+
+# APPLICATION_ID はボットのアプリケーションIDとして使用されるため、必須。設定されていない場合はエラーログを出力し、デフォルト値を使用。
+_application_id_str = os.getenv('APPLICATION_ID')
+if _application_id_str is None:
+    logging.critical("APPLICATION_ID environment variable is not set. Please set it in Render's Environment settings or .env file.")
+    APPLICATION_ID = 0 # デフォルト値として0を設定（無効なIDとして扱う）
+else:
+    try:
+        APPLICATION_ID = int(_application_id_str)
+    except ValueError:
+        logging.critical(f"APPLICATION_ID environment variable '{_application_id_str}' is not a valid integer. Please check Render's Environment settings.")
+        APPLICATION_ID = 0
+
 
 # 楽曲データファイルのパス
 SONGS_FILE = 'data/songs.json'
@@ -31,7 +67,7 @@ class MyBot(commands.Bot):
         super().__init__(
             command_prefix=commands.when_mentioned_or('!'), # プレフィックスコマンドも考慮する場合
             intents=intents,
-            application_id=int(os.getenv('APPLICATION_ID')) if os.getenv('APPLICATION_ID') else None
+            application_id=APPLICATION_ID # ★修正: 安全に読み込んだ APPLICATION_ID を使用
         )
         self.initial_extensions = [
             'cogs.proseka_general',
@@ -46,6 +82,7 @@ class MyBot(commands.Bot):
         self.proseka_general_cog = None
         self.proseka_rankmatch_cog = None
         self.pjsk_ap_fc_rate_cog = None
+        self.pjsk_record_result_cog = None # 追加
 
         logging.info("Bot instance created.")
 
@@ -98,6 +135,7 @@ class MyBot(commands.Bot):
 
         if self.pjsk_record_result_cog:
             # PjskRecordResult cogにsongs_dataを渡し、内部でSONG_DATA_MAPを再構築させる
+            # _create_song_data_map は pjsk_record_result.py からインポート済み
             self.pjsk_record_result_cog.songs_data = self.proseka_songs_data
             self.pjsk_record_result_cog.SONG_DATA_MAP = _create_song_data_map(self.proseka_songs_data)
             logging.info("Set songs_data and updated SONG_DATA_MAP in PjskRecordResult cog.")
@@ -124,11 +162,14 @@ class MyBot(commands.Bot):
             synced = await self.tree.sync()
             logging.info(f"Synced {len(synced)} global commands.")
 
-            # 特定のギルドコマンドを同期 (もしあれば)
-            support_guild = discord.Object(id=GUILD_ID)
-            self.tree.copy_global_to(guild=support_guild)
-            synced_guild_commands = await self.tree.sync(guild=support_guild)
-            logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {GUILD_ID}.")
+            # 特定のギルドコマンドを同期 (もし GUILD_ID が有効な場合のみ)
+            if GUILD_ID != 0: # GUILD_ID がデフォルト値でないことを確認
+                support_guild = discord.Object(id=GUILD_ID)
+                self.tree.copy_global_to(guild=support_guild)
+                synced_guild_commands = await self.tree.sync(guild=support_guild)
+                logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {GUILD_ID}.")
+            else:
+                logging.warning("GUILD_ID is not set or invalid. Skipping guild command sync.")
 
         except Exception as e:
             logging.error(f"Failed to sync commands: {e}", exc_info=True)
@@ -211,14 +252,7 @@ class MyBot(commands.Bot):
             logging.error(f"Failed to send error message to user: {e}", exc_info=True)
 
 
-# _create_song_data_map 関数は pjsk_record_result.py に移動済みのため、ここでは定義しない
-# ただし、main.py内でPjskRecordResultのSONG_DATA_MAPを更新するために参照する必要がある
-# そのため、pjsk_record_result.py からこの関数をインポートするか、
-# または pjsk_record_result.py のsetup_hookでSONG_DATA_MAPを初期化する形にする。
-# 現状では、main.pyで呼び出されているため、pjsk_record_result.pyからインポートする形が望ましい。
-
-# ここでは、pjsk_record_result.py にある _create_song_data_map を明示的にインポートする
-# もし循環参照の問題が発生する場合は、この関数を main.py に移し、songs_data を引数として渡すなどの対応が必要
+# _create_song_data_map 関数は pjsk_record_result.py にあるため、ここからインポート
 from cogs.pjsk_record_result import _create_song_data_map
 
 
