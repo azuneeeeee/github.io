@@ -7,7 +7,7 @@ BOTの招待リンクは最後に書いてあります。
 - AP率、FC率等の計算が出来る
 - プロセカに収録されている楽曲確認出来る
 - 疑似ランクマでリザルトの精度を計算が出来る<br>
-BOTの招待リンクは[こちら](https://discord.com/oauth2/authorize?client_id=1374468062815981610)<br>
+BOTの招待リンクは[こちら](https://discord.com/oauth2/authorize?client_id=1374468062815981610&permissions=2147765248&integration_type=0&scope=bot+applications.commands)<br>
 サーバーを所有していない方は[こちら](https://discord.gg/cvD9dG5UjA)のサポートサーバーに参加してください。
 ## １BOTをサーバーに導入
 (サーバー所有していない方はスキップで大丈夫です。)<br>
