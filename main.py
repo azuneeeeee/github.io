@@ -3,7 +3,7 @@ from discord.ext import commands
 import os
 from dotenv import load_dotenv
 import traceback
-import asyncio # asyncio をインポート
+import asyncio
 
 load_dotenv()
 
@@ -39,6 +39,7 @@ class MyBot(commands.Bot):
         self.total_charts = 0
         self.proseka_songs_data = [] # 楽曲データをここに保持
         self.valid_difficulties_data = [] # 難易度データをここに保持
+        self.is_bot_ready = False # ★追加: ボットがコマンドを受け付ける準備ができたかどうかのフラグ
 
     async def _load_songs_data_async(self):
         """data/songs.py から楽曲データを非同期で読み込む"""
@@ -68,12 +69,12 @@ class MyBot(commands.Bot):
         except FileNotFoundError:
             print(f"CRITICAL ERROR (main.py): {songs_file_path} が見つかりません。'data'フォルダにあることを確認してください。")
             self.proseka_songs_data = []
-            self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"] # デフォルトを設定
+            self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
         except Exception as e:
             print(f"CRITICAL ERROR (main.py): Error executing {songs_file_path} or converting data: {e}.")
             traceback.print_exc()
             self.proseka_songs_data = []
-            self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"] # デフォルトを設定
+            self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
 
     async def setup_hook(self) -> None:
         print("Running setup_hook...")
@@ -83,17 +84,16 @@ class MyBot(commands.Bot):
         for extension in self.initial_extensions:
             print(f"DEBUG: Attempting to load {extension}...")
             try:
-                # ★修正: ProsekaGeneralCommands と ProsekaRankMatchCommands に楽曲データを渡す
                 if extension == 'cogs.proseka_general':
                     cog_instance = self.get_cog("ProsekaGeneralCommands")
-                    if cog_instance: # 既にロード済みの場合があるためチェック
+                    if cog_instance:
                         cog_instance.songs_data = self.proseka_songs_data
                         cog_instance.valid_difficulties = self.valid_difficulties_data
                     else:
                         await self.load_extension(extension, songs_data=self.proseka_songs_data, valid_difficulties=self.valid_difficulties_data)
                 elif extension == 'cogs.proseka_rankmatch':
                     cog_instance = self.get_cog("ProsekaRankMatchCommands")
-                    if cog_instance: # 既にロード済みの場合があるためチェック
+                    if cog_instance:
                         cog_instance.songs_data = self.proseka_songs_data
                         cog_instance.valid_difficulties = self.valid_difficulties_data
                     else:
@@ -150,7 +150,6 @@ class MyBot(commands.Bot):
         print(f'Logged in as {self.user} (ID: {self.user.id})')
         print('------')
 
-        # ★修正: 読み込んだデータを使用
         self.total_songs = len(self.proseka_songs_data)
         self.total_charts = 0
         for song in self.proseka_songs_data:
@@ -163,6 +162,8 @@ class MyBot(commands.Bot):
         activity_name = f"{self.total_songs}曲/{self.total_charts}譜面が登録済み"
         await self.change_presence(activity=discord.Game(name=activity_name))
         print(f"Status set to: {activity_name}")
+        
+        self.is_bot_ready = True # ★追加: ボットが完全に準備完了
 
         print("\nDEBUG (main.py): Checking commands after on_ready:")
         all_commands_in_tree = self.tree.get_commands()
