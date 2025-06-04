@@ -1,10 +1,18 @@
 import discord
 from discord.ext import commands
-from discord import app_commands # app_commands を明示的にインポート
+from discord import app_commands
 import os
 from dotenv import load_dotenv
 import traceback
 import asyncio
+import logging # logging モジュールをインポート
+
+# ロギング設定
+# INFOレベルで基本的な情報を出力。より詳細なデバッグが必要な場合は DEBUG に変更
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+# discord.py の内部ログをより詳細に見たい場合は、以下の行のコメントを外す
+# logging.getLogger('discord').setLevel(logging.DEBUG)
+# logging.getLogger('discord.http').setLevel(logging.INFO) # HTTPリクエストはINFOで十分
 
 load_dotenv()
 
@@ -15,6 +23,7 @@ SUPPORT_GUILD_ID = 1376551581423767582
 
 class MyBot(commands.Bot):
     def __init__(self):
+        logging.info("MyBot.__init__ started.")
         intents = discord.Intents.default()
         intents.message_content = True
         intents.members = True
@@ -40,11 +49,13 @@ class MyBot(commands.Bot):
         self.total_charts = 0
         self.proseka_songs_data = [] # 楽曲データをここに保持
         self.valid_difficulties_data = [] # 難易度データをここに保持
-        self.is_bot_ready = False 
+        self.is_bot_ready = False # ボットがコマンドを受け付ける準備ができたかどうかのフラグ
+        logging.info("MyBot.__init__ completed. is_bot_ready set to False.")
 
     async def _load_songs_data_async(self):
         """data/songs.py から楽曲データを非同期で読み込む"""
         songs_file_path = 'data/songs.py'
+        logging.info(f"Attempting to load songs data from {songs_file_path} asynchronously.")
         try:
             loop = asyncio.get_running_loop()
             with open(songs_file_path, 'r', encoding='utf-8') as f:
@@ -57,96 +68,92 @@ class MyBot(commands.Bot):
             self.valid_difficulties_data = _globals.get('VALID_DIFFICULTIES', ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"])
             
             if not isinstance(self.proseka_songs_data, list):
-                print(f"ERROR (main.py): proseka_songs in {songs_file_path} is not a list. Type: {type(self.proseka_songs_data)}. Using empty list.")
+                logging.error(f"proseka_songs in {songs_file_path} is not a list. Type: {type(self.proseka_songs_data)}. Using empty list.")
                 self.proseka_songs_data = []
 
             if not isinstance(self.valid_difficulties_data, list):
-                print(f"ERROR (main.py): VALID_DIFFICULTIES in {songs_file_path} is not a list. Type: {type(self.valid_difficulties_data)}. Using default list.")
+                logging.error(f"VALID_DIFFICULTIES in {songs_file_path} is not a list. Type: {type(self.valid_difficulties_data)}. Using default list.")
                 self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
 
-            print(f"DEBUG (main.py): {songs_file_path} から {len(self.proseka_songs_data)} 曲の楽曲データを非同期で正常に読み込みました。")
+            logging.info(f"{songs_file_path} から {len(self.proseka_songs_data)} 曲の楽曲データを非同期で正常に読み込みました。")
 
         except FileNotFoundError:
-            print(f"CRITICAL ERROR (main.py): {songs_file_path} が見つかりません。'data'フォルダにあることを確認してください。")
+            logging.critical(f"{songs_file_path} が見つかりません。'data'フォルダにあることを確認してください。")
             self.proseka_songs_data = []
             self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
         except Exception as e:
-            print(f"CRITICAL ERROR (main.py): Error executing {songs_file_path} or converting data: {e}.")
-            traceback.print_exc()
+            logging.critical(f"Error executing {songs_file_path} or converting data: {e}", exc_info=True)
             self.proseka_songs_data = []
             self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
 
     async def setup_hook(self) -> None:
-        print("Running setup_hook...")
+        logging.info("Running setup_hook...")
         await self._load_songs_data_async()
 
+        logging.info("Starting extension loading loop.")
         for extension in self.initial_extensions:
-            print(f"DEBUG: Attempting to load {extension}...")
+            logging.info(f"Attempting to load {extension}...")
             try:
-                # ★修正: load_extension に songs_data や valid_difficulties を渡さない
+                # ★重要: load_extension に songs_data や valid_difficulties を渡さない
                 await self.load_extension(extension)
-                print(f"DEBUG: Successfully loaded {extension}")
+                logging.info(f"Successfully loaded {extension}")
             except Exception as e:
-                print(f"ERROR: Failed to load {extension}: {e}")
-                traceback.print_exc()
+                logging.error(f"Failed to load {extension}: {e}", exc_info=True)
 
-        # ★追加: コグのロード後にデータを設定
+        logging.info("Attempting to set cog references and song data.")
         try:
             proseka_general_cog = self.get_cog("ProsekaGeneralCommands")
             if proseka_general_cog:
                 proseka_general_cog.songs_data = self.proseka_songs_data
                 proseka_general_cog.valid_difficulties = self.valid_difficulties_data
-                print("DEBUG: Set songs_data and valid_difficulties in ProsekaGeneralCommands.")
+                logging.info("Set songs_data and valid_difficulties in ProsekaGeneralCommands.")
             else:
-                print("WARNING: ProsekaGeneralCommands cog not found after loading.")
+                logging.warning("ProsekaGeneralCommands cog not found after loading.")
 
             rankmatch_cog = self.get_cog("ProsekaRankMatchCommands")
             if rankmatch_cog:
                 rankmatch_cog.songs_data = self.proseka_songs_data
                 rankmatch_cog.valid_difficulties = self.valid_difficulties_data
-                print("DEBUG: Set songs_data and valid_difficulties in ProsekaRankMatchCommands.")
+                logging.info("Set songs_data and valid_difficulties in ProsekaRankMatchCommands.")
             else:
-                print("WARNING: ProsekaRankMatchCommands cog not found after loading.")
+                logging.warning("ProsekaRankMatchCommands cog not found after loading.")
 
-            # AP/FCレートコグの参照設定は以前のまま
             ap_fc_rate_cog = self.get_cog("PjskApFcRateCommands") 
             if proseka_general_cog and ap_fc_rate_cog:
                 proseka_general_cog.ap_fc_rate_cog = ap_fc_rate_cog
-                print("DEBUG: Set ap_fc_rate_cog reference in ProsekaGeneralCommands.")
+                logging.info("Set ap_fc_rate_cog reference in ProsekaGeneralCommands.")
             else:
-                print("WARNING: Could not get ProsekaGeneralCommands or PjskApFcRateCommands cog for linking. Check cog names or load order.")
+                logging.warning("Could not get ProsekaGeneralCommands or PjskApFcRateCommands cog for linking. Check cog names or load order.")
 
             if rankmatch_cog and ap_fc_rate_cog:
                 rankmatch_cog.ap_fc_rate_cog = ap_fc_rate_cog
-                print("DEBUG: Set ap_fc_rate_cog reference in ProsekaRankMatchCommands.")
+                logging.info("Set ap_fc_rate_cog reference in ProsekaRankMatchCommands.")
             else:
-                print("WARNING: Could not get ProsekaRankMatchCommands or PjskApFcRateCommands cog for linking. Check cog names or load order.")
+                logging.warning("Could not get ProsekaRankMatchCommands or PjskApFcRateCommands cog for linking. Check cog names or load order.")
 
         except Exception as e:
-            print(f"ERROR: Failed to link cogs or set song data: {e}")
-            traceback.print_exc()
+            logging.error(f"Failed to link cogs or set song data: {e}", exc_info=True)
 
 
-        print("DEBUG: Attempting to sync commands...")
+        logging.info("Attempting to sync commands...")
         try:
             global_synced = await self.tree.sync()
-            print(f"DEBUG: Synced {len(global_synced)} global commands.")
-            for cmd in global_synced:
-                print(f"DEBUG:   - Synced global command: {cmd.name}")
+            logging.info(f"Synced {len(global_synced)} global commands.")
+            # for cmd in global_synced: # デバッグログが多すぎる場合があるのでコメントアウト
+            #     logging.debug(f"  - Synced global command: {cmd.name}")
 
             support_guild = discord.Object(id=SUPPORT_GUILD_ID)
             guild_synced = await self.tree.sync(guild=support_guild)
-            print(f"DEBUG: Synced {len(guild_synced)} commands to support guild {SUPPORT_GUILD_ID}.")
-            for cmd in guild_synced:
-                print(f"DEBUG:   - Synced guild command: {cmd.name}")
+            logging.info(f"Synced {len(guild_synced)} commands to support guild {SUPPORT_GUILD_ID}.")
+            # for cmd in guild_synced: # デバッグログが多すぎる場合があるのでコメントアウト
+            #     logging.debug(f"  - Synced guild command: {cmd.name}")
 
         except Exception as e:
-            print(f"CRITICAL ERROR: Failed to sync commands: {e}")
-            traceback.print_exc()
+            logging.critical(f"Failed to sync commands: {e}", exc_info=True)
 
     async def on_ready(self):
-        print(f'Logged in as {self.user} (ID: {self.user.id})')
-        print('------')
+        logging.info(f'Logged in as {self.user} (ID: {self.user.id})')
+        logging.info('------')
 
         self.total_songs = len(self.proseka_songs_data)
         self.total_charts = 0
@@ -159,58 +166,53 @@ class MyBot(commands.Bot):
 
         activity_name = f"{self.total_songs}曲/{self.total_charts}譜面が登録済み"
         await self.change_presence(activity=discord.Game(name=activity_name))
-        print(f"Status set to: {activity_name}")
+        logging.info(f"Status set to: {activity_name}")
         
         self.is_bot_ready = True
-        print("DEBUG: Bot is fully ready.")
+        logging.info("Bot is fully ready and accepting commands.")
 
-        print("\nDEBUG (main.py): Checking commands after on_ready:")
-        all_commands_in_tree = self.tree.get_commands()
-        if all_commands_in_tree:
-            print(f"DEBUG (main.py): Found {len(all_commands_in_tree)} total commands in bot.tree (global/guild):")
-            for cmd in all_commands_in_tree:
-                if hasattr(cmd, 'guild_ids') and cmd.guild_ids:
-                    guild_status = f"Guilds: {cmd.guild_ids}"
-                elif hasattr(cmd, 'guild') and cmd.guild:
-                    guild_status = f"Guild: {cmd.guild.id}"
-                else:
-                    guild_status = "Global"
+        # logging.debug("\nChecking commands after on_ready:") # デバッグログが多すぎる場合があるのでコメントアウト
+        # all_commands_in_tree = self.tree.get_commands()
+        # if all_commands_in_tree:
+        #     logging.debug(f"Found {len(all_commands_in_tree)} total commands in bot.tree (global/guild):")
+        #     for cmd in all_commands_in_tree:
+        #         guild_status = f"Guilds: {cmd.guild_ids}" if hasattr(cmd, 'guild_ids') and cmd.guild_ids else \
+        #                        f"Guild: {cmd.guild.id}" if hasattr(cmd, 'guild') and cmd.guild else "Global"
+        #         cmd_type_str = str(cmd.type) if hasattr(cmd, 'type') else "Unknown Type"
+        #         logging.debug(f"  - Name: {cmd.name}, Type: {cmd_type_str}, {guild_status}")
+        # else:
+        #     logging.debug(f"No commands found in bot.tree at all.")
 
-                cmd_type_str = str(cmd.type) if hasattr(cmd, 'type') else "Unknown Type"
-                print(f"DEBUG (main.py):   - Name: {cmd.name}, Type: {cmd_type_str}, {guild_status}")
-        else:
-            print(f"DEBUG (main.py): No commands found in bot.tree at all.")
+        # guild_commands_in_tree = self.tree.get_commands(guild=discord.Object(id=SUPPORT_GUILD_ID))
+        # if guild_commands_in_tree:
+        #     logging.debug(f"Found {len(guild_commands_in_tree)} commands in bot.tree for guild {SUPPORT_GUILD_ID}:")
+        #     for cmd in guild_commands_in_tree:
+        #         logging.debug(f"  - {cmd.name}")
+        # else:
+        #     logging.debug(f"No commands explicitly found for guild {SUPPORT_GUILD_ID} in bot.tree.")
 
-        guild_commands_in_tree = self.tree.get_commands(guild=discord.Object(id=SUPPORT_GUILD_ID))
-        if guild_commands_in_tree:
-            print(f"DEBUG (main.py): Found {len(guild_commands_in_tree)} commands in bot.tree for guild {SUPPORT_GUILD_ID}:")
-            for cmd in guild_commands_in_tree:
-                print(f"DEBUG (main.py):   - {cmd.name}")
-        else:
-            print(f"DEBUG (main.py): No commands explicitly found for guild {SUPPORT_GUILD_ID} in bot.tree.")
-
+    # ★追加: グローバルエラーハンドラー
     async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        logging.error(f"Caught an AppCommandError for command '{interaction.command.name}' by user '{interaction.user.name}'.")
         if isinstance(error, app_commands.CommandInvokeError):
             original_error = error.original
             if isinstance(original_error, discord.errors.NotFound) and original_error.code == 10062:
-                print(f"ERROR: Caught Unknown interaction (10062) for command '{interaction.command.name}' by user '{interaction.user.name}'.")
-                print(f"ERROR Details: {original_error}")
+                logging.error(f"Specific error: Unknown interaction (10062). Details: {original_error}")
                 if not interaction.response.is_done():
                     try:
                         await interaction.response.send_message(
                             "ボットの起動中または一時的な通信エラーにより、コマンドを処理できませんでした。しばらく待ってからもう一度お試しください。",
                             ephemeral=True
                         )
-                        print("DEBUG: Sent 'temporary error' message to user.")
+                        logging.info("Sent 'temporary error' message to user.")
                     except discord.errors.InteractionResponded:
-                        print("WARNING: Tried to send 'temporary error' message but interaction was already responded to.")
+                        logging.warning("Tried to send 'temporary error' message but interaction was already responded to.")
                     except Exception as e:
-                        print(f"CRITICAL ERROR: Failed to send error message for Unknown interaction: {e}")
+                        logging.critical(f"Failed to send error message for Unknown interaction: {e}", exc_info=True)
                 else:
-                    print("DEBUG: Interaction already responded to, cannot send error message for Unknown interaction.")
+                    logging.debug("Interaction already responded to, cannot send error message for Unknown interaction.")
             else:
-                print(f"ERROR: Unhandled CommandInvokeError in command '{interaction.command.name}': {original_error}")
-                traceback.print_exc()
+                logging.error(f"Unhandled CommandInvokeError in command '{interaction.command.name}': {original_error}", exc_info=True)
                 if not interaction.response.is_done():
                     try:
                         await interaction.response.send_message(
@@ -220,10 +222,9 @@ class MyBot(commands.Bot):
                     except discord.errors.InteractionResponded:
                         pass
                     except Exception as e:
-                        print(f"CRITICAL ERROR: Failed to send generic error message: {e}")
+                        logging.critical(f"Failed to send generic error message: {e}", exc_info=True)
         else:
-            print(f"ERROR: Unhandled AppCommandError in command '{interaction.command.name}': {error}")
-            traceback.print_exc()
+            logging.error(f"Unhandled AppCommandError in command '{interaction.command.name}': {error}", exc_info=True)
             if not interaction.response.is_done():
                 try:
                     await interaction.response.send_message(
@@ -233,7 +234,25 @@ class MyBot(commands.Bot):
                 except discord.errors.InteractionResponded:
                     pass
                 except Exception as e:
-                    print(f"CRITICAL ERROR: Failed to send generic error message: {e}")
+                    logging.critical(f"Failed to send generic error message: {e}", exc_info=True)
+
+    # ★追加: 診断用pingコマンド
+    @app_commands.command(name="ping", description="ボットの応答性をテストします。")
+    async def ping(self, interaction: discord.Interaction):
+        logging.info(f"/ping command invoked by {interaction.user.name}.")
+        start_time = discord.utils.utcnow()
+        try:
+            await interaction.response.defer(ephemeral=True) # ephemeralで応答
+            latency = (discord.utils.utcnow() - start_time).total_seconds() * 1000
+            await interaction.followup.send(f"Pong! 🏓\nボットのレイテンシ: {self.latency * 1000:.2f}ms\n応答までの時間: {latency:.2f}ms", ephemeral=True)
+            logging.info(f"/ping command successful for {interaction.user.name}. Latency: {self.latency * 1000:.2f}ms, Response time: {latency:.2f}ms.")
+        except Exception as e:
+            logging.error(f"Error processing /ping command for {interaction.user.name}: {e}", exc_info=True)
+            if not interaction.response.is_done():
+                try:
+                    await interaction.response.send_message("Pingコマンドの処理中にエラーが発生しました。", ephemeral=True)
+                except discord.errors.InteractionResponded:
+                    pass
 
 
 bot = MyBot()
@@ -241,4 +260,4 @@ bot = MyBot()
 if TOKEN:
     bot.run(TOKEN)
 else:
-    print("Error: DISCORD_BOT_TOKEN environment variable not set. Please check your .env file.")
+    logging.critical("DISCORD_BOT_TOKEN environment variable not set. Please check your .env file.")
