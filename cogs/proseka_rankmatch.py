@@ -26,7 +26,6 @@ def is_owner_global(interaction: discord.Interaction) -> bool:
     return interaction.user.id == OWNER_ID and OWNER_ID != -1
 
 class ProsekaRankMatchCommands(commands.Cog):
-    # ★変更: songs_data と valid_difficulties を引数として受け取る
     def __init__(self, bot, songs_data: list = None, valid_difficulties: list = None):
         self.bot = bot
         self.owner_id = OWNER_ID
@@ -40,14 +39,11 @@ class ProsekaRankMatchCommands(commands.Cog):
             "APPEND": discord.Color(0xFFC0CB)
         }
 
-        # ★変更: 外部から渡されたデータを使用
         self.songs_data = songs_data if songs_data is not None else []
         self.valid_difficulties = valid_difficulties if valid_difficulties is not None else ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
         
-        # 既存のAP/FCレートコグへの参照を保持 (setup時に設定される)
         self.ap_fc_rate_cog = None
 
-        # AP/FCレート表示の更新を有効にするかどうかのフラグ
         self.should_update_ap_fc_rate_display = False 
         print(f"INFO: AP/FCレート表示の自動更新は現在 {'有効' if self.should_update_ap_fc_rate_display else '無効'} に設定されています。")
 
@@ -71,13 +67,9 @@ class ProsekaRankMatchCommands(commands.Cog):
             "マスター": "<:rankmatch_master:1375079350294020156>",
         }
 
-    # ★削除: _load_songs_data メソッドは不要になります
-
     def _get_difficulty_level(self, song: dict, difficulty_name: str) -> int | None:
-        """楽曲データから指定された難易度のレベルを取得する"""
         return song.get(difficulty_name.lower())
 
-    # --- ランクマッチ選曲コマンド ---
     @app_commands.command(name="pjsk_rankmatch_song", description="プロジェクトセカイのランクマッチ形式で楽曲を選曲します。")
     @app_commands.describe(
         rank="現在のランクを選択してください",
@@ -96,13 +88,31 @@ class ProsekaRankMatchCommands(commands.Cog):
     async def pjsk_rankmatch_song(
         self,
         interaction: discord.Interaction,
-        rank: str,        # 必須引数
+        rank: str,
     ):
+        # ★追加: ボットが完全に準備完了しているかチェック
+        if not self.bot.is_bot_ready:
+            print(f"DEBUG: Bot not ready for command /pjsk_rankmatch_song. User: {interaction.user.name}")
+            # interaction.response.defer() の前に応答する必要があるため、followup.send は使えない
+            # 既に defer() が失敗している状況なので、直接 interaction.response.send_message を試みる
+            # ただし、これも失敗する可能性があるので、try-except で囲む
+            try:
+                # すでに応答済みでないことを確認してから応答
+                if not interaction.response.is_done():
+                    await interaction.response.send_message("ボットがまだ起動中です。しばらくお待ちください。", ephemeral=True)
+                else:
+                    # 既に応答済みの場合（例: 別のエラーハンドラが応答した）、何もしない
+                    pass
+            except discord.errors.InteractionResponded:
+                # すでに応答済みの場合の例外を捕捉
+                pass
+            except Exception as e:
+                print(f"ERROR: Failed to send 'bot not ready' message for /pjsk_rankmatch_song: {e}")
+            return
+
         # コマンド開始直後に遅延応答（defer）を呼び出す
         await interaction.response.defer(ephemeral=False)
 
-        # 楽曲データが読み込まれているか確認
-        # main.pyで既に読み込まれているはずなので、Noneチェックは不要だが、念のため空リストチェックは残す
         if not self.songs_data:
             await interaction.followup.send("現在、楽曲データが読み込まれていません。ボットのログを確認してください。", ephemeral=False)
             return
@@ -117,7 +127,6 @@ class ProsekaRankMatchCommands(commands.Cog):
         for song in self.songs_data:
             candidate_difficulties_with_ranges = []
 
-            # HARD, EXPERT, MASTER は常に考慮
             target_difficulties_for_check = ["HARD", "EXPERT", "MASTER"]
             if rank_info["append_allowed"]:
                 target_difficulties_for_check.append("APPEND")
@@ -125,7 +134,7 @@ class ProsekaRankMatchCommands(commands.Cog):
             for selected_difficulty_upper in target_difficulties_for_check:
                 level = self._get_difficulty_level(song, selected_difficulty_upper)
 
-                if level is None: # レベル情報がない場合はスキップ
+                if level is None:
                     continue
 
                 current_level_min, current_level_max = (0, 0)
@@ -135,9 +144,9 @@ class ProsekaRankMatchCommands(commands.Cog):
                         current_level_min, current_level_max = rank_info.get("normal_append", (0, 0))
                     elif rank == "マスター":
                         current_level_min, current_level_max = rank_info.get("master_append", (0, 0))
-                    else: # APPENDは許可されているが、特定のランクに合致しない場合
+                    else:
                         continue
-                else: # HARD, EXPERT, MASTER の場合
+                else:
                     current_level_min, current_level_max = rank_info.get("normal", (0, 0))
 
                 if current_level_min <= level <= current_level_max:
@@ -175,11 +184,10 @@ class ProsekaRankMatchCommands(commands.Cog):
             color=embed_color
         )
         if selected_song_candidate.get("image_url"):
-            embed.set_thumbnail(url=selected_song_candidate["image_url"])
+            embed.set_thumbnail(url=selected_song["image_url"])
 
         await interaction.followup.send(embed=embed, ephemeral=False)
 
-        # AP/FCレート表示がある場合、かつ should_update_ap_fc_rate_display が True の場合のみ、既存のメッセージを削除して更新する
         if self.ap_fc_rate_cog and self.should_update_ap_fc_rate_display:
             try:
                 await self.ap_fc_rate_cog.update_ap_fc_rate_display(interaction.user.id, interaction.channel)
@@ -191,8 +199,7 @@ class ProsekaRankMatchCommands(commands.Cog):
             print("DEBUG: AP/FC rate display update skipped for /pjsk_rankmatch_song (cog not available or update disabled).")
 
 
-async def setup(bot, songs_data: list, valid_difficulties: list): # ★変更: 引数を受け取る
-    cog = ProsekaRankMatchCommands(bot, songs_data=songs_data, valid_difficulties=valid_difficulties) # ★変更: 引数を渡す
+async def setup(bot, songs_data: list, valid_difficulties: list):
+    cog = ProsekaRankMatchCommands(bot, songs_data=songs_data, valid_difficulties=valid_difficulties)
     await bot.add_cog(cog)
     print("ProsekaRankMatchCommands cog loaded.")
-
