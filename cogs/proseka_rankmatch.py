@@ -76,9 +76,12 @@ class ProsekaRankMatchCommands(commands.Cog):
         """
         data/songs.py から楽曲データを読み込み、ProsekaGeneralCommands と同じ形式に変換して返します。
         """
+        songs_file_path = 'data/songs.py' # ★ファイル名は .py のまま
+
         try:
             _globals = {}
-            with open('data/songs.py', 'r', encoding='utf-8') as f:
+            with open(songs_file_path, 'r', encoding='utf-8') as f:
+                # ★ exec() を使用してPythonファイルを直接実行
                 exec(f.read(), _globals)
 
             loaded_proseka_songs = _globals.get('proseka_songs', [])
@@ -86,12 +89,12 @@ class ProsekaRankMatchCommands(commands.Cog):
 
             formatted_songs = []
             if not isinstance(loaded_proseka_songs, list):
-                print(f"ERROR (rankmatch): proseka_songs in data/songs.py is not a list. Type: {type(loaded_proseka_songs)}. Returning empty list.")
+                print(f"ERROR (rankmatch): proseka_songs in {songs_file_path} is not a list. Type: {type(loaded_proseka_songs)}. Returning empty list.")
                 return []
 
             for i, song_item in enumerate(loaded_proseka_songs):
                 if not isinstance(song_item, dict):
-                    print(f"WARNING (rankmatch): Item {i+1} in proseka_songs is not a dictionary. Skipping: {song_item}")
+                    print(f"WARNING (rankmatch): Item {i+1} in proseka_songs from {songs_file_path} is not a dictionary. Skipping: {song_item}")
                     continue
 
                 formatted_song = {
@@ -104,16 +107,20 @@ class ProsekaRankMatchCommands(commands.Cog):
                         formatted_song[diff_name.lower()] = int(level)
                     elif level is not None:
                         print(f" -> WARNING (rankmatch): Difficulty '{diff_name.lower()}' for song '{song_item.get('title')}' has non-numeric level: {level}. Skipping this difficulty.")
+                        formatted_song[diff_name.lower()] = None # 無効な場合はNoneを設定
+                    else:
+                        formatted_song[diff_name.lower()] = None # レベル情報がない場合はNoneを設定
 
                 formatted_songs.append(formatted_song)
 
+            print(f"DEBUG: {songs_file_path} から {len(formatted_songs)} 曲の楽曲データを正常に読み込みました。")
             return formatted_songs
 
         except FileNotFoundError:
-            print("CRITICAL ERROR (rankmatch): data/songs.py not found. Please ensure it's in the 'data' folder. Returning empty list.")
+            print(f"CRITICAL ERROR (rankmatch): {songs_file_path} が見つかりません。'data'フォルダにあることを確認してください。空のリストを返します。")
             return []
-        except Exception as e:
-            print(f"CRITICAL ERROR (rankmatch): Error loading data/songs.py or converting data: {e}. Returning empty list.")
+        except Exception as e: # SyntaxError など、exec() で発生する可能性のあるエラーを捕捉
+            print(f"CRITICAL ERROR (rankmatch): Error executing {songs_file_path} or converting data: {e}. Returning empty list.")
             traceback.print_exc()
             return []
 
@@ -141,9 +148,15 @@ class ProsekaRankMatchCommands(commands.Cog):
     async def pjsk_rankmatch_song(
         self,
         interaction: discord.Interaction,
-        rank: str,         # 必須引数
+        rank: str,        # 必須引数
     ):
+        # ★ここが重要: コマンド開始直後に遅延応答（defer）を呼び出す
         await interaction.response.defer(ephemeral=False)
+
+        # 楽曲データが読み込まれているか確認
+        if not self.songs_data:
+            await interaction.followup.send("現在、楽曲データが読み込まれていません。ボットのログを確認してください。", ephemeral=False)
+            return
 
         rank_info = self.RANK_LEVEL_MAP.get(rank)
         if not rank_info:
@@ -218,7 +231,6 @@ class ProsekaRankMatchCommands(commands.Cog):
         await interaction.followup.send(embed=embed, ephemeral=False)
 
         # AP/FCレート表示がある場合、既存のメッセージを削除して更新する
-        # ★ここを修正しました★
         if self.ap_fc_rate_cog:
             try:
                 await self.ap_fc_rate_cog.update_ap_fc_rate_display(interaction.user.id, interaction.channel)
@@ -234,3 +246,4 @@ async def setup(bot):
     cog = ProsekaRankMatchCommands(bot)
     await bot.add_cog(cog)
     print("ProsekaRankMatchCommands cog loaded.")
+
