@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 import os
-import json # songs.py を読み込む場合でも、jsonは他の場所で使う可能性があるので残しておく
+import json
 import asyncio
 import traceback
 import logging
@@ -55,7 +55,7 @@ else:
     APPLICATION_ID = 0
 
 
-# ★修正: SONGS_FILE を songs.py に戻す
+# SONGS_FILE を songs.py に戻す
 SONGS_FILE = 'data/songs.py'
 
 class MyBot(commands.Bot):
@@ -69,7 +69,7 @@ class MyBot(commands.Bot):
             intents=intents,
             application_id=APPLICATION_ID # 安全に読み込んだ APPLICATION_ID を使用
         )
-        # ★修正: initial_extensions リストを整理し、重複がないことを確認
+        # initial_extensions リストを整理し、重複がないことを確認
         self.initial_extensions = [
             'cogs.pjsk_ap_fc_rate',      # AP/FCレートコグ
             'cogs.proseka_general',      # 汎用コマンドコグ
@@ -91,7 +91,7 @@ class MyBot(commands.Bot):
 
         logging.info("Bot instance created.")
 
-    # ★修正: songs.py を読み込むための非同期関数を再導入
+    # songs.py を読み込むための非同期関数を再導入
     async def _load_songs_data_async(self):
         """data/songs.py から楽曲データを非同期で読み込む"""
         logging.info(f"Attempting to load songs data from {SONGS_FILE} asynchronously.")
@@ -130,7 +130,7 @@ class MyBot(commands.Bot):
     async def setup_hook(self):
         logging.info("Starting setup_hook...")
         
-        # ★修正: songs.py から楽曲データを読み込む
+        # songs.py から楽曲データを読み込む
         await self._load_songs_data_async()
 
         # コグのロード
@@ -168,7 +168,6 @@ class MyBot(commands.Bot):
         if self.pjsk_record_result_cog:
             # PjskRecordResult cogにsongs_dataを渡し、内部でSONG_DATA_MAPを再構築させる
             # _create_song_data_map は pjsk_record_result.py からインポート済み
-            # ★修正: pjsk_record_result.py からの_create_song_data_mapインポートをsetup_hook内からモジュールトップレベルに移動
             self.pjsk_record_result_cog.songs_data = self.proseka_songs_data
             self.pjsk_record_result_cog.SONG_DATA_MAP = _create_song_data_map(self.proseka_songs_data)
             logging.info("Set songs_data and updated SONG_DATA_MAP in PjskRecordResult cog.")
@@ -193,13 +192,16 @@ class MyBot(commands.Bot):
         logging.info("Attempting to sync commands...")
         try:
             # グローバルコマンドを同期
-            synced = await self.tree.sync()
-            logging.info(f"Synced {len(synced)} global commands.")
+            # これにより、@app_commands.guilds() デコレータがないコマンドがすべて同期される
+            synced_global = await self.tree.sync()
+            logging.info(f"Synced {len(synced_global)} global commands.")
 
             # 特定のギルドコマンドを同期 (もし GUILD_ID が有効な場合のみ)
+            # これにより、@app_commands.guilds(discord.Object(id=GUILD_ID)) でマークされたコマンドのみが同期される
             if GUILD_ID != 0: # GUILD_ID がデフォルト値でないことを確認
                 support_guild = discord.Object(id=GUILD_ID)
-                self.tree.copy_global_to(guild=support_guild)
+                # ★修正: グローバルコマンドをギルドにコピーする行を削除
+                # self.tree.copy_global_to(guild=support_guild)
                 synced_guild_commands = await self.tree.sync(guild=support_guild)
                 logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {GUILD_ID}.")
             else:
