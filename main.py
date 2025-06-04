@@ -75,7 +75,7 @@ class MyBot(commands.Bot):
             'cogs.proseka_general',      # 汎用コマンドコグ
             'cogs.help_command',         # 追加: ヘルプコマンドコグ
             'cogs.proseka_rankmatch',    # ランクマッチ選曲コグ
-            'cogs.pjsk_rankmatch_result',# ★修正: ランクマッチリザルトコグのコメントを解除
+            'cogs.pjsk_rankmatch_result',# ★修正済み: ランクマッチリザルトコグのコメントを解除
             'cogs.pjsk_record_result'    # 精度記録コグ
         ]
         self.proseka_songs_data = [] # 楽曲データをボットインスタンスに保持
@@ -88,7 +88,7 @@ class MyBot(commands.Bot):
         self.pjsk_ap_fc_rate_cog = None
         self.pjsk_record_result_cog = None
         self.help_command_cog = None
-        self.pjsk_rankmatch_result_cog = None # ★追加: pjsk_rankmatch_resultコグの参照を追加
+        self.pjsk_rankmatch_result_cog = None
 
         logging.info("Bot instance created.")
 
@@ -140,8 +140,17 @@ class MyBot(commands.Bot):
                 logging.info(f"Loading extension: {extension}...")
                 await self.load_extension(extension)
                 logging.info(f"Successfully loaded {extension}.")
+            except commands.ExtensionNotFound:
+                logging.error(f"Extension '{extension}' not found. Check file name and path.", exc_info=True)
+            except commands.ExtensionFailed as e:
+                logging.error(f"Extension '{extension}' failed to load due to an internal error. Check the cog's code.", exc_info=True)
+            except commands.NoEntryPointError:
+                logging.error(f"Extension '{extension}' has no 'setup' function. Make sure 'async def setup(bot):' is defined.", exc_info=True)
+            except commands.ExtensionAlreadyLoaded:
+                logging.warning(f"Extension '{extension}' is already loaded. Skipping.")
             except Exception as e:
-                logging.error(f"Failed to load extension {extension}.", exc_info=True)
+                logging.error(f"An unexpected error occurred while loading extension '{extension}': {e}", exc_info=True)
+
 
         # コグがロードされた後に参照を設定
         logging.info("Attempting to set cog references and song data.")
@@ -150,7 +159,7 @@ class MyBot(commands.Bot):
         self.pjsk_ap_fc_rate_cog = self.get_cog("PjskApFcRateCommands")
         self.pjsk_record_result_cog = self.get_cog("PjskRecordResult")
         self.help_command_cog = self.get_cog("HelpCommand")
-        self.pjsk_rankmatch_result_cog = self.get_cog("PjskRankMatchResult") # ★追加: pjsk_rankmatch_resultコグの参照を取得
+        self.pjsk_rankmatch_result_cog = self.get_cog("ProsekaRankmatchResult") # ★修正: PjskRankMatchResultのクラス名に合わせる
 
 
         if self.proseka_general_cog:
@@ -176,10 +185,11 @@ class MyBot(commands.Bot):
         else:
             logging.warning("PjskRecordResult cog not found after loading.")
 
-        # ★追加: pjsk_rankmatch_result_cog が存在する場合に songs_data を設定
+        # 追加: pjsk_rankmatch_result_cog が存在する場合に songs_data を設定
         if self.pjsk_rankmatch_result_cog:
-            self.pjsk_rankmatch_result_cog.songs_data = self.proseka_songs_data
-            logging.info("Set songs_data in PjskRankMatchResult cog.")
+            # ProsekaRankmatchResult cogにはsongs_dataは不要なため、ここでは設定しない
+            # 必要であれば、PjskRankMatchResultクラスの__init__にsongs_dataを渡すように変更してください
+            logging.info("PjskRankMatchResult cog found.")
         else:
             logging.warning("PjskRankMatchResult cog not found after loading.")
 
