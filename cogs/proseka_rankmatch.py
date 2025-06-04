@@ -5,6 +5,7 @@ import random
 import os
 from dotenv import load_dotenv
 import traceback
+import asyncio # asyncio をインポート
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -44,20 +45,16 @@ class ProsekaRankMatchCommands(commands.Cog):
             "APPEND": discord.Color(0xFFC0CB)
         }
 
-        # valid_difficulties は _load_songs_data で設定されるため、ここでは初期化のみ
         self.valid_difficulties = []
-        # ここで _load_songs_data を呼び出して楽曲データを初期化します
-        self.songs_data = self._load_songs_data()
+        # ★変更: __init__ では songs_data を None に初期化し、非同期でロードする
+        self.songs_data = None 
 
         # 既存のAP/FCレートコグへの参照を保持 (setup時に設定される)
-        # ★修正: False ではなく None で初期化
-        self.ap_fc_rate_cog = None 
+        self.ap_fc_rate_cog = None
 
-        # ★追加: AP/FCレート表示の更新を有効にするかどうかのフラグ
-        # False に設定することで、デフォルトで更新を行わないようにします。
+        # AP/FCレート表示の更新を有効にするかどうかのフラグ
         self.should_update_ap_fc_rate_display = False 
         print(f"INFO: AP/FCレート表示の自動更新は現在 {'有効' if self.should_update_ap_fc_rate_display else '無効'} に設定されています。")
-
 
         self.RANK_LEVEL_MAP = {
             "ビギナー": {"normal": (18, 25), "append_allowed": False},
@@ -79,17 +76,23 @@ class ProsekaRankMatchCommands(commands.Cog):
             "マスター": "<:rankmatch_master:1375079350294020156>",
         }
 
-    def _load_songs_data(self):
+    # ★変更: _load_songs_data を非同期関数にする
+    async def _async_load_songs_data(self):
         """
-        data/songs.py から楽曲データを読み込み、ProsekaGeneralCommands と同じ形式に変換して返します。
+        data/songs.py から楽曲データを非同期で読み込み、self.songs_data に設定します。
         """
-        songs_file_path = 'data/songs.py' # ファイル名は .py のまま
+        songs_file_path = 'data/songs.py'
 
         try:
-            _globals = {}
+            # ファイルI/Oは同期的なので、ThreadPoolExecutorを使って非同期で実行する
+            # これにより、ボットのメインループをブロックしない
+            loop = asyncio.get_running_loop()
             with open(songs_file_path, 'r', encoding='utf-8') as f:
-                # exec() を使用してPythonファイルを直接実行
-                exec(f.read(), _globals)
+                file_content = await loop.run_in_executor(None, f.read)
+            
+            _globals = {}
+            # exec() も同期的なので、executor で実行
+            await loop.run_in_executor(None, exec, file_content, _globals)
 
             loaded_proseka_songs = _globals.get('proseka_songs', [])
             self.valid_difficulties = _globals.get('VALID_DIFFICULTIES', ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"])
@@ -97,7 +100,8 @@ class ProsekaRankMatchCommands(commands.Cog):
             formatted_songs = []
             if not isinstance(loaded_proseka_songs, list):
                 print(f"ERROR (rankmatch): proseka_songs in {songs_file_path} is not a list. Type: {type(loaded_proseka_songs)}. Returning empty list.")
-                return []
+                self.songs_data = [] # エラー時も空のリストを設定
+                return
 
             for i, song_item in enumerate(loaded_proseka_songs):
                 if not isinstance(song_item, dict):
@@ -114,22 +118,22 @@ class ProsekaRankMatchCommands(commands.Cog):
                         formatted_song[diff_name.lower()] = int(level)
                     elif level is not None:
                         print(f" -> WARNING (rankmatch): Difficulty '{diff_name.lower()}' for song '{song_item.get('title')}' has non-numeric level: {level}. Skipping this difficulty.")
-                        formatted_song[diff_name.lower()] = None # 無効な場合はNoneを設定
+                        formatted_song[diff_name.lower()] = None
                     else:
-                        formatted_song[diff_name.lower()] = None # レベル情報がない場合はNoneを設定
+                        formatted_song[diff_name.lower()] = None
 
                 formatted_songs.append(formatted_song)
 
-            print(f"DEBUG: {songs_file_path} から {len(formatted_songs)} 曲の楽曲データを正常に読み込みました。")
-            return formatted_songs
+            self.songs_data = formatted_songs # 読み込み成功時に設定
+            print(f"DEBUG: {songs_file_path} から {len(self.songs_data)} 曲の楽曲データを非同期で正常に読み込みました。")
 
         except FileNotFoundError:
-            print(f"CRITICAL ERROR (rankmatch): {songs_file_path} が見つかりません。'data'フォルダにあることを確認してください。空のリストを返します。")
-            return []
-        except Exception as e: # SyntaxError など、exec() で発生する可能性のあるエラーを捕捉
-            print(f"CRITICAL ERROR (rankmatch): Error executing {songs_file_path} or converting data: {e}. Returning empty list.")
+            print(f"CRITICAL ERROR (rankmatch): {songs_file_path} が見つかりません。'data'フォルダにあることを確認してください。")
+            self.songs_data = [] # エラー時も空のリストを設定
+        except Exception as e:
+            print(f"CRITICAL ERROR (rankmatch): Error executing {songs_file_path} or converting data: {e}.")
             traceback.print_exc()
-            return []
+            self.songs_data = [] # エラー時も空のリストを設定
 
     # ProsekaGeneralCommandsの_get_difficulty_levelと同じヘルパー関数をここに実装
     def _get_difficulty_level(self, song: dict, difficulty_name: str) -> int | None:
@@ -160,8 +164,16 @@ class ProsekaRankMatchCommands(commands.Cog):
         # コマンド開始直後に遅延応答（defer）を呼び出す
         await interaction.response.defer(ephemeral=False)
 
-        # 楽曲データが読み込まれているか確認
-        if not self.songs_data:
+        # 楽曲データがまだ読み込まれていない場合は、読み込みを待つ
+        if self.songs_data is None:
+            await interaction.followup.send("楽曲データを読み込み中です。しばらくお待ちください。", ephemeral=False)
+            print("DEBUG: songs_data is None. Waiting for async load to complete.")
+            # 必要であれば、ここで少し待機するか、読み込みが完了するまでループする
+            # ただし、無限ループにならないよう注意
+            # 簡単な方法として、再度コマンド実行を促す
+            return
+
+        if not self.songs_data: # 読み込みは完了したが、データが空の場合
             await interaction.followup.send("現在、楽曲データが読み込まれていません。ボットのログを確認してください。", ephemeral=False)
             return
 
@@ -238,8 +250,6 @@ class ProsekaRankMatchCommands(commands.Cog):
         await interaction.followup.send(embed=embed, ephemeral=False)
 
         # AP/FCレート表示がある場合、かつ should_update_ap_fc_rate_display が True の場合のみ、既存のメッセージを削除して更新する
-        # デフォルトでは should_update_ap_fc_rate_display は False なので、この更新はスキップされる
-        # ★修正: should_update_ap_fc_rate_display フラグのチェックを追加
         if self.ap_fc_rate_cog and self.should_update_ap_fc_rate_display:
             try:
                 await self.ap_fc_rate_cog.update_ap_fc_rate_display(interaction.user.id, interaction.channel)
@@ -255,5 +265,5 @@ async def setup(bot):
     cog = ProsekaRankMatchCommands(bot)
     await bot.add_cog(cog)
     print("ProsekaRankMatchCommands cog loaded.")
-
-
+    # ★追加: コグがロードされた後に非同期で楽曲データを読み込む
+    asyncio.create_task(cog._async_load_songs_data())
