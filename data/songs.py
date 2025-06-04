@@ -5483,7 +5483,7 @@ proseka_songs = [
     },
     {
         "title": "光線歌",
-        "image_url": "",
+        "image_url": "https://cdn.discordapp.com/attachments/1376551906570408040/1378836714512060516/image.jpeg?ex=68415902&is=68400782&hm=4c8fc2a64d6f512b890bdd1027c1cd916aa5de01e513a6aa246efcb73d8befe6&",
         "easy": 6,
         "normal": 12,
         "hard": 17,
