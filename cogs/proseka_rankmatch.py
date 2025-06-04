@@ -52,13 +52,6 @@ class ProsekaRankMatchCommands(commands.Cog):
         # 既存のAP/FCレートコグへの参照を保持 (setup時に設定される)
         self.ap_fc_rate_cog = None # setup時に設定される
 
-        # ★追加: AP/FCレート表示の更新を有効にするかどうかの設定
-        # 環境変数 'ENABLE_AP_FC_RATE_UPDATE' が 'false' 以外の場合に True となる
-        self.enable_ap_fc_rate_update = os.getenv('ENABLE_AP_FC_RATE_UPDATE', 'True').lower() == 'true'
-        if not self.enable_ap_fc_rate_update:
-            print("INFO: AP/FCレート表示の自動更新は無効になっています (ENABLE_AP_FC_RATE_UPDATE=False)。")
-
-
         self.RANK_LEVEL_MAP = {
             "ビギナー": {"normal": (18, 25), "append_allowed": False},
             "ブロンズ": {"normal": (23, 26), "append_allowed": False},
@@ -83,12 +76,12 @@ class ProsekaRankMatchCommands(commands.Cog):
         """
         data/songs.py から楽曲データを読み込み、ProsekaGeneralCommands と同じ形式に変換して返します。
         """
-        songs_file_path = 'data/songs.py' # ファイル名は .py のまま
+        songs_file_path = 'data/songs.py' # ★ファイル名は .py のまま
 
         try:
             _globals = {}
             with open(songs_file_path, 'r', encoding='utf-8') as f:
-                # exec() を使用してPythonファイルを直接実行
+                # ★ exec() を使用してPythonファイルを直接実行
                 exec(f.read(), _globals)
 
             loaded_proseka_songs = _globals.get('proseka_songs', [])
@@ -147,7 +140,7 @@ class ProsekaRankMatchCommands(commands.Cog):
             app_commands.Choice(name="ブロンズ", value="ブロンズ"),
             app_commands.Choice(name="シルバー", value="シルバー"),
             app_commands.Choice(name="ゴールド", value="ゴールド"),
-            app_commands.Choice(name="プラチナ", "プラチナ"),
+            app_commands.Choice(name="プラチナ", value="プラチナ"),
             app_commands.Choice(name="ダイヤモンド", value="ダイヤモンド"),
             app_commands.Choice(name="マスター", value="マスター"),
         ]
@@ -157,7 +150,7 @@ class ProsekaRankMatchCommands(commands.Cog):
         interaction: discord.Interaction,
         rank: str,        # 必須引数
     ):
-        # コマンド開始直後に遅延応答（defer）を呼び出す
+        # ★ここが重要: コマンド開始直後に遅延応答（defer）を呼び出す
         await interaction.response.defer(ephemeral=False)
 
         # 楽曲データが読み込まれているか確認
@@ -237,9 +230,8 @@ class ProsekaRankMatchCommands(commands.Cog):
 
         await interaction.followup.send(embed=embed, ephemeral=False)
 
-        # AP/FCレート表示がある場合、かつ設定で有効になっている場合のみ、既存のメッセージを削除して更新する
-        # ★修正: self.enable_ap_fc_rate_update のチェックを追加
-        if self.ap_fc_rate_cog and self.enable_ap_fc_rate_update:
+        # AP/FCレート表示がある場合、既存のメッセージを削除して更新する
+        if self.ap_fc_rate_cog:
             try:
                 await self.ap_fc_rate_cog.update_ap_fc_rate_display(interaction.user.id, interaction.channel)
                 print("DEBUG: AP/FC rate display updated for /pjsk_rankmatch_song.")
@@ -247,12 +239,10 @@ class ProsekaRankMatchCommands(commands.Cog):
                 print(f"ERROR: Error updating AP/FC rate display for /pjsk_rankmatch_song: {e}")
                 traceback.print_exc()
         else:
-            print("DEBUG: AP/FC rate display update skipped for /pjsk_rankmatch_song (cog not available or update disabled).")
+            print("DEBUG: ap_fc_rate_cog not available for /pjsk_rankmatch_song, skipping update.")
 
 
 async def setup(bot):
     cog = ProsekaRankMatchCommands(bot)
     await bot.add_cog(cog)
     print("ProsekaRankMatchCommands cog loaded.")
-
-
