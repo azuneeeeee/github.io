@@ -1,17 +1,14 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-# from data.songs import proseka_songs, VALID_DIFFICULTIES # ★削除: 直接インポートを削除
 import random
 import os
 from dotenv import load_dotenv
 import asyncio
 import traceback
 
-# .envファイルから環境変数を読み込む
 load_dotenv()
 
-# OWNER_ID の処理は main.py と同じようにする
 _owner_id_str = os.getenv('OWNER_ID')
 if _owner_id_str is None:
     print("CRITICAL ERROR: OWNER_ID environment variable is not set. Please set it in Render's Environment settings.")
@@ -24,18 +21,13 @@ else:
         OWNER_ID = -1
 
 def is_owner_global(interaction: discord.Interaction) -> bool:
-    """
-    指定されたInteractionのユーザーがボットのオーナーであるかどうかをチェックします。
-    """
     return interaction.user.id == OWNER_ID
 
 class ProsekaGeneralCommands(commands.Cog):
-    # ★変更: songs_data と valid_difficulties を引数として受け取る
     def __init__(self, bot, songs_data: list = None, valid_difficulties: list = None):
         self.bot = bot
         self.owner_id = OWNER_ID
 
-        # 難易度ごとの色設定
         self.DIFFICULTY_COLORS = {
             "EASY": discord.Color(0x76B66B),
             "NORMAL": discord.Color(0x56A8DB),
@@ -45,15 +37,11 @@ class ProsekaGeneralCommands(commands.Cog):
             "APPEND": discord.Color(0xFFC0CB)
         }
 
-        # ★変更: 外部から渡されたデータを使用
         self.songs_data = songs_data if songs_data is not None else []
         self.valid_difficulties = valid_difficulties if valid_difficulties is not None else ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
 
-        # main.py で設定されることを期待する ap_fc_rate_cog の参照
-        self.ap_fc_rate_cog = None  # 初期化時はNoneのまま。main.pyでセットされる。
+        self.ap_fc_rate_cog = None
 
-        # ★追加: AP/FCレート表示の更新を有効にするかどうかのフラグ
-        # False に設定することで、デフォルトで更新を行わないようにします。
         self.should_update_ap_fc_rate_display = False
         print(f"INFO: ProsekaGeneralCommands - AP/FCレート表示の自動更新は現在 {'有効' if self.should_update_ap_fc_rate_display else '無効'} に設定されています。")
 
@@ -66,16 +54,22 @@ class ProsekaGeneralCommands(commands.Cog):
         print("DEBUG: Valid Difficulties loaded:", self.valid_difficulties)
 
     def _get_difficulty_level(self, song: dict, difficulty_name: str) -> int | None:
-        """
-        楽曲データから指定された難易度のレベルを取得します。
-        難易度名が小文字で辞書に格納されていることを想定します。
-        """
         return song.get(difficulty_name.lower())
 
-
-    # --- 楽曲リスト表示コマンド (/pjsk_list_songs) ---
     @app_commands.command(name="pjsk_list_songs", description="プロジェクトセカイの楽曲一覧をメニューで並べ替えて表示します。")
     async def pjsk_list_songs(self, interaction: discord.Interaction):
+        # ★追加: ボットが完全に準備完了しているかチェック
+        if not self.bot.is_bot_ready:
+            print(f"DEBUG: Bot not ready for command /pjsk_list_songs. User: {interaction.user.name}")
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message("ボットがまだ起動中です。しばらくお待ちください。", ephemeral=True)
+            except discord.errors.InteractionResponded:
+                pass
+            except Exception as e:
+                print(f"ERROR: Failed to send 'bot not ready' message for /pjsk_list_songs: {e}")
+            return
+
         print(f"DEBUG: /pjsk_list_songs command invoked by {interaction.user.name}.")
         try:
             await interaction.response.defer(ephemeral=False)
@@ -123,7 +117,6 @@ class ProsekaGeneralCommands(commands.Cog):
         print(f"DEBUG: /pjsk_list_songs - self.ap_fc_rate_cog: {self.ap_fc_rate_cog}. Skipping AP/FC rate update as requested.")
 
 
-    # --- pjsk_random_song ---
     @app_commands.command(name="pjsk_random_song", description="プロジェクトセカイの楽曲をランダムで選曲します。(難易度: 複数可, カンマ区切り例: EASY,HARD,MASTER)")
     @app_commands.describe(
         difficulty="難易度指定 (複数可, カンマ区切り例: EASY,HARD,MASTER)",
@@ -136,6 +129,18 @@ class ProsekaGeneralCommands(commands.Cog):
         level_min: app_commands.Range[int, 1, 37] = None,
         level_max: app_commands.Range[int, 1, 37] = None
     ):
+        # ★追加: ボットが完全に準備完了しているかチェック
+        if not self.bot.is_bot_ready:
+            print(f"DEBUG: Bot not ready for command /pjsk_random_song. User: {interaction.user.name}")
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message("ボットがまだ起動中です。しばらくお待ちください。", ephemeral=True)
+            except discord.errors.InteractionResponded:
+                pass
+            except Exception as e:
+                print(f"ERROR: Failed to send 'bot not ready' message for /pjsk_random_song: {e}")
+            return
+
         await interaction.response.defer(ephemeral=False)
         print(f"DEBUG: /pjsk_random_song called with difficulty='{difficulty}', level_min={level_min}, level_max={level_max}")
 
@@ -264,8 +269,7 @@ class ProsekaGeneralCommands(commands.Cog):
         await interaction.followup.send(embed=embed, ephemeral=False)
         print("DEBUG: Embed sent successfully.")
 
-        # AP/FCレート表示がある場合、かつ should_update_ap_fc_rate_display が True の場合のみ更新
-        if self.ap_fc_rate_cog and self.should_update_ap_fc_rate_display: # ★変更: フラグを追加
+        if self.ap_fc_rate_cog and self.should_update_ap_fc_rate_display:
             try:
                 await self.ap_fc_rate_cog.update_ap_fc_rate_display(interaction.user.id, interaction.channel)
                 print("DEBUG: AP/FC rate display updated for /pjsk_random_song.")
@@ -276,27 +280,25 @@ class ProsekaGeneralCommands(commands.Cog):
             print("DEBUG: AP/FC rate display update skipped for /pjsk_random_song (cog not available or update disabled).")
 
 
-# SongListViewクラス群 (変更なし)
 class SongListView(discord.ui.View):
     def __init__(self, original_songs_data, valid_difficulties, difficulty_colors, original_user_id, get_difficulty_level_func):
-        super().__init__(timeout=86400) # 24時間でタイムアウト
+        super().__init__(timeout=86400)
         self.original_songs_data = original_songs_data
         self.valid_difficulties = valid_difficulties
         self.difficulty_colors = difficulty_colors
-        self.current_sort_key = "release_order" # 初期ソートキー
-        self.current_sort_reverse = False # 初期ソート順 (昇順)
-        self.current_difficulty_filter = None # 初期難易度フィルター
+        self.current_sort_key = "release_order"
+        self.current_sort_reverse = False
+        self.current_difficulty_filter = None
         self.current_page = 0
         self.items_per_page = 10
-        self.message = None # メッセージインスタンスを保持するため
-        self.original_user_id = original_user_id # コマンド実行者のIDを保持
-        self.get_difficulty_level_func = get_difficulty_level_func # 楽曲レベル取得関数を渡す
+        self.message = None
+        self.original_user_id = original_user_id
+        self.get_difficulty_level_func = get_difficulty_level_func
 
-        # 楽曲データに元のインデックスを追加してソート安定性を保つ
         self.indexed_songs_data = []
         for i, song in enumerate(self.original_songs_data):
             song_copy = song.copy()
-            song_copy['_original_index'] = i # 元のインデックスを保存
+            song_copy['_original_index'] = i
             self.indexed_songs_data.append(song_copy)
 
         self._update_sorted_songs()
@@ -305,8 +307,6 @@ class SongListView(discord.ui.View):
         print("DEBUG: SongListView initialized.")
 
     def _update_sorted_songs(self):
-        """現在のフィルターとソートキーに基づいて楽曲リストを更新します。"""
-        # 難易度フィルター
         filtered_songs_by_difficulty = []
         if self.current_difficulty_filter and self.current_difficulty_filter != "None":
             for song in self.indexed_songs_data:
@@ -314,52 +314,47 @@ class SongListView(discord.ui.View):
                     filtered_songs_by_difficulty.append(song)
             print(f"DEBUG: Songs filtered by difficulty '{self.current_difficulty_filter}': {len(filtered_songs_by_difficulty)} songs.")
         else:
-            filtered_songs_by_difficulty = list(self.indexed_songs_data) # 全ての楽曲を使用
+            filtered_songs_by_difficulty = list(self.indexed_songs_data)
             print("DEBUG: No difficulty filter, using all songs.")
 
-        # ソート
         if self.current_sort_key == "release_order":
             self.sorted_songs = sorted(
                 filtered_songs_by_difficulty,
-                key=lambda x: x.get("_original_index", 0), # 元のインデックスでソート
+                key=lambda x: x.get("_original_index", 0),
                 reverse=self.current_sort_reverse
             )
             print(f"DEBUG: Sorted by release order {'descending' if self.current_sort_reverse else 'ascending'}.")
         elif self.current_sort_key == "title":
             self.sorted_songs = sorted(
                 filtered_songs_by_difficulty, 
-                key=lambda x: x.get("title", ""), # titleキーでソート
+                key=lambda x: x.get("title", ""),
                 reverse=self.current_sort_reverse
             )
             print(f"DEBUG: Sorted by title {'descending' if self.current_sort_reverse else 'ascending'}.")
         elif self.current_sort_key == "level":
             if self.current_difficulty_filter and self.current_difficulty_filter != "None":
-                # 難易度が選択されている場合のみレベルでソート
                 self.sorted_songs = sorted(
                     filtered_songs_by_difficulty,
-                    key=lambda x: self.get_difficulty_level_func(x, self.current_difficulty_filter) if self.get_difficulty_level_func(x, self.current_difficulty_filter) is not None else -1, # レベルがない場合は-1として末尾に
+                    key=lambda x: self.get_difficulty_level_func(x, self.current_difficulty_filter) if self.get_difficulty_level_func(x, self.current_difficulty_filter) is not None else -1,
                     reverse=self.current_sort_reverse
                 )
                 print(f"DEBUG: Sorted by level for difficulty {self.current_difficulty_filter} {'descending' if self.current_sort_reverse else 'ascending'}.")
             else:
-                # 難易度フィルターがない場合はリリース順に戻す
                 self.sorted_songs = sorted(
                     list(self.indexed_songs_data),
                     key=lambda x: x.get("_original_index", 0),
                     reverse=self.current_sort_reverse
                 )
-                self.current_sort_key = "release_order" # ソートキーをリリース順にリセット
+                self.current_sort_key = "release_order"
                 print("DEBUG: Level sort requested without difficulty filter, reset to release order (with current sort reverse).")
 
-        # ページネーション情報の更新
         self.total_pages = (len(self.sorted_songs) + self.items_per_page - 1) // self.items_per_page
         self.current_page = min(self.current_page, self.total_pages - 1) if self.total_pages > 0 else 0
-        if self.current_page < 0: self.current_page = 0 # ページ数が0の場合に負にならないように
+        if self.current_page < 0: self.current_page = 0
 
         print(f"DEBUG: Total {len(self.sorted_songs)} songs, {self.total_pages} pages. Current page: {self.current_page}")
 
     def _update_sort_buttons(self):
-        """ソートボタンのスタイルを現在のソート順に合わせて更新します。"""
         for item in self.children:
             if isinstance(item, discord.ui.Button):
                 if item.custom_id == "sort_asc":
@@ -368,7 +363,6 @@ class SongListView(discord.ui.View):
                     item.style = discord.ButtonStyle.primary if self.current_sort_reverse else discord.ButtonStyle.secondary
 
     def get_current_embed(self) -> discord.Embed:
-        """現在のページとソート順に基づいたEmbedを作成して返します。"""
         start_index = self.current_page * self.items_per_page
         end_index = min(start_index + self.items_per_page, len(self.sorted_songs))
 
@@ -376,7 +370,7 @@ class SongListView(discord.ui.View):
 
         embed = discord.Embed(
             title="🎵 プロジェクトセカイ 楽曲リスト",
-            color=discord.Color(0x3BBD4E) # 緑色のバー
+            color=discord.Color(0x3BBD4E)
         )
 
         if not display_songs:
@@ -397,7 +391,6 @@ class SongListView(discord.ui.View):
                     description_lines.append(f"{start_index + i + 1}. **{title}**")
             embed.description = "\n".join(description_lines)
 
-        # フッター情報の表示
         sort_display_name = ""
         if self.current_difficulty_filter and self.current_difficulty_filter != "None":
             sort_display_name = f"レベル順 ({self.current_difficulty_filter})"
@@ -415,7 +408,6 @@ class SongListView(discord.ui.View):
         return embed
 
     def _set_difficulty_select_options(self):
-        """難易度選択ドロップダウンのオプションを設定します。"""
         options = [discord.SelectOption(label="フィルターなし", value="None")]
         for diff in self.valid_difficulties:
             options.append(discord.SelectOption(label=diff, value=diff))
@@ -427,7 +419,6 @@ class SongListView(discord.ui.View):
                 break
 
     async def _update_message(self, interaction: discord.Interaction):
-        """メッセージを更新します。interaction.response.edit_message または self.message.edit を使用。"""
         self._update_sorted_songs()
         self._update_sort_buttons()
         embed = self.get_current_embed()
@@ -437,12 +428,11 @@ class SongListView(discord.ui.View):
                 await self.message.edit(embed=embed, view=self)
                 print(f"DEBUG: SongListView message {self.message.id} updated.")
             else:
-                # interaction.response.defer() の後に interaction.response.edit_message を呼び出す場合
                 await interaction.response.edit_message(embed=embed, view=self)
                 print(f"DEBUG: SongListView interaction response edited.")
         except discord.NotFound:
             print("WARNING: SongListView message not found, stopping view.")
-            self.stop() # メッセージが見つからない場合はViewを停止
+            self.stop()
         except Exception as e:
             print(f"ERROR: Failed to update SongListView message: {e}")
             traceback.print_exc()
@@ -450,8 +440,7 @@ class SongListView(discord.ui.View):
 
     @discord.ui.button(label="← 前へ", style=discord.ButtonStyle.primary, custom_id="prev_page", row=1)
     async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """前のページに移動するボタンのコールバック。"""
-        await interaction.response.defer() # ボタンクリックに対する応答を遅延
+        await interaction.response.defer()
         if self.current_page > 0:
             self.current_page -= 1
             await self._update_message(interaction)
@@ -462,8 +451,7 @@ class SongListView(discord.ui.View):
 
     @discord.ui.button(label="次へ →", style=discord.ButtonStyle.primary, custom_id="next_page", row=1)
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """次のページに移動するボタンのコールバック。"""
-        await interaction.response.defer() # ボタンクリックに対する応答を遅延
+        await interaction.response.defer()
         if self.current_page < self.total_pages - 1:
             self.current_page += 1
             await self._update_message(interaction)
@@ -474,55 +462,48 @@ class SongListView(discord.ui.View):
 
     @discord.ui.button(label="昇順", style=discord.ButtonStyle.primary, custom_id="sort_asc", row=2)
     async def sort_asc(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """昇順ソートボタンのコールバック。"""
         await interaction.response.defer()
         self.current_sort_reverse = False
-        self.current_page = 0 # ソート順変更時は先頭ページに戻る
+        self.current_page = 0
         await self._update_message(interaction)
         print(f"DEBUG: User {interaction.user.id} set sort order to ascending.")
 
     @discord.ui.button(label="降順", style=discord.ButtonStyle.primary, custom_id="sort_desc", row=2)
     async def sort_desc(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """降順ソートボタンのコールバック。"""
         await interaction.response.defer()
         self.current_sort_reverse = True
-        self.current_page = 0 # ソート順変更時は先頭ページに戻る
+        self.current_page = 0
         await self._update_message(interaction)
         print(f"DEBUG: User {interaction.user.id} set sort order to descending.")
 
     @discord.ui.select(
         custom_id="difficulty_select_handler",
         placeholder="難易度でフィルター...",
-        options=[], # __init__ で設定される
+        options=[],
         row=0
     )
     async def select_difficulty_callback(self, interaction: discord.Interaction, select: discord.ui.Select):
-        """難易度フィルター選択ドロップダウンのコールバック。"""
         await interaction.response.defer()
         selected_value = select.values[0]
         self.current_difficulty_filter = selected_value if selected_value != "None" else None
-        self.current_page = 0 # フィルター変更時は先頭ページに戻る
+        self.current_page = 0
 
-        # 難易度フィルターが設定されたら自動的にレベル順にソートする
         if self.current_difficulty_filter and self.current_difficulty_filter != "None":
-            if self.current_sort_key != "level": # 既にレベルソートでなければ設定
+            if self.current_sort_key != "level":
                 self.current_sort_key = "level"
-                self.current_sort_reverse = False # デフォルトは昇順
+                self.current_sort_reverse = False
         else:
-            # フィルターが解除されたらリリース順に戻す
             self.current_sort_key = "release_order"
 
         await self._update_message(interaction)
         print(f"DEBUG: User {interaction.user.id} filtered by difficulty: {self.current_difficulty_filter}. Auto-set sort key to {self.current_sort_key}.")
 
     async def on_timeout(self):
-        """Viewがタイムアウトした際に、メッセージのボタンを無効化します。"""
         print(f"DEBUG: SongListView for user {self.original_user_id} timed out.")
         if self.message:
             try:
-                # ボタンを無効化
                 for item in self.children:
-                    if hasattr(item, 'disabled'): # ボタンやセレクトメニューにdisabled属性があるか確認
+                    if hasattr(item, 'disabled'):
                         item.disabled = True
                 await self.message.edit(view=self)
             except discord.NotFound:
@@ -532,9 +513,8 @@ class SongListView(discord.ui.View):
                 traceback.print_exc()
 
 
-# ★変更: setup 関数が songs_data と valid_difficulties を引数として受け取る
 async def setup(bot, songs_data: list, valid_difficulties: list):
-    cog = ProsekaGeneralCommands(bot, songs_data=songs_data, valid_difficulties=valid_difficulties) # ★変更: 引数を渡す
+    cog = ProsekaGeneralCommands(bot, songs_data=songs_data, valid_difficulties=valid_difficulties)
     await bot.add_cog(cog)
     print("ProsekaGeneralCommands cog loaded and commands added.")
 
