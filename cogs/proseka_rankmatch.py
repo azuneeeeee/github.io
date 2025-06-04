@@ -5,28 +5,30 @@ import random
 import os
 from dotenv import load_dotenv
 import traceback
+import logging
+import asyncio # ★追加: asyncio をインポート
 
 load_dotenv()
 
 _owner_id_str = os.getenv('OWNER_ID')
 if _owner_id_str is None:
-    print("CRITICAL ERROR: OWNER_ID environment variable is not set. Please set it in Render's Environment settings.")
+    logging.critical("OWNER_ID environment variable is not set. Please set it in Render's Environment settings.")
     OWNER_ID = -1
 else:
     try:
         OWNER_ID = int(_owner_id_str)
     except ValueError:
-        print(f"CRITICAL ERROR: OWNER_ID environment variable '{_owner_id_str}' is not a valid integer. Please check Render's Environment settings.")
+        logging.critical(f"OWNER_ID environment variable '{_owner_id_str}' is not a valid integer. Please check Render's Environment settings.")
         OWNER_ID = -1
 
 def is_owner_global(interaction: discord.Interaction) -> bool:
     return interaction.user.id == OWNER_ID and OWNER_ID != -1
 
 class ProsekaRankMatchCommands(commands.Cog):
-    # ★変更: songs_data と valid_difficulties を __init__ の引数から削除
     def __init__(self, bot):
         self.bot = bot
         self.owner_id = OWNER_ID
+        logging.info("ProsekaRankMatchCommands.__init__ started.")
 
         self.DIFFICULTY_COLORS = {
             "EASY": discord.Color(0x76B66B),
@@ -37,14 +39,13 @@ class ProsekaRankMatchCommands(commands.Cog):
             "APPEND": discord.Color(0xFFC0CB)
         }
 
-        # ★変更: 初期値を空のリストで設定 (main.py で後から設定される)
         self.songs_data = [] 
         self.valid_difficulties = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
         
         self.ap_fc_rate_cog = None
 
         self.should_update_ap_fc_rate_display = False 
-        print(f"INFO: AP/FCレート表示の自動更新は現在 {'有効' if self.should_update_ap_fc_rate_display else '無効'} に設定されています。")
+        logging.info(f"AP/FCレート表示の自動更新は現在 {'有効' if self.should_update_ap_fc_rate_display else '無効'} に設定されています。")
 
         self.RANK_LEVEL_MAP = {
             "ビギナー": {"normal": (18, 25), "append_allowed": False},
@@ -65,6 +66,7 @@ class ProsekaRankMatchCommands(commands.Cog):
             "ダイヤモンド": "<:rankmatch_diamond:1375078667495149589>",
             "マスター": "<:rankmatch_master:1375079350294020156>",
         }
+        logging.info("ProsekaRankMatchCommands.__init__ completed.")
 
     def _get_difficulty_level(self, song: dict, difficulty_name: str) -> int | None:
         return song.get(difficulty_name.lower())
@@ -89,27 +91,46 @@ class ProsekaRankMatchCommands(commands.Cog):
         interaction: discord.Interaction,
         rank: str,
     ):
+        logging.info(f"Command '/pjsk_rankmatch_song' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
+        
+        # ボットが完全に準備完了しているかチェック
         if not self.bot.is_bot_ready:
-            print(f"DEBUG: Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}")
+            logging.warning(f"Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}. Sending 'bot not ready' message.")
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message("ボットがまだ起動中です。しばらくお待ちください。", ephemeral=True)
-                return
+                return # 応答したら処理を中断
             except discord.errors.InteractionResponded:
-                print(f"WARNING: Interaction for '{interaction.command.name}' was already responded to before 'bot not ready' check.")
+                logging.warning(f"Interaction for '{interaction.command.name}' was already responded to before 'bot not ready' check. Skipping send_message.")
                 return
             except Exception as e:
-                print(f"ERROR: Failed to send 'bot not ready' message for '{interaction.command.name}': {e}")
+                logging.error(f"Failed to send 'bot not ready' message for '{interaction.command.name}': {e}", exc_info=True)
                 return
 
-        await interaction.response.defer(ephemeral=False)
+        logging.info(f"Bot is ready. Proceeding with defer for '{interaction.command.name}'.")
+        # コマンド開始直後に遅延応答（defer）を呼び出す
+        # ここで発生する NotFound はグローバルエラーハンドラーで捕捉される
+        try:
+            # ★修正: わずかな遅延を挿入
+            await asyncio.sleep(0.1) 
+            await interaction.response.defer(ephemeral=False)
+            logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
+        except discord.errors.NotFound:
+            logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound). This will be caught by global error handler.", exc_info=True)
+            # ここでエラーが発生した場合、これ以上処理を続行しても無意味なのでreturn
+            return
+        except Exception as e:
+            logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
+            return
 
         if not self.songs_data:
+            logging.warning(f"songs_data is empty for '{interaction.command.name}'. Sending error message.")
             await interaction.followup.send("現在、楽曲データが読み込まれていません。ボットのログを確認してください。", ephemeral=False)
             return
 
         rank_info = self.RANK_LEVEL_MAP.get(rank)
         if not rank_info:
+            logging.warning(f"Invalid rank '{rank}' provided for '{interaction.command.name}'.")
             await interaction.followup.send(f"指定されたランク `{rank}` は無効です。有効なランクは {', '.join(self.RANK_LEVEL_MAP.keys())} です。", ephemeral=False)
             return
 
@@ -153,6 +174,7 @@ class ProsekaRankMatchCommands(commands.Cog):
                 eligible_songs.append(song_copy)
 
         if not eligible_songs:
+            logging.info(f"No eligible songs found for rank '{rank}' for command '{interaction.command.name}'.")
             await interaction.followup.send(f"申し訳ありません、指定された条件（ランク: {rank}）に合う楽曲が見つかりませんでした。", ephemeral=False)
             return
 
@@ -174,24 +196,24 @@ class ProsekaRankMatchCommands(commands.Cog):
             description=f"難易度: **{selected_difficulty_for_display}** {level_display_str}\nランク: **{rank}**",
             color=embed_color
         )
+        # ★修正: selected_song ではなく selected_song_candidate を使用
         if selected_song_candidate.get("image_url"):
-            embed.set_thumbnail(url=selected_song["image_url"])
+            embed.set_thumbnail(url=selected_song_candidate["image_url"])
 
         await interaction.followup.send(embed=embed, ephemeral=False)
+        logging.info(f"Successfully sent song selection for '{interaction.command.name}'. Song: {selected_song_candidate['title']}, Difficulty: {selected_difficulty_for_display}.")
 
         if self.ap_fc_rate_cog and self.should_update_ap_fc_rate_display:
             try:
                 await self.ap_fc_rate_cog.update_ap_fc_rate_display(interaction.user.id, interaction.channel)
-                print("DEBUG: AP/FC rate display updated for /pjsk_rankmatch_song.")
+                logging.info("AP/FC rate display updated for /pjsk_rankmatch_song.")
             except Exception as e:
-                print(f"ERROR: Error updating AP/FC rate display for /pjsk_rankmatch_song: {e}")
-                traceback.print_exc()
+                logging.error(f"Error updating AP/FC rate display for /pjsk_rankmatch_song: {e}", exc_info=True)
         else:
-            print("DEBUG: AP/FC rate display update skipped for /pjsk_rankmatch_song (cog not available or update disabled).")
+            logging.info("AP/FC rate display update skipped for /pjsk_rankmatch_song (cog not available or update disabled).")
 
 
-# ★変更: setup 関数から songs_data と valid_difficulties を削除
 async def setup(bot):
-    cog = ProsekaRankMatchCommands(bot) # ★変更: 引数を渡さない
+    cog = ProsekaRankMatchCommands(bot)
     await bot.add_cog(cog)
-    print("ProsekaRankMatchCommands cog loaded.")
+    logging.info("ProsekaRankMatchCommands cog loaded.")
