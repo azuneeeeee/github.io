@@ -1,34 +1,23 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+from data.songs import proseka_songs, VALID_DIFFICULTIES
 import random
 import os
 from dotenv import load_dotenv
 import asyncio
 import traceback
-import json # ★追加: JSONファイルを扱うために必要
-import time # ★追加: 処理時間計測のために必要
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
 
-# OWNER_IDの読み込みとint()変換の堅牢化
-_owner_id_str = os.getenv('OWNER_ID')
-if _owner_id_str is None:
-    print("CRITICAL ERROR: OWNER_ID environment variable is not set. Bot owner commands may not function.")
-    OWNER_ID = -1 # 無効なIDを設定
-else:
-    try:
-        OWNER_ID = int(_owner_id_str)
-    except ValueError:
-        print(f"CRITICAL ERROR: OWNER_ID environment variable '{_owner_id_str}' is not a valid integer. Bot owner commands may not function.")
-        OWNER_ID = -1 # 無効なIDを設定
+OWNER_ID = int(os.getenv('OWNER_ID'))
 
 def is_owner_global(interaction: discord.Interaction) -> bool:
     """
     指定されたInteractionのユーザーがボットのオーナーであるかどうかをチェックします。
     """
-    return interaction.user.id == OWNER_ID and OWNER_ID != -1 # OWNER_IDが-1の場合は常にFalse
+    return interaction.user.id == OWNER_ID
 
 class ProsekaGeneralCommands(commands.Cog):
     def __init__(self, bot):
@@ -45,10 +34,8 @@ class ProsekaGeneralCommands(commands.Cog):
             "APPEND": discord.Color(0xFFC0CB)
         }
 
-        # ★変更: _load_songs_data メソッドで楽曲データを初期化
-        self.songs_data = [] # 初期化
-        self.valid_difficulties = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"] # デフォルト値
-        self._load_songs_data() # 楽曲データを読み込む
+        self.songs_data = proseka_songs
+        self.valid_difficulties = VALID_DIFFICULTIES
 
         # main.py で設定されることを期待する ap_fc_rate_cog の参照
         self.ap_fc_rate_cog = None  # 初期化時はNoneのまま。main.pyでセットされる。
@@ -61,70 +48,14 @@ class ProsekaGeneralCommands(commands.Cog):
             print("DEBUG: No songs loaded or songs_data is empty.")
         print("DEBUG: Valid Difficulties loaded:", self.valid_difficulties)
 
-    def _load_songs_data(self):
-        """
-        data/songs.json から楽曲データを読み込み、適切な形式に変換して、
-        self.songs_data と self.valid_difficulties に設定します。
-        """
-        json_file_path = 'data/songs.json'
-        start_time = time.time()
-        print(f"DEBUG: Starting _load_songs_data for ProsekaGeneralCommands from {json_file_path}...")
-        try:
-            with open(json_file_path, 'r', encoding='utf-8') as f:
-                loaded_data = json.load(f)
-
-            if isinstance(loaded_data, dict):
-                self.songs_data = loaded_data.get('proseka_songs', [])
-                self.valid_difficulties = loaded_data.get('VALID_DIFFICULTIES', ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"])
-            elif isinstance(loaded_data, list):
-                self.songs_data = loaded_data
-                self.valid_difficulties = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"] # リストの場合はデフォルトを使用
-            else:
-                print(f"ERROR (general): Unexpected data format in {json_file_path}. Expected dict or list. Type: {type(loaded_data)}. Using empty song list.")
-                self.songs_data = [] # エラー時は空リストに
-                self.valid_difficulties = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
-
-
-            formatted_songs = []
-            if not isinstance(self.songs_data, list):
-                print(f"ERROR (general): 'proseka_songs' in {json_file_path} is not a list. Type: {type(self.songs_data)}. Using empty song list.")
-                self.songs_data = [] # エラー時は空リストに
-            else:
-                # 楽曲データ内の難易度レベルをintに変換する処理
-                for i, song_item in enumerate(self.songs_data):
-                    if not isinstance(song_item, dict):
-                        print(f"WARNING (general): Item {i+1} in {json_file_path} is not a dictionary. Skipping: {song_item}")
-                        continue
-
-                    formatted_song = song_item.copy() # 元の辞書をコピー
-                    for diff_name in self.valid_difficulties:
-                        level = song_item.get(diff_name.lower())
-                        if isinstance(level, (int, float)):
-                            formatted_song[diff_name.lower()] = int(level)
-                        elif level is not None:
-                            print(f" -> WARNING (general): Difficulty '{diff_name.lower()}' for song '{song_item.get('title')}' has non-numeric level: {level}. Skipping this difficulty.")
-                            # Noneではないが数値でない場合はそのレベルをNoneにするか、元の値を保持するか選択
-                            formatted_song[diff_name.lower()] = None # または元の値を保持: level
-                    formatted_songs.append(formatted_song)
-                self.songs_data = formatted_songs # 変換後のリストをセット
-
-            print(f"DEBUG: Successfully loaded {len(self.songs_data)} songs from {json_file_path} in {time.time() - start_time:.4f} seconds for ProsekaGeneralCommands.")
-            
-        except FileNotFoundError:
-            print(f"CRITICAL ERROR (general): {json_file_path} not found. Please ensure it's in the 'data' folder. Using empty song list.")
-            self.songs_data = []
-            self.valid_difficulties = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
-        except json.JSONDecodeError as e:
-            print(f"CRITICAL ERROR (general): Error decoding JSON from {json_file_path}: {e}. Please check JSON format. Using empty song list.")
-            traceback.print_exc()
-            self.songs_data = []
-            self.valid_difficulties = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
-        except Exception as e:
-            print(f"CRITICAL ERROR (general): Error loading or converting data from {json_file_path}: {e}. Using empty song list.")
-            traceback.print_exc()
-            self.songs_data = []
-            self.valid_difficulties = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
-
+    # ★ cog_load メソッドを削除しました。ap_fc_rate_cog の設定は main.py で行われます。
+    # async def cog_load(self):
+    #     await self.bot.wait_until_ready()
+    #     self.ap_fc_rate_cog = self.bot.get_cog("PjskApFcRateCommands")
+    #     if self.ap_fc_rate_cog:
+    #         print("DEBUG: Successfully got PjskApFcRateCommands cog in ProsekaGeneralCommands.")
+    #     else:
+    #         print("WARNING: PjskApFcRateCommands cog not found in ProsekaGeneralCommands. AP/FC rate integration will not work.")
 
     def _get_difficulty_level(self, song: dict, difficulty_name: str) -> int | None:
         """
@@ -618,4 +549,3 @@ async def setup(bot):
     cog = ProsekaGeneralCommands(bot)
     await bot.add_cog(cog)
     print("ProsekaGeneralCommands cog loaded and commands added.")
-
