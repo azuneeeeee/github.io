@@ -205,7 +205,7 @@ class UpdateRecordModal(Modal, title="記録を更新"):
 
         user_data = all_records[self.user_id]
         if self.song_name not in user_data["records"] or self.difficulty not in user_data["records"][self.song_name]:
-            logging.warning(f"Record for song '{self.song_name}' difficulty '{self.difficulty}' not found for user {interaction.user.name} in UpdateRecordModal submit.")
+            logging.warning(f"Record for song '{self.song_name}' difficulty '{self.difficulty}' not found for user {interaction.user.name}.")
             await interaction.response.send_message(
                 f"エラー: 曲名『{self.song_name}』難易度『{self.difficulty.upper()}』の記録が見つかりません。`/pjsk_record_result`で新規記録してください。",
                 ephemeral=True
@@ -272,7 +272,7 @@ class UpdateRecordModal(Modal, title="記録を更新"):
         updated_embed = self.create_display_embed(interaction.user, self.song_name, self.difficulty, current_record, self.song_data_map)
         updated_embed.description = "記録が更新されました！"
 
-        view = RecordAccuracyView(self.bot, int(self.user_id), self.song_name, self.difficulty, self.song_data_map)
+        view = RecordAccuracyView(self.bot, int(self.user_id), song_name_input, difficulty_input, self.song_data_map)
         view.set_button_states(has_record=True)
 
         await interaction.response.send_message(embed=updated_embed, view=view)
@@ -285,7 +285,7 @@ class UpdateRecordModal(Modal, title="記録を更新"):
             logging.error(f"Failed to get original response message after UpdateRecordModal submit: {e}", exc_info=True)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        logging.error(f"Error in UpdateRecordModal for user {interaction.user.name}: {error}", exc_info=True)
+        logging.error(f"モーダル送信中にエラーが発生しました: `{error}`", exc_info=True) # ログメッセージを修正
         await interaction.response.send_message(
             f"モーダル送信中にエラーが発生しました: `{error}`",
             ephemeral=True
@@ -478,8 +478,11 @@ class RecordAccuracyView(View):
         logging.info(f"RecordAccuracyView for user {self.user_id} timed out.")
         if self.message:
             try:
-                await self.message.edit(view=None)
-                logging.info(f"Removed view from message {self.message.id} on timeout.")
+                for item in self.children:
+                    if hasattr(item, 'disabled'):
+                        item.disabled = True
+                await self.message.edit(view=self)
+                logging.info(f"Disabled buttons for RecordAccuracyView message {self.message.id} on timeout.")
             except discord.NotFound:
                 logging.warning("RecordAccuracyView message not found during timeout handling.")
                 pass
