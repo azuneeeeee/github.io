@@ -23,7 +23,8 @@ def is_owner_global(interaction: discord.Interaction) -> bool:
     return interaction.user.id == OWNER_ID and OWNER_ID != -1
 
 class ProsekaRankMatchCommands(commands.Cog):
-    def __init__(self, bot, songs_data: list = None, valid_difficulties: list = None):
+    # ★変更: songs_data と valid_difficulties を __init__ の引数から削除
+    def __init__(self, bot):
         self.bot = bot
         self.owner_id = OWNER_ID
 
@@ -36,8 +37,9 @@ class ProsekaRankMatchCommands(commands.Cog):
             "APPEND": discord.Color(0xFFC0CB)
         }
 
-        self.songs_data = songs_data if songs_data is not None else []
-        self.valid_difficulties = valid_difficulties if valid_difficulties is not None else ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
+        # ★変更: 初期値を空のリストで設定 (main.py で後から設定される)
+        self.songs_data = [] 
+        self.valid_difficulties = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
         
         self.ap_fc_rate_cog = None
 
@@ -87,27 +89,19 @@ class ProsekaRankMatchCommands(commands.Cog):
         interaction: discord.Interaction,
         rank: str,
     ):
-        # ★修正: ボットが完全に準備完了しているかチェック
         if not self.bot.is_bot_ready:
             print(f"DEBUG: Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}")
-            # defer() の前に応答する必要があるため、ここで直接応答を試みる
-            # ただし、既にタイムアウトしている可能性もあるため、try-except で囲む
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message("ボットがまだ起動中です。しばらくお待ちください。", ephemeral=True)
-                return # 応答したら処理を中断
+                return
             except discord.errors.InteractionResponded:
-                # 既に何らかの理由で応答済みの場合、何もしない（グローバルエラーハンドラーが捕捉する可能性）
                 print(f"WARNING: Interaction for '{interaction.command.name}' was already responded to before 'bot not ready' check.")
                 return
             except Exception as e:
                 print(f"ERROR: Failed to send 'bot not ready' message for '{interaction.command.name}': {e}")
-                # ここで例外が発生した場合、defer()も失敗する可能性が高いので、
-                # コマンドの残りの処理は実行しない
                 return
 
-        # コマンド開始直後に遅延応答（defer）を呼び出す
-        # ここで発生する NotFound はグローバルエラーハンドラーで捕捉される
         await interaction.response.defer(ephemeral=False)
 
         if not self.songs_data:
@@ -196,7 +190,8 @@ class ProsekaRankMatchCommands(commands.Cog):
             print("DEBUG: AP/FC rate display update skipped for /pjsk_rankmatch_song (cog not available or update disabled).")
 
 
-async def setup(bot, songs_data: list, valid_difficulties: list):
-    cog = ProsekaRankMatchCommands(bot, songs_data=songs_data, valid_difficulties=valid_difficulties)
+# ★変更: setup 関数から songs_data と valid_difficulties を削除
+async def setup(bot):
+    cog = ProsekaRankMatchCommands(bot) # ★変更: 引数を渡さない
     await bot.add_cog(cog)
     print("ProsekaRankMatchCommands cog loaded.")
