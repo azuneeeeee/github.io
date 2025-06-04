@@ -5491,7 +5491,6 @@
     "master": 28,
     "append": null
   }
-    ],
-    
+    ]
 VALID_DIFFICULTIES = ['EASY', 'NORMAL', 'HARD', 'EXPERT', 'MASTER', 'APPEND']
 }
