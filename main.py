@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO,
 from dotenv import load_dotenv
 load_dotenv()
 
-# ★修正: 環境変数を安全に読み込む
+# 環境変数を安全に読み込む
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 
 # GUILD_ID はサポートギルドIDとして使用されるため、必須。設定されていない場合はエラーログを出力し、デフォルト値を使用。
@@ -73,9 +73,9 @@ class MyBot(commands.Bot):
         self.initial_extensions = [
             'cogs.pjsk_ap_fc_rate',      # AP/FCレートコグ
             'cogs.proseka_general',      # 汎用コマンドコグ
-            # 'cogs.help_command',       # もしhelp_commandを別途用意するならここに含める
+            'cogs.help_command',         # 追加: ヘルプコマンドコグ
             'cogs.proseka_rankmatch',    # ランクマッチ選曲コグ
-            'cogs.pjsk_rankmatch_result',# ランクマッチリザルトコグ (もしあれば)
+            # 'cogs.pjsk_rankmatch_result',# ランクマッチリザルトコグ (もしあれば)
             'cogs.pjsk_record_result'    # 精度記録コグ
         ]
         self.proseka_songs_data = [] # 楽曲データをボットインスタンスに保持
@@ -87,6 +87,7 @@ class MyBot(commands.Bot):
         self.proseka_rankmatch_cog = None
         self.pjsk_ap_fc_rate_cog = None
         self.pjsk_record_result_cog = None
+        self.help_command_cog = None # 追加
         # self.pjsk_rankmatch_result_cog = None # もしpjsk_rankmatch_resultコグがあるならこれも追加
 
         logging.info("Bot instance created.")
@@ -148,6 +149,7 @@ class MyBot(commands.Bot):
         self.proseka_rankmatch_cog = self.get_cog("ProsekaRankMatchCommands")
         self.pjsk_ap_fc_rate_cog = self.get_cog("PjskApFcRateCommands")
         self.pjsk_record_result_cog = self.get_cog("PjskRecordResult")
+        self.help_command_cog = self.get_cog("HelpCommand") # 追加
         # self.pjsk_rankmatch_result_cog = self.get_cog("PjskRankMatchResult") # もしpjsk_rankmatch_resultコグがあるならこれも取得
 
 
@@ -200,8 +202,7 @@ class MyBot(commands.Bot):
             # これにより、@app_commands.guilds(discord.Object(id=GUILD_ID)) でマークされたコマンドのみが同期される
             if GUILD_ID != 0: # GUILD_ID がデフォルト値でないことを確認
                 support_guild = discord.Object(id=GUILD_ID)
-                # ★修正: グローバルコマンドをギルドにコピーする行を削除
-                # self.tree.copy_global_to(guild=support_guild)
+                # self.tree.copy_global_to(guild=support_guild) # この行は削除済み
                 synced_guild_commands = await self.tree.sync(guild=support_guild)
                 logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {GUILD_ID}.")
             else:
