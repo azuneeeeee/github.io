@@ -202,7 +202,19 @@ class PremiumManagerCog(commands.Cog):
                             days: Optional[app_commands.Range[int, 1, 365]] = None): # ★修正: days を Optional[int] に変更し、デフォルト値を None に設定
         """ボットのオーナーがユーザーにプレミアムステータスを付与するためのコマンド"""
         logging.info(f"Command '/grant_premium' invoked by {interaction.user.name} (ID: {interaction.user.id}) for user ID {user_id}. Days: {days}")
-        await interaction.response.defer(ephemeral=True)
+        
+        # defer を最速で試みる
+        try:
+            await interaction.response.defer(ephemeral=True)
+            logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
+        except discord.errors.NotFound:
+            logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound). This will be caught by global error handler.", exc_info=True)
+            # deferに失敗した場合は、これ以上処理を進めない
+            return
+        except Exception as e:
+            logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
+            # deferに失敗した場合は、これ以上処理を進めない
+            return
 
         try:
             # ユーザーIDが数値であることを確認
