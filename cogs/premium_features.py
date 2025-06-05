@@ -9,6 +9,8 @@ from typing import Optional
 
 # HTTPリクエストを行うためのライブラリをインポート
 import requests 
+# 非同期処理のためのライブラリをインポート ★追加★
+import asyncio 
 
 # ロギング設定
 logging.basicConfig(level=logging.INFO,
@@ -49,6 +51,7 @@ async def load_premium_data_from_gist():
     url = f"{GITHUB_API_BASE_URL}/{GIST_ID}"
 
     try:
+        # requests.get は同期処理なので、run_in_executor を使用して非同期で実行
         loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(None, lambda: requests.get(url, headers=headers))
         response.raise_for_status() # HTTPエラーがあれば例外を発生させる
@@ -80,10 +83,12 @@ async def load_premium_data_from_gist():
         return premium_users
     except requests.exceptions.RequestException as e:
         logging.error(f"Error loading premium data from GitHub Gist: {e}", exc_info=True)
-        if response.status_code == 404: # Gistが見つからない、または権限がない場合
-            logging.warning("GitHub Gist not found or incorrect ID/permissions. Starting with empty data.")
-        elif response.status_code == 401 or response.status_code == 403: # 認証エラー
-            logging.error("GitHub PAT is unauthorized or has insufficient permissions. Check your GITHUB_TOKEN and its 'gist' scope.")
+        # responseオブジェクトが存在し、status_code属性があるかを確認
+        if hasattr(response, 'status_code'):
+            if response.status_code == 404: # Gistが見つからない、または権限がない場合
+                logging.warning("GitHub Gist not found or incorrect ID/permissions. Starting with empty data.")
+            elif response.status_code == 401 or response.status_code == 403: # 認証エラー
+                logging.error("GitHub PAT is unauthorized or has insufficient permissions. Check your GITHUB_TOKEN and its 'gist' scope.")
         return {}
     except json.JSONDecodeError as e:
         logging.error(f"Failed to decode JSON from GitHub Gist content: {e}", exc_info=True)
@@ -123,16 +128,21 @@ async def save_premium_data_to_gist(data: dict):
     }
 
     try:
+        # requests.patch は同期処理なので、run_in_executor を使用して非同期で実行
         loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(None, lambda: requests.patch(url, headers=headers, json=payload))
         response.raise_for_status() # HTTPエラーがあれば例外を発生させる
         logging.info(f"Premium data saved/updated in GitHub Gist. Status: {response.status_code}")
     except requests.exceptions.RequestException as e:
         logging.error(f"Error saving premium data to GitHub Gist: {e}", exc_info=True)
-        if response.status_code == 401 or response.status_code == 403:
-            logging.error("GitHub PAT is unauthorized or has insufficient permissions for PATCH. Check your GITHUB_TOKEN and its 'gist' scope.")
+        # responseオブジェクトが存在し、status_code属性があるかを確認
+        if hasattr(response, 'status_code'):
+            if response.status_code == 401 or response.status_code == 403:
+                logging.error("GitHub PAT is unauthorized or has insufficient permissions for PATCH. Check your GITHUB_TOKEN and its 'gist' scope.")
+        return # エラー時は処理を中断
     except Exception as e:
         logging.error(f"An unexpected error occurred during GitHub Gist data saving: {e}", exc_info=True)
+        return # エラー時は処理を中断
 
 # --- is_premium_check, is_bot_owner 関数 (Gist対応のため変更) ---
 def is_premium_check():
