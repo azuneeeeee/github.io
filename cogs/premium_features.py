@@ -18,6 +18,9 @@ DATA_DIR = os.path.dirname(PREMIUM_DATA_FILE)
 # UTC+9 (日本標準時) のタイムゾーンオフセット
 JST = timezone(timedelta(hours=9))
 
+# ★ユーザーが提供したプレミアムロールIDをここに設定
+PREMIUM_ROLE_ID = 1380155806485315604 
+
 def load_premium_data():
     """プレミアムユーザーデータをJSONファイルからロードします。"""
     if not os.path.exists(PREMIUM_DATA_FILE):
@@ -190,21 +193,10 @@ class PremiumManagerCog(commands.Cog):
         save_premium_data(self.premium_users)
 
         # Discordロールの付与 (ボットにロール管理権限が必要)
-        premium_role_id = self.bot.GUILD_ID # あなたのサーバーのプレミアムロールIDに置き換えてください
-        # 注意: 実際のウェブサイト連携では、ボットがプレミアムロールのIDを知っている必要があります。
-        # ここではGUILD_IDを例としていますが、実際のプレミアムロールのIDを設定してください。
-        # 例: premium_role = discord.utils.get(interaction.guild.roles, name="Premium")
-        # または、configファイルや環境変数から読み込む
-        
-        # ボットのGUILD_IDを、実際にプレミアムロールが存在するGUILD_IDに置き換える必要があります。
-        # もし複数のサーバーでプレミアム機能を提供する場合、ここで適切なロジックが必要です。
-        # 例として、コマンドが実行されたサーバーのIDと仮定します。
         target_guild = interaction.guild
         if target_guild:
-            # ここをあなたのプレミアムロールの実際のIDに置き換えてください
-            # 例: premium_role = target_guild.get_role(YOUR_PREMIUM_ROLE_ID)
-            # 現在のボットのGUILD_IDを使用しているため、このIDをプレミアムロールのIDとして設定してください
-            premium_role = target_guild.get_role(self.bot.GUILD_ID) 
+            # ★ここをあなたのプレミアムロールの実際のIDに置き換えます
+            premium_role = target_guild.get_role(PREMIUM_ROLE_ID) 
             
             if premium_role and user:
                 try:
@@ -216,7 +208,7 @@ class PremiumManagerCog(commands.Cog):
                 except Exception as e:
                     logging.error(f"Error adding role to user {user.name}: {e}", exc_info=True)
             else:
-                logging.warning(f"Premium role (ID: {self.bot.GUILD_ID}) or user {user.name} not found in guild {target_guild.name}.")
+                logging.warning(f"Premium role (ID: {PREMIUM_ROLE_ID}) or user {user.name} not found in guild {target_guild.name}.")
                 await interaction.followup.send("プレミアムロールが見つからないか、ユーザーがこのサーバーにいませんでした。", ephemeral=True)
         else:
             await interaction.followup.send("このコマンドはサーバー内でのみ実行できます。", ephemeral=True)
@@ -248,8 +240,8 @@ class PremiumManagerCog(commands.Cog):
             # Discordロールの剥奪 (ボットにロール管理権限が必要)
             target_guild = interaction.guild
             if target_guild:
-                # ここをあなたのプレミアムロールの実際のIDに置き換えてください
-                premium_role = target_guild.get_role(self.bot.GUILD_ID) 
+                # ★ここをあなたのプレミアムロールの実際のIDに置き換えます
+                premium_role = target_guild.get_role(PREMIUM_ROLE_ID) 
                 
                 if premium_role and user:
                     try:
@@ -261,7 +253,7 @@ class PremiumManagerCog(commands.Cog):
                     except Exception as e:
                         logging.error(f"Error removing role from user {user.name}: {e}", exc_info=True)
                 else:
-                    logging.warning(f"Premium role (ID: {self.bot.GUILD_ID}) or user {user.name} not found in guild {target_guild.name}.")
+                    logging.warning(f"Premium role (ID: {PREMIUM_ROLE_ID}) or user {user.name} not found in guild {target_guild.name}.")
                     await interaction.followup.send("プレミアムロールが見つからないか、ユーザーがこのサーバーにいませんでした。", ephemeral=True)
             else:
                 await interaction.followup.send("このコマンドはサーバー内でのみ実行できます。", ephemeral=True)
