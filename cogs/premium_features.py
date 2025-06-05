@@ -172,7 +172,8 @@ class PremiumManagerCog(commands.Cog):
         logging.info(f"Premium exclusive command executed for {interaction.user.name}.")
 
     @app_commands.command(name="grant_premium", description="指定ユーザーにプレミアムステータスを付与します (オーナー限定)。")
-    @app_commands.default_members_permissions(manage_roles=True) # ロール管理権限を持つユーザーに限定 (オーナーチェックも追加)
+    # ★修正: default_members_permissions を default_permissions に変更
+    @app_commands.default_permissions(manage_roles=True)
     @app_commands.checks.is_owner() # ボットのオーナーのみが実行可能
     async def grant_premium(self, interaction: discord.Interaction, user: discord.Member, days: app_commands.Range[int, 1, 365] = 30):
         """ボットのオーナーがユーザーにプレミアムステータスを付与するためのコマンド"""
@@ -195,7 +196,6 @@ class PremiumManagerCog(commands.Cog):
         # Discordロールの付与 (ボットにロール管理権限が必要)
         target_guild = interaction.guild
         if target_guild:
-            # ★ここをあなたのプレミアムロールの実際のIDに置き換えます
             premium_role = target_guild.get_role(PREMIUM_ROLE_ID) 
             
             if premium_role and user:
@@ -225,7 +225,8 @@ class PremiumManagerCog(commands.Cog):
         logging.info(f"Premium status granted to {user.name} by {interaction.user.name}.")
 
     @app_commands.command(name="revoke_premium", description="指定ユーザーからプレミアムステータスを剥奪します (オーナー限定)。")
-    @app_commands.default_members_permissions(manage_roles=True)
+    # ★修正: default_members_permissions を default_permissions に変更
+    @app_commands.default_permissions(manage_roles=True)
     @app_commands.checks.is_owner()
     async def revoke_premium(self, interaction: discord.Interaction, user: discord.Member):
         """ボットのオーナーがユーザーからプレミアムステータスを剥奪するためのコマンド"""
@@ -240,7 +241,6 @@ class PremiumManagerCog(commands.Cog):
             # Discordロールの剥奪 (ボットにロール管理権限が必要)
             target_guild = interaction.guild
             if target_guild:
-                # ★ここをあなたのプレミアムロールの実際のIDに置き換えます
                 premium_role = target_guild.get_role(PREMIUM_ROLE_ID) 
                 
                 if premium_role and user:
