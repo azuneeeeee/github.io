@@ -292,7 +292,19 @@ class PremiumManagerCog(commands.Cog):
                              user_id: str): # ★変更: discord.Member から str (ユーザーID) に変更
         """ボットのオーナーがユーザーからプレミアムステータスを剥奪するためのコマンド"""
         logging.info(f"Command '/revoke_premium' invoked by {interaction.user.name} (ID: {interaction.user.id}) for user ID {user_id}.")
-        await interaction.response.defer(ephemeral=True)
+        
+        # defer を最速で試みる
+        try:
+            await interaction.response.defer(ephemeral=True)
+            logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
+        except discord.errors.NotFound:
+            logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound). This will be caught by global error handler.", exc_info=True)
+            # deferに失敗した場合は、これ以上処理を進めない
+            return
+        except Exception as e:
+            logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
+            # deferに失敗した場合は、これ以上処理を進めない
+            return
 
         try:
             target_user_id = int(user_id)
@@ -301,10 +313,9 @@ class PremiumManagerCog(commands.Cog):
             return
 
         status_message = ""
-        # ★修正: user_id が premium_users に存在するかを先にチェック
         if user_id in self.premium_users:
             user_info_from_data = self.premium_users.get(user_id)
-            display_name = user_info_from_data.get("display_name", f"不明なユーザー (ID: `{user_id}`)") # ここでNoneTypeエラーは発生しない
+            display_name = user_info_from_data.get("display_name", f"不明なユーザー (ID: `{user_id}`)") 
             
             del self.premium_users[user_id]
             save_premium_data(self.premium_users)
@@ -317,16 +328,16 @@ class PremiumManagerCog(commands.Cog):
                     target_user = await self.bot.fetch_user(target_user_id)
                 except discord.NotFound:
                     logging.warning(f"User ID {target_user_id} not found via fetch_user for role removal.")
-                    target_user = None # ユーザーオブジェクトが取得できない場合はロール操作をスキップ
+                    target_user = None 
                 except discord.HTTPException as e:
                     logging.error(f"HTTPException when fetching user {target_user_id} for role removal: {e}", exc_info=True)
                     target_user = None
             
             # ロール剥奪の処理 (サーバーにいるメンバーの場合のみ)
             target_guild = interaction.guild
-            if target_guild and target_user: # target_userがNoneでないことを確認
+            if target_guild and target_user: 
                 member = target_guild.get_member(target_user.id)
-                if member: # メンバーとして存在する場合
+                if member: 
                     premium_role = target_guild.get_role(PREMIUM_ROLE_ID) 
                     if premium_role:
                         try:
@@ -348,12 +359,11 @@ class PremiumManagerCog(commands.Cog):
             elif not target_guild:
                 status_message += f"\nこのコマンドはDMでは実行できません。ロール操作はサーバー内でのみ可能です。"
                 logging.warning("revoke_premium command invoked in DM. Role operation skipped.")
-            else: # target_user is Noneの場合
+            else: 
                  status_message += f"\nユーザーオブジェクトが取得できなかったため、ロール操作はスキップされました。"
                  logging.warning(f"Could not fetch target user {target_user_id} for role removal. Role operation skipped.")
         else:
-            # ユーザーがプレミアムユーザーデータに存在しない場合
-            display_name = f"不明なユーザー (ID: `{user_id}`)" # この場合はユーザー情報を取得できないため、IDで表示
+            display_name = f"不明なユーザー (ID: `{user_id}`)" 
             status_message = f"{display_name} はプレミアムユーザーではありません。"
             logging.info(f"User ID {user_id} does not have premium status to revoke.")
 
