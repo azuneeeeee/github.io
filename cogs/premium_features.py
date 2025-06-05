@@ -238,6 +238,8 @@ class PremiumManagerCog(commands.Cog):
             "expiration_date": expiration_date # datetimeオブジェクトとして保存 (None の可能性あり)
         }
         save_premium_data(self.premium_users)
+        # ★追加: コグの内部状態を更新
+        self.premium_users = load_premium_data() 
 
         status_message = f"{target_user.display_name} (ID: `{target_user.id}`) にプレミアムステータスを付与しました。"
 
@@ -319,7 +321,8 @@ class PremiumManagerCog(commands.Cog):
             
             del self.premium_users[user_id]
             save_premium_data(self.premium_users)
-            status_message = f"{display_name} からプレミアムステータスを剥奪しました。"
+            # ★追加: コグの内部状態を更新
+            self.premium_users = load_premium_data()
 
             # Discord APIからユーザーオブジェクトを取得 (サーバーにいるかどうかに関わらず)
             target_user = self.bot.get_user(target_user_id)
