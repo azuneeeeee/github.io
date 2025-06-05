@@ -28,32 +28,42 @@ except ImportError:
     logging.error("Failed to import SUPPORT_GUILD_ID from cogs.pjsk_record_result. Please ensure pjsk_record_result.py is correctly set up and defines SUPPORT_GUILD_ID.")
     SUPPORT_GUILD_ID = 0
 
-# --- JSONBin.io 関連の設定とヘルパー関数 ---
-JSONBIN_API_KEY = os.getenv('JSONBIN_API_KEY')
-JSONBIN_BIN_ID = os.getenv('JSONBIN_BIN_ID')
-JSONBIN_BASE_URL = "https://api.jsonbin.io/v3/b"
+# --- GitHub Gist 関連の設定とヘルパー関数 ---
+GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
+GIST_ID = os.getenv('GIST_ID')
+GITHUB_API_BASE_URL = "https://api.github.com/gists"
 
-if not JSONBIN_API_KEY or not JSONBIN_BIN_ID:
-    logging.critical("JSONBIN_API_KEY or JSONBIN_BIN_ID environment variables are not set. Data will not be persistent. Please configure JSONBin.io.")
+if not GITHUB_TOKEN or not GIST_ID:
+    logging.critical("GITHUB_TOKEN or GIST_ID environment variables are not set. Data will not be persistent. Please configure GitHub Gist.")
 
-async def load_premium_data_from_jsonbin():
-    """JSONBin.io からプレミアムユーザーデータをロードします。"""
-    if not JSONBIN_API_KEY or not JSONBIN_BIN_ID:
-        logging.error("JSONBin API key or Bin ID not set. Cannot load data from JSONBin.io.")
+async def load_premium_data_from_gist():
+    """GitHub Gist からプレミアムユーザーデータをロードします。"""
+    if not GITHUB_TOKEN or not GIST_ID:
+        logging.error("GitHub Token or Gist ID not set. Cannot load data from Gist.")
         return {}
 
     headers = {
-        'X-Master-Key': JSONBIN_API_KEY,
-        'X-Bin-Meta': 'false' # メタデータを含めない
+        'Authorization': f'token {GITHUB_TOKEN}',
+        'Accept': 'application/vnd.github.v3+json'
     }
-    url = f"{JSONBIN_BASE_URL}/{JSONBIN_BIN_ID}/latest" # 最新バージョンを取得
+    url = f"{GITHUB_API_BASE_URL}/{GIST_ID}"
 
     try:
         loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(None, lambda: requests.get(url, headers=headers))
         response.raise_for_status() # HTTPエラーがあれば例外を発生させる
         
-        data = response.json()
+        gist_data = response.json()
+        
+        # Gistのファイルから premium_users.json の内容を取得
+        # Gistのファイル名は premium_users.json と仮定
+        raw_json_content = gist_data['files'].get('premium_users.json', {}).get('content')
+        
+        if not raw_json_content:
+            logging.warning("No 'premium_users.json' found or content is empty in the specified Gist. Starting with empty data.")
+            return {}
+
+        data = json.loads(raw_json_content)
         premium_users = {}
         for user_id, user_info in data.items():
             # 日付文字列をdatetimeオブジェクトに変換（存在する場合）
@@ -62,38 +72,38 @@ async def load_premium_data_from_jsonbin():
                     # ISOフォーマット文字列をdatetimeオブジェクトに変換
                     user_info['expiration_date'] = datetime.fromisoformat(user_info['expiration_date']).astimezone(timezone.utc)
                 except ValueError:
-                    logging.warning(f"Invalid datetime format for user {user_id} in JSONBin: {user_info['expiration_date']}")
+                    logging.warning(f"Invalid datetime format for user {user_id} in Gist: {user_info['expiration_date']}")
                     user_info['expiration_date'] = None
             premium_users[user_id] = user_info
             
-        logging.info(f"Loaded {len(premium_users)} premium users from JSONBin.io.")
+        logging.info(f"Loaded {len(premium_users)} premium users from GitHub Gist.")
         return premium_users
     except requests.exceptions.RequestException as e:
-        logging.error(f"Error loading premium data from JSONBin.io: {e}", exc_info=True)
-        # Binが存在しない、またはアクセス権がない場合は空のデータを返す
-        if response.status_code == 404: # Binが見つからない場合
-            logging.warning("JSONBin.io bin not found or incorrect ID. Starting with empty data.")
-        elif response.status_code == 401: # 認証エラー
-            logging.error("JSONBin.io API key is unauthorized. Check your X-Master-Key.")
+        logging.error(f"Error loading premium data from GitHub Gist: {e}", exc_info=True)
+        if response.status_code == 404: # Gistが見つからない、または権限がない場合
+            logging.warning("GitHub Gist not found or incorrect ID/permissions. Starting with empty data.")
+        elif response.status_code == 401 or response.status_code == 403: # 認証エラー
+            logging.error("GitHub PAT is unauthorized or has insufficient permissions. Check your GITHUB_TOKEN and its 'gist' scope.")
         return {}
     except json.JSONDecodeError as e:
-        logging.error(f"Failed to decode JSON from JSONBin.io: {e}", exc_info=True)
+        logging.error(f"Failed to decode JSON from GitHub Gist content: {e}", exc_info=True)
         return {}
     except Exception as e:
-        logging.error(f"An unexpected error occurred during JSONBin.io data loading: {e}", exc_info=True)
+        logging.error(f"An unexpected error occurred during GitHub Gist data loading: {e}", exc_info=True)
         return {}
 
-async def save_premium_data_to_jsonbin(data: dict):
-    """JSONBin.io にプレミアムユーザーデータを保存（更新）します。"""
-    if not JSONBIN_API_KEY or not JSONBIN_BIN_ID:
-        logging.error("JSONBin API key or Bin ID not set. Cannot save data to JSONBin.io.")
+async def save_premium_data_to_gist(data: dict):
+    """GitHub Gist にプレミアムユーザーデータを保存（更新）します。"""
+    if not GITHUB_TOKEN or not GIST_ID:
+        logging.error("GitHub Token or Gist ID not set. Cannot save data to Gist.")
         return
 
     headers = {
-        'Content-Type': 'application/json',
-        'X-Master-Key': JSONBIN_API_KEY
+        'Authorization': f'token {GITHUB_TOKEN}',
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json' # PATCH リクエストに必要
     }
-    url = f"{JSONBIN_BASE_URL}/{JSONBIN_BIN_ID}"
+    url = f"{GITHUB_API_BASE_URL}/{GIST_ID}"
 
     # datetimeオブジェクトをISOフォーマットの文字列に変換して保存
     serializable_data = {}
@@ -103,21 +113,28 @@ async def save_premium_data_to_jsonbin(data: dict):
             serializable_info['expiration_date'] = serializable_info['expiration_date'].isoformat()
         serializable_data[user_id] = serializable_info
 
+    # Gist API の PATCH リクエストのペイロード形式
+    payload = {
+        "files": {
+            "premium_users.json": {
+                "content": json.dumps(serializable_data, ensure_ascii=False, indent=4)
+            }
+        }
+    }
+
     try:
         loop = asyncio.get_running_loop()
-        response = await loop.run_in_executor(None, lambda: requests.put(url, headers=headers, json=serializable_data))
+        response = await loop.run_in_executor(None, lambda: requests.patch(url, headers=headers, json=payload))
         response.raise_for_status() # HTTPエラーがあれば例外を発生させる
-        logging.info(f"Premium data saved/updated in JSONBin.io. Status: {response.status_code}")
+        logging.info(f"Premium data saved/updated in GitHub Gist. Status: {response.status_code}")
     except requests.exceptions.RequestException as e:
-        logging.error(f"Error saving premium data to JSONBin.io: {e}", exc_info=True)
-        if response.status_code == 401:
-            logging.error("JSONBin.io API key is unauthorized. Check your X-Master-Key for PUT requests.")
-        elif response.status_code == 403: # Forbidden, often due to master key not having write access
-            logging.error("JSONBin.io API key does not have write access. Ensure it's a Master Key.")
+        logging.error(f"Error saving premium data to GitHub Gist: {e}", exc_info=True)
+        if response.status_code == 401 or response.status_code == 403:
+            logging.error("GitHub PAT is unauthorized or has insufficient permissions for PATCH. Check your GITHUB_TOKEN and its 'gist' scope.")
     except Exception as e:
-        logging.error(f"An unexpected error occurred during JSONBin.io data saving: {e}", exc_info=True)
+        logging.error(f"An unexpected error occurred during GitHub Gist data saving: {e}", exc_info=True)
 
-# --- is_premium_check, is_bot_owner 関数 (JSONBin.io対応のため変更) ---
+# --- is_premium_check, is_bot_owner 関数 (Gist対応のため変更) ---
 def is_premium_check():
     """
     ユーザーがプレミアムステータスを持っているかをチェックするカスタムデコレータ。
@@ -125,7 +142,7 @@ def is_premium_check():
     """
     async def predicate(interaction: discord.Interaction):
         user_id = str(interaction.user.id)
-        premium_users = await load_premium_data_from_jsonbin() # JSONBin.ioからロード
+        premium_users = await load_premium_data_from_gist() # Gistからロード
         
         user_info = premium_users.get(user_id)
         if not user_info:
@@ -143,9 +160,9 @@ def is_premium_check():
 
         if expiration_date < datetime.now(JST): # 現在のJST時刻と比較
             logging.info(f"Premium status for user {user_id} expired on {expiration_date.astimezone(JST).strftime('%Y-%m-%d %H:%M:%S JST')}. Revoking automatically.")
-            # 期限切れの場合は自動的にプレミアムステータスをJSONBin.ioからも削除
+            # 期限切れの場合は自動的にプレミアムステータスをGistからも削除
             premium_users.pop(user_id, None) # 内部データから削除
-            await save_premium_data_to_jsonbin(premium_users) # JSONBin.ioを更新
+            await save_premium_data_to_gist(premium_users) # Gistを更新
             await interaction.response.send_message(
                 f"あなたのプレミアムステータスは {expiration_date.astimezone(JST).strftime('%Y年%m月%d日 %H時%M分')} に期限切れとなりました。再度購読してください。",
                 ephemeral=True
@@ -170,16 +187,16 @@ def is_bot_owner():
 class PremiumManagerCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # JSONBin.io からデータは on_ready でロードされる
+        # Gistからデータは on_ready でロードされる
         self.premium_users = {} 
         logging.info("PremiumManagerCog initialized.")
 
     @commands.Cog.listener()
     async def on_ready(self):
         """ボットが完全に起動し、Discordに接続された後に実行されます。"""
-        # JSONBin.io からデータをロード
-        self.premium_users = await load_premium_data_from_jsonbin()
-        logging.info(f"Loaded {len(self.premium_users)} premium users from JSONBin.io during on_ready.")
+        # Gistからデータをロード
+        self.premium_users = await load_premium_data_from_gist()
+        logging.info(f"Loaded {len(self.premium_users)} premium users from GitHub Gist during on_ready.")
 
 
     @app_commands.command(name="premium_info", description="あなたのプレミアムステータスを表示します。")
@@ -189,8 +206,8 @@ class PremiumManagerCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         user_id = str(interaction.user.id)
-        # コマンド実行時に常に最新データをJSONBin.ioからロードして確認
-        self.premium_users = await load_premium_data_from_jsonbin() 
+        # コマンド実行時に常に最新データをGistからロードして確認
+        self.premium_users = await load_premium_data_from_gist() 
         user_info = self.premium_users.get(user_id)
 
         embed = discord.Embed(title="プレミアムステータス", color=discord.Color.gold())
@@ -205,10 +222,10 @@ class PremiumManagerCog(commands.Cog):
                 else:
                     embed.description = f"あなたのプレミアムステータスは期限切れです。\n期限: <t:{int(expires_at_jst.timestamp())}:F>"
                     embed.color = discord.Color.red()
-                    # 期限切れの場合は、念のためJSONBin.ioからも削除する
+                    # 期限切れの場合は、念のためGistからも削除
                     if user_id in self.premium_users:
                         self.premium_users.pop(user_id) # 内部データから削除
-                        await save_premium_data_to_jsonbin(self.premium_users) # JSONBin.ioを更新
+                        await save_premium_data_to_gist(self.premium_users) # Gistを更新
             else:
                 embed.description = "あなたは現在プレミアムユーザーです！ (期限なし)"
                 embed.color = discord.Color.green()
@@ -285,14 +302,14 @@ class PremiumManagerCog(commands.Cog):
             expiration_date = datetime.now(timezone.utc) + timedelta(days=days)
 
         # 現在の全プレミアムユーザーデータをロードし、更新してから保存
-        self.premium_users = await load_premium_data_from_jsonbin()
+        self.premium_users = await load_premium_data_from_gist()
         self.premium_users[user_id] = { # 内部データ構造を更新
             "username": target_user.name, 
             "discriminator": target_user.discriminator,
             "display_name": target_user.display_name,
             "expiration_date": expiration_date # datetimeオブジェクト (None の可能性あり)
         }
-        await save_premium_data_to_jsonbin(self.premium_users) # JSONBin.io に保存
+        await save_premium_data_to_gist(self.premium_users) # Gist に保存
 
         status_message = f"{target_user.display_name} (ID: `{target_user.id}`) にプレミアムステータスを付与しました。"
 
@@ -362,15 +379,15 @@ class PremiumManagerCog(commands.Cog):
             return
 
         status_message = ""
-        # コマンド実行時に常に最新データをJSONBin.ioからロード
-        self.premium_users = await load_premium_data_from_jsonbin() 
+        # コマンド実行時に常に最新データをGistからロード
+        self.premium_users = await load_premium_data_from_gist() 
         
         if user_id in self.premium_users:
             user_info_from_data = self.premium_users.get(user_id)
             display_name = user_info_from_data.get("display_name", f"不明なユーザー (ID: `{user_id}`)") 
             
             self.premium_users.pop(user_id, None) # 内部データから削除
-            await save_premium_data_to_jsonbin(self.premium_users) # JSONBin.io に保存
+            await save_premium_data_to_gist(self.premium_users) # Gist に保存
 
             status_message = f"{display_name} からプレミアムステータスを剥奪しました。"
 
