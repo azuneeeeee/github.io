@@ -226,7 +226,7 @@ class PremiumManagerCog(commands.Cog):
                 logging.error(f"HTTPException when fetching user {target_user_id}: {e}", exc_info=True)
                 return
             
-        # ★修正: expiration_date の計算ロジック
+        # 現在のUTC時刻を基準に有効期限を設定
         expiration_date = None
         if days is not None:
             expiration_date = datetime.now(timezone.utc) + timedelta(days=days)
@@ -300,12 +300,12 @@ class PremiumManagerCog(commands.Cog):
             await interaction.followup.send("無効なユーザーIDです。有効なDiscordユーザーID (数字のみ) を入力してください。", ephemeral=True)
             return
 
-        # プレミアムデータからユーザー情報を取得（表示用）
-        user_info_from_data = self.premium_users.get(user_id)
-        display_name = user_info_from_data.get("display_name", f"不明なユーザー (ID: `{user_id}`)")
-
         status_message = ""
+        # ★修正: user_id が premium_users に存在するかを先にチェック
         if user_id in self.premium_users:
+            user_info_from_data = self.premium_users.get(user_id)
+            display_name = user_info_from_data.get("display_name", f"不明なユーザー (ID: `{user_id}`)") # ここでNoneTypeエラーは発生しない
+            
             del self.premium_users[user_id]
             save_premium_data(self.premium_users)
             status_message = f"{display_name} からプレミアムステータスを剥奪しました。"
@@ -352,6 +352,8 @@ class PremiumManagerCog(commands.Cog):
                  status_message += f"\nユーザーオブジェクトが取得できなかったため、ロール操作はスキップされました。"
                  logging.warning(f"Could not fetch target user {target_user_id} for role removal. Role operation skipped.")
         else:
+            # ユーザーがプレミアムユーザーデータに存在しない場合
+            display_name = f"不明なユーザー (ID: `{user_id}`)" # この場合はユーザー情報を取得できないため、IDで表示
             status_message = f"{display_name} はプレミアムユーザーではありません。"
             logging.info(f"User ID {user_id} does not have premium status to revoke.")
 
