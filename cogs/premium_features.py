@@ -5,6 +5,7 @@ import json
 import os
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import Optional # Optional をインポート
 
 # ロギング設定 (main.pyで一元管理されるため、ここでは簡易的に)
 logging.basicConfig(level=logging.INFO,
@@ -64,6 +65,9 @@ def save_premium_data(data):
         if 'expiration_date' in serializable_info and serializable_info['expiration_date']:
             # UTCで保存するために .astimezone(timezone.utc).isoformat() を使用
             serializable_info['expiration_date'] = serializable_info['expiration_date'].astimezone(timezone.utc).isoformat()
+        # expiration_date が None の場合はそのまま None を保存
+        elif 'expiration_date' in serializable_info and serializable_info['expiration_date'] is None:
+            serializable_info['expiration_date'] = None
         serializable_data[user_id] = serializable_info
     
     with open(PREMIUM_DATA_FILE, 'w', encoding='utf-8') as f:
@@ -89,12 +93,8 @@ def is_premium_check():
 
         expiration_date = user_info.get('expiration_date')
         if not expiration_date:
-            logging.warning(f"Premium status for user {user_id} has no expiration date. Treating as non-premium or indefinite if intended.")
-            # 期限が設定されていない場合は、管理者による手動付与と見なし、無期限とするか、エラーとするかは設計次第。
-            # ここでは、期限が設定されていない場合はプレミアムとみなします。
-            # ただし、ウェブサイト経由の販売では必ず期限を設定することが推奨されます。
-            logging.info(f"User {interaction.user.name} (ID: {user_id}) is premium (no expiration date).")
-            return True
+            logging.info(f"User {interaction.user.name} (ID: {user_id}) is premium (indefinite).")
+            return True # expiration_date が None の場合は無期限とみなす
 
         if expiration_date < datetime.now(JST): # 現在のJST時刻と比較
             logging.info(f"Premium status for user {user_id} expired on {expiration_date.astimezone(JST).strftime('%Y-%m-%d %H:%M:%S JST')}. Revoking automatically.")
@@ -198,10 +198,10 @@ class PremiumManagerCog(commands.Cog):
     @is_bot_owner() 
     @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
     async def grant_premium(self, interaction: discord.Interaction, 
-                            user_id: str, # ★変更: discord.Member から str (ユーザーID) に変更
-                            days: app_commands.Range[int, 1, 365] = 30):
+                            user_id: str, # ユーザーIDは必須
+                            days: Optional[app_commands.Range[int, 1, 365]] = None): # ★修正: days を Optional[int] に変更し、デフォルト値を None に設定
         """ボットのオーナーがユーザーにプレミアムステータスを付与するためのコマンド"""
-        logging.info(f"Command '/grant_premium' invoked by {interaction.user.name} (ID: {interaction.user.id}) for user ID {user_id} for {days} days.")
+        logging.info(f"Command '/grant_premium' invoked by {interaction.user.name} (ID: {interaction.user.id}) for user ID {user_id}. Days: {days}")
         await interaction.response.defer(ephemeral=True)
 
         try:
@@ -226,14 +226,16 @@ class PremiumManagerCog(commands.Cog):
                 logging.error(f"HTTPException when fetching user {target_user_id}: {e}", exc_info=True)
                 return
             
-        # 現在のUTC時刻を基準に有効期限を設定
-        expiration_date = datetime.now(timezone.utc) + timedelta(days=days)
+        # ★修正: expiration_date の計算ロジック
+        expiration_date = None
+        if days is not None:
+            expiration_date = datetime.now(timezone.utc) + timedelta(days=days)
 
         self.premium_users[user_id] = { # user_id (文字列) をキーとして保存
             "username": target_user.name, # 取得したユーザーオブジェクトから情報を取得
             "discriminator": target_user.discriminator,
             "display_name": target_user.display_name,
-            "expiration_date": expiration_date # datetimeオブジェクトとして保存
+            "expiration_date": expiration_date # datetimeオブジェクトとして保存 (None の可能性あり)
         }
         save_premium_data(self.premium_users)
 
@@ -268,13 +270,16 @@ class PremiumManagerCog(commands.Cog):
             logging.warning("grant_premium command invoked in DM. Role operation skipped.")
 
 
-        expires_at_jst = expiration_date.astimezone(JST)
         embed = discord.Embed(
             title="✅ プレミアムステータス付与",
             description=status_message,
             color=discord.Color.green()
         )
-        embed.add_field(name="期限", value=f"<t:{int(expires_at_jst.timestamp())}:F>", inline=False)
+        if expiration_date: # 期限がある場合のみ表示
+            expires_at_jst = expiration_date.astimezone(JST)
+            embed.add_field(name="期限", value=f"<t:{int(expires_at_jst.timestamp())}:F>", inline=False)
+        else: # 期限がない場合
+            embed.add_field(name="期限", value="無期限", inline=False)
         await interaction.followup.send(embed=embed, ephemeral=True)
         logging.info(f"Premium status granted to user ID {user_id} by {interaction.user.name}. Details: {status_message}")
 
@@ -282,7 +287,6 @@ class PremiumManagerCog(commands.Cog):
     @app_commands.command(name="revoke_premium", description="指定ユーザーのIDからプレミアムステータスを剥奪します (オーナー限定)。")
     @app_commands.default_permissions(manage_roles=True)
     @is_bot_owner()
-    # ★追加: スラッシュコマンドをオーナーが管理するギルドに限定
     @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
     async def revoke_premium(self, interaction: discord.Interaction, 
                              user_id: str): # ★変更: discord.Member から str (ユーザーID) に変更
