@@ -5,22 +5,15 @@ import json
 import os
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional # Optional をインポート
+from typing import Optional
 
-# --- Firebase Admin SDK Imports ---
-# Firebase Admin SDK は pip install firebase-admin でインストールする必要があります
-import firebase_admin
-from firebase_admin import credentials, firestore, auth
-from google.cloud.firestore_v1.base_query import FieldFilter # FieldFilterのインポート (Firestoreクエリで使用する場合)
+# HTTPリクエストを行うためのライブラリをインポート
+import requests 
 
 # ロギング設定
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s [%(levelname)s] %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
-
-# プレミアムユーザーデータを保存するファイルパス (Firestoreに移行するため、ファイルはバックアップ用途)
-PREMIUM_DATA_FILE = "data/premium_users.json" # Keep for local backup/dev if needed
-DATA_DIR = os.path.dirname(PREMIUM_DATA_FILE)
 
 # UTC+9 (日本標準時) のタイムゾーンオフセット
 JST = timezone(timedelta(hours=9))
@@ -29,143 +22,102 @@ JST = timezone(timedelta(hours=9))
 PREMIUM_ROLE_ID = 1380155806485315604 
 
 # pjsk_record_result.py から SUPPORT_GUILD_ID をインポート
-# これは、サポートサーバーのIDを指すことを想定しています
 try:
     from cogs.pjsk_record_result import SUPPORT_GUILD_ID
 except ImportError:
     logging.error("Failed to import SUPPORT_GUILD_ID from cogs.pjsk_record_result. Please ensure pjsk_record_result.py is correctly set up and defines SUPPORT_GUILD_ID.")
     SUPPORT_GUILD_ID = 0
 
-# Firestoreのクライアントインスタンスをグローバルに保持
-db = None
-# アプリケーションIDもFirestoreのコレクションパスで使用するためグローバルに保持
-app_id_global = None 
+# --- JSONBin.io 関連の設定とヘルパー関数 ---
+JSONBIN_API_KEY = os.getenv('JSONBIN_API_KEY')
+JSONBIN_BIN_ID = os.getenv('JSONBIN_BIN_ID')
+JSONBIN_BASE_URL = "https://api.jsonbin.io/v3/b"
 
-def init_firestore():
-    """Firebase Admin SDKとFirestoreクライアントを初期化します。"""
-    global db, app_id_global
-    if firebase_admin._apps: # アプリが既に初期化されているかチェック
-        logging.info("Firebase app already initialized globally.")
-        db = firestore.client()
-        # app_id_globalは環境変数から取得し続ける
-        app_id_global = os.getenv('__app_id')
-        if not app_id_global:
-            logging.critical("__app_id environment variable is not set. Firestore collection path might be incorrect (using default).")
-            app_id_global = "default-app-id"
-        return
+if not JSONBIN_API_KEY or not JSONBIN_BIN_ID:
+    logging.critical("JSONBIN_API_KEY or JSONBIN_BIN_ID environment variables are not set. Data will not be persistent. Please configure JSONBin.io.")
 
-    try:
-        # Render環境変数からFirebase設定を読み込み
-        firebase_config_str = os.getenv('__firebase_config')
-        if not firebase_config_str:
-            raise ValueError("__firebase_config environment variable is not set. Cannot initialize Firebase.")
-        
-        # サービスアカウントキーのJSON文字列をパース
-        # Renderの環境変数には直接JSON文字列を格納していると仮定
-        service_account_info = json.loads(firebase_config_str)
-        cred = credentials.Certificate(service_account_info)
-        
-        firebase_admin.initialize_app(cred)
-        db = firestore.client()
-        logging.info("Firestore initialized successfully using service account credentials.")
-
-        app_id_global = os.getenv('__app_id')
-        if not app_id_global:
-            logging.critical("__app_id environment variable is not set. Firestore collection path might be incorrect (using default).")
-            app_id_global = "default-app-id"
-
-    except ValueError as ve:
-        logging.critical(f"Firestore initialization failed (ValueError): {ve}. Ensure __firebase_config is a valid JSON string and __app_id is set.", exc_info=True)
-        db = None
-        app_id_global = "default-app-id"
-    except Exception as e:
-        logging.critical(f"An unexpected error occurred during Firestore initialization: {e}", exc_info=True)
-        db = None
-        app_id_global = "default-app-id"
-
-# Firestoreからプレミアムユーザーデータをロードする関数
-async def load_premium_data_from_firestore():
-    if not db:
-        logging.error("Firestore client is not initialized. Cannot load premium data from Firestore.")
-        return {} # Firestoreが利用できない場合は空の辞書を返す
-    if not app_id_global or app_id_global == "default-app-id":
-        logging.error("App ID is not set or is default. Firestore collection path might be incorrect. Please set __app_id.")
+async def load_premium_data_from_jsonbin():
+    """JSONBin.io からプレミアムユーザーデータをロードします。"""
+    if not JSONBIN_API_KEY or not JSONBIN_BIN_ID:
+        logging.error("JSONBin API key or Bin ID not set. Cannot load data from JSONBin.io.")
         return {}
 
-    premium_users = {}
-    # Firestoreのコレクションパス定義 (公共データとして保存)
-    # ユーザー認証はここでは行わないため、public/dataを使用
-    collection_path = f"artifacts/{app_id_global}/public/data/premium_users" 
-    
+    headers = {
+        'X-Master-Key': JSONBIN_API_KEY,
+        'X-Bin-Meta': 'false' # メタデータを含めない
+    }
+    url = f"{JSONBIN_BASE_URL}/{JSONBIN_BIN_ID}/latest" # 最新バージョンを取得
+
     try:
-        # stream() は同期的に動作するが、通常は高速
-        docs = db.collection(collection_path).stream()
-        for doc in docs:
-            data = doc.to_dict()
-            user_id = doc.id
-            # FirestoreのTimestampオブジェクトをdatetimeに変換
-            if 'expiration_date' in data and isinstance(data.get('expiration_date'), firestore.Timestamp):
-                data['expiration_date'] = data['expiration_date'].astimezone(timezone.utc)
-            # Noneの場合や他の型の場合はそのまま保持
-            elif 'expiration_date' in data and data.get('expiration_date') is not None:
-                # 念のため、ISOフォーマット文字列などの可能性がある場合も対応
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(None, lambda: requests.get(url, headers=headers))
+        response.raise_for_status() # HTTPエラーがあれば例外を発生させる
+        
+        data = response.json()
+        premium_users = {}
+        for user_id, user_info in data.items():
+            # 日付文字列をdatetimeオブジェクトに変換（存在する場合）
+            if 'expiration_date' in user_info and user_info['expiration_date']:
                 try:
-                    data['expiration_date'] = datetime.fromisoformat(data['expiration_date']).astimezone(timezone.utc)
-                except (ValueError, TypeError):
-                    data['expiration_date'] = None # 無効な場合はNoneとする
-            premium_users[user_id] = data
-        logging.info(f"Loaded {len(premium_users)} premium users from Firestore collection: {collection_path}.")
+                    # ISOフォーマット文字列をdatetimeオブジェクトに変換
+                    user_info['expiration_date'] = datetime.fromisoformat(user_info['expiration_date']).astimezone(timezone.utc)
+                except ValueError:
+                    logging.warning(f"Invalid datetime format for user {user_id} in JSONBin: {user_info['expiration_date']}")
+                    user_info['expiration_date'] = None
+            premium_users[user_id] = user_info
+            
+        logging.info(f"Loaded {len(premium_users)} premium users from JSONBin.io.")
         return premium_users
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error loading premium data from JSONBin.io: {e}", exc_info=True)
+        # Binが存在しない、またはアクセス権がない場合は空のデータを返す
+        if response.status_code == 404: # Binが見つからない場合
+            logging.warning("JSONBin.io bin not found or incorrect ID. Starting with empty data.")
+        elif response.status_code == 401: # 認証エラー
+            logging.error("JSONBin.io API key is unauthorized. Check your X-Master-Key.")
+        return {}
+    except json.JSONDecodeError as e:
+        logging.error(f"Failed to decode JSON from JSONBin.io: {e}", exc_info=True)
+        return {}
     except Exception as e:
-        logging.error(f"Error loading premium data from Firestore collection '{collection_path}': {e}", exc_info=True)
+        logging.error(f"An unexpected error occurred during JSONBin.io data loading: {e}", exc_info=True)
         return {}
 
-# Firestoreにプレミアムユーザーデータを保存する関数
-# この関数は単一のユーザーのデータを保存するために最適化されています。
-async def save_premium_user_to_firestore(user_id: str, user_data: dict):
-    if not db:
-        logging.error("Firestore client is not initialized. Cannot save premium user.")
-        return
-    if not app_id_global or app_id_global == "default-app-id":
-        logging.error("App ID is not set or is default. Firestore collection path might be incorrect. Please set __app_id.")
+async def save_premium_data_to_jsonbin(data: dict):
+    """JSONBin.io にプレミアムユーザーデータを保存（更新）します。"""
+    if not JSONBIN_API_KEY or not JSONBIN_BIN_ID:
+        logging.error("JSONBin API key or Bin ID not set. Cannot save data to JSONBin.io.")
         return
 
-    collection_path = f"artifacts/{app_id_global}/public/data/premium_users"
-    doc_ref = db.collection(collection_path).document(user_id)
-    
-    serializable_data = user_data.copy()
-    # datetimeオブジェクトをFirestoreのTimestampに変換
-    if 'expiration_date' in serializable_data and isinstance(serializable_data['expiration_date'], datetime):
-        serializable_data['expiration_date'] = firestore.Timestamp.from_datetime(serializable_data['expiration_date'])
-    elif 'expiration_date' in serializable_data and serializable_data['expiration_date'] is None:
-        serializable_data['expiration_date'] = None # Explicitly save None
-    
+    headers = {
+        'Content-Type': 'application/json',
+        'X-Master-Key': JSONBIN_API_KEY
+    }
+    url = f"{JSONBIN_BASE_URL}/{JSONBIN_BIN_ID}"
+
+    # datetimeオブジェクトをISOフォーマットの文字列に変換して保存
+    serializable_data = {}
+    for user_id, user_info in data.items():
+        serializable_info = user_info.copy()
+        if 'expiration_date' in serializable_info and serializable_info['expiration_date']:
+            serializable_info['expiration_date'] = serializable_info['expiration_date'].isoformat()
+        serializable_data[user_id] = serializable_info
+
     try:
-        # set() はドキュメントが存在すれば更新、存在しなければ作成
-        await doc_ref.set(serializable_data) # set() is synchronous in Firebase Admin SDK, so no await unless wrapped.
-        logging.info(f"User {user_id} saved/updated in Firestore.")
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(None, lambda: requests.put(url, headers=headers, json=serializable_data))
+        response.raise_for_status() # HTTPエラーがあれば例外を発生させる
+        logging.info(f"Premium data saved/updated in JSONBin.io. Status: {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error saving premium data to JSONBin.io: {e}", exc_info=True)
+        if response.status_code == 401:
+            logging.error("JSONBin.io API key is unauthorized. Check your X-Master-Key for PUT requests.")
+        elif response.status_code == 403: # Forbidden, often due to master key not having write access
+            logging.error("JSONBin.io API key does not have write access. Ensure it's a Master Key.")
     except Exception as e:
-        logging.error(f"Error saving user {user_id} to Firestore: {e}", exc_info=True)
+        logging.error(f"An unexpected error occurred during JSONBin.io data saving: {e}", exc_info=True)
 
-# Firestoreから特定のユーザーを削除するヘルパー関数
-async def delete_premium_user_from_firestore(user_id: str):
-    if not db:
-        logging.error("Firestore client is not initialized. Cannot delete premium user.")
-        return
-    if not app_id_global or app_id_global == "default-app-id":
-        logging.error("App ID is not set or is default. Firestore collection path might be incorrect. Please set __app_id.")
-        return
-
-    collection_path = f"artifacts/{app_id_global}/public/data/premium_users"
-    doc_ref = db.collection(collection_path).document(user_id)
-    try:
-        await doc_ref.delete() # delete() is synchronous in Firebase Admin SDK, so no await unless wrapped.
-        logging.info(f"User {user_id} deleted from Firestore.")
-    except Exception as e:
-        logging.error(f"Error deleting user {user_id} from Firestore: {e}", exc_info=True)
-
-
-# --- is_premium_check, is_bot_owner 関数 (Firestore対応のため変更あり) ---
+# --- is_premium_check, is_bot_owner 関数 (JSONBin.io対応のため変更) ---
 def is_premium_check():
     """
     ユーザーがプレミアムステータスを持っているかをチェックするカスタムデコレータ。
@@ -173,7 +125,7 @@ def is_premium_check():
     """
     async def predicate(interaction: discord.Interaction):
         user_id = str(interaction.user.id)
-        premium_users = await load_premium_data_from_firestore() # Firestoreからロード
+        premium_users = await load_premium_data_from_jsonbin() # JSONBin.ioからロード
         
         user_info = premium_users.get(user_id)
         if not user_info:
@@ -191,8 +143,9 @@ def is_premium_check():
 
         if expiration_date < datetime.now(JST): # 現在のJST時刻と比較
             logging.info(f"Premium status for user {user_id} expired on {expiration_date.astimezone(JST).strftime('%Y-%m-%d %H:%M:%S JST')}. Revoking automatically.")
-            # 期限切れの場合は自動的にプレミアムステータスをFirestoreから削除
-            await delete_premium_user_from_firestore(user_id) 
+            # 期限切れの場合は自動的にプレミアムステータスをJSONBin.ioからも削除
+            premium_users.pop(user_id, None) # 内部データから削除
+            await save_premium_data_to_jsonbin(premium_users) # JSONBin.ioを更新
             await interaction.response.send_message(
                 f"あなたのプレミアムステータスは {expiration_date.astimezone(JST).strftime('%Y年%m月%d日 %H時%M分')} に期限切れとなりました。再度購読してください。",
                 ephemeral=True
@@ -217,25 +170,16 @@ def is_bot_owner():
 class PremiumManagerCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        os.makedirs(DATA_DIR, exist_ok=True)
-        # Firebase初期化はコグのインスタンス作成時に行いますが、
-        # main.pyのsetup_hookで既にグローバルに初期化されていることを推奨します。
-        # ここでは念のため呼び出しておきますが、二重初期化はされません。
-        init_firestore() 
-        # premium_users は on_ready イベントでFirestoreからロードされます
+        # JSONBin.io からデータは on_ready でロードされる
         self.premium_users = {} 
         logging.info("PremiumManagerCog initialized.")
 
     @commands.Cog.listener()
     async def on_ready(self):
         """ボットが完全に起動し、Discordに接続された後に実行されます。"""
-        # Firestoreの初期化が完了していることを確認
-        global db
-        if db: 
-            self.premium_users = await load_premium_data_from_firestore()
-            logging.info(f"Loaded {len(self.premium_users)} premium users from Firestore during on_ready.")
-        else:
-            logging.warning("Firestore client not initialized during on_ready. Premium features might not load correctly.")
+        # JSONBin.io からデータをロード
+        self.premium_users = await load_premium_data_from_jsonbin()
+        logging.info(f"Loaded {len(self.premium_users)} premium users from JSONBin.io during on_ready.")
 
 
     @app_commands.command(name="premium_info", description="あなたのプレミアムステータスを表示します。")
@@ -245,8 +189,8 @@ class PremiumManagerCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         user_id = str(interaction.user.id)
-        # コマンド実行時に常に最新データをFirestoreからロードして確認
-        self.premium_users = await load_premium_data_from_firestore() 
+        # コマンド実行時に常に最新データをJSONBin.ioからロードして確認
+        self.premium_users = await load_premium_data_from_jsonbin() 
         user_info = self.premium_users.get(user_id)
 
         embed = discord.Embed(title="プレミアムステータス", color=discord.Color.gold())
@@ -261,11 +205,10 @@ class PremiumManagerCog(commands.Cog):
                 else:
                     embed.description = f"あなたのプレミアムステータスは期限切れです。\n期限: <t:{int(expires_at_jst.timestamp())}:F>"
                     embed.color = discord.Color.red()
-                    # 期限切れの場合は、念のためFirestoreからも削除する
-                    await delete_premium_user_from_firestore(user_id)
-                    # 内部状態も更新
+                    # 期限切れの場合は、念のためJSONBin.ioからも削除する
                     if user_id in self.premium_users:
-                        del self.premium_users[user_id]
+                        self.premium_users.pop(user_id) # 内部データから削除
+                        await save_premium_data_to_jsonbin(self.premium_users) # JSONBin.ioを更新
             else:
                 embed.description = "あなたは現在プレミアムユーザーです！ (期限なし)"
                 embed.color = discord.Color.green()
@@ -341,22 +284,22 @@ class PremiumManagerCog(commands.Cog):
         if days is not None:
             expiration_date = datetime.now(timezone.utc) + timedelta(days=days)
 
-        user_data_to_save = { # Firestoreに保存するデータ構造
+        # 現在の全プレミアムユーザーデータをロードし、更新してから保存
+        self.premium_users = await load_premium_data_from_jsonbin()
+        self.premium_users[user_id] = { # 内部データ構造を更新
             "username": target_user.name, 
             "discriminator": target_user.discriminator,
             "display_name": target_user.display_name,
             "expiration_date": expiration_date # datetimeオブジェクト (None の可能性あり)
         }
-        
-        await save_premium_user_to_firestore(user_id, user_data_to_save) # Firestoreに保存
-        self.premium_users = await load_premium_data_from_firestore() # 内部状態をFirestoreから再ロード
+        await save_premium_data_to_jsonbin(self.premium_users) # JSONBin.io に保存
 
         status_message = f"{target_user.display_name} (ID: `{target_user.id}`) にプレミアムステータスを付与しました。"
 
         target_guild = interaction.guild
         if target_guild:
             member = target_guild.get_member(target_user.id)
-            if member: # メンバーとして存在する場合のみロールを付与
+            if member: 
                 premium_role = target_guild.get_role(PREMIUM_ROLE_ID) 
                 if premium_role:
                     try:
@@ -419,15 +362,15 @@ class PremiumManagerCog(commands.Cog):
             return
 
         status_message = ""
-        # コマンド実行時に常に最新データをFirestoreからロードして確認
-        self.premium_users = await load_premium_data_from_firestore() 
+        # コマンド実行時に常に最新データをJSONBin.ioからロード
+        self.premium_users = await load_premium_data_from_jsonbin() 
         
         if user_id in self.premium_users:
             user_info_from_data = self.premium_users.get(user_id)
             display_name = user_info_from_data.get("display_name", f"不明なユーザー (ID: `{user_id}`)") 
             
-            await delete_premium_user_from_firestore(user_id) # Firestoreから削除
-            self.premium_users = await load_premium_data_from_firestore() # 内部状態をFirestoreから再ロード
+            self.premium_users.pop(user_id, None) # 内部データから削除
+            await save_premium_data_to_jsonbin(self.premium_users) # JSONBin.io に保存
 
             status_message = f"{display_name} からプレミアムステータスを剥奪しました。"
 
@@ -445,7 +388,7 @@ class PremiumManagerCog(commands.Cog):
             target_guild = interaction.guild
             if target_guild and target_user: 
                 member = target_guild.get_member(target_user.id)
-                if member: # メンバーとして存在する場合のみロールを剥奪
+                if member: 
                     premium_role = target_guild.get_role(PREMIUM_ROLE_ID) 
                     if premium_role:
                         try:
