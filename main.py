@@ -75,8 +75,9 @@ class MyBot(commands.Bot):
             'cogs.proseka_general',      # 汎用コマンドコグ
             'cogs.help_command',         # 追加: ヘルプコマンドコグ
             'cogs.proseka_rankmatch',    # ランクマッチ選曲コグ
-            'cogs.pjsk_rankmatch_result',# ★修正済み: ランクマッチリザルトコグのコメントを解除
-            'cogs.pjsk_record_result'    # 精度記録コグ
+            'cogs.pjsk_rankmatch_result',# ランクマッチリザルトコグ
+            'cogs.pjsk_record_result',   # 精度記録コグ
+            'cogs.premium_features'      # ★追加: プレミアム機能コグ
         ]
         self.proseka_songs_data = [] # 楽曲データをボットインスタンスに保持
         self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"] # 難易度データをここに保持
@@ -88,8 +89,8 @@ class MyBot(commands.Bot):
         self.pjsk_ap_fc_rate_cog = None
         self.pjsk_record_result_cog = None
         self.help_command_cog = None
-        # ★修正: ProsekaRankmatchResultのクラス名に合わせる
         self.pjsk_rankmatch_result_cog = None 
+        self.premium_manager_cog = None # ★追加: プレミアムマネージャーコグの参照
 
         logging.info("Bot instance created.")
 
@@ -160,9 +161,8 @@ class MyBot(commands.Bot):
         self.pjsk_ap_fc_rate_cog = self.get_cog("PjskApFcRateCommands")
         self.pjsk_record_result_cog = self.get_cog("PjskRecordResult")
         self.help_command_cog = self.get_cog("HelpCommand")
-        # ★修正: ProsekaRankmatchResultのクラス名に合わせる
         self.pjsk_rankmatch_result_cog = self.get_cog("ProsekaRankmatchResult") 
-
+        self.premium_manager_cog = self.get_cog("PremiumManagerCog") # ★追加: プレミアムマネージャーコグの参照
 
         if self.proseka_general_cog:
             self.proseka_general_cog.songs_data = self.proseka_songs_data
@@ -179,21 +179,21 @@ class MyBot(commands.Bot):
             logging.warning("ProsekaRankMatchCommands cog not found after loading.")
 
         if self.pjsk_record_result_cog:
-            # PjskRecordResult cogにsongs_dataを渡し、内部でSONG_DATA_MAPを再構築させる
-            # _create_song_data_map は pjsk_record_result.py からインポート済み
             self.pjsk_record_result_cog.songs_data = self.proseka_songs_data
             self.pjsk_record_result_cog.SONG_DATA_MAP = _create_song_data_map(self.proseka_songs_data)
             logging.info("Set songs_data and updated SONG_DATA_MAP in PjskRecordResult cog.")
         else:
             logging.warning("PjskRecordResult cog not found after loading.")
 
-        # 追加: pjsk_rankmatch_result_cog が存在する場合に songs_data を設定
         if self.pjsk_rankmatch_result_cog:
-            # ProsekaRankmatchResult cogにはsongs_dataは不要なため、ここでは設定しない
-            # 必要であれば、PjskRankMatchResultクラスの__init__にsongs_dataを渡すように変更してください
             logging.info("PjskRankMatchResult cog found.")
         else:
             logging.warning("PjskRankMatchResult cog not found after loading.")
+
+        if self.premium_manager_cog: # ★追加: プレミアムコグの参照確認
+            logging.info("PremiumManagerCog found.")
+        else:
+            logging.warning("PremiumManagerCog not found after loading.")
 
 
         # 相互参照の設定 (AP/FCレートの自動更新のため)
@@ -213,12 +213,10 @@ class MyBot(commands.Bot):
         logging.info("Attempting to sync commands...")
         try:
             # グローバルコマンドを同期
-            # これにより、@app_commands.guilds() デコレータがないコマンドがすべて同期される
             synced_global = await self.tree.sync()
             logging.info(f"Synced {len(synced_global)} global commands.")
 
             # 特定のギルドコマンドを同期 (もし GUILD_ID が有効な場合のみ)
-            # これにより、@app_commands.guilds(discord.Object(id=GUILD_ID)) でマークされたコマンドのみが同期される
             if GUILD_ID != 0: # GUILD_ID がデフォルト値でないことを確認
                 support_guild = discord.Object(id=GUILD_ID)
                 synced_guild_commands = await self.tree.sync(guild=support_guild)
@@ -242,8 +240,6 @@ class MyBot(commands.Bot):
         total_songs = len(self.proseka_songs_data)
         total_charts = 0
         for song in self.proseka_songs_data:
-            # "easy", "normal", "hard", "expert", "master", "append" のキーを持つか確認
-            # 存在すれば譜面としてカウント
             total_charts += sum(1 for diff in self.valid_difficulties_data if diff.lower() in song and song[diff.lower()] is not None)
         
         activity_message = f"{total_songs}曲/{total_charts}譜面が登録済み"
@@ -287,6 +283,10 @@ class MyBot(commands.Bot):
             elif isinstance(error, discord.app_commands.MissingPermissions):
                 logging.warning(f"Missing permissions for user {interaction.user.id} on command '{interaction.command.name}'. Permissions: {error.missing_permissions}")
                 await interaction.response.send_message(f"このコマンドを実行するための権限がありません。", ephemeral=True)
+            elif isinstance(error, app_commands.CheckFailure): # カスタムチェックのエラーはこちらで処理される
+                logging.warning(f"Custom check failed for command '{interaction.command.name}' by user {interaction.user.id}: {error}")
+                # is_premium_checkで既にメッセージを送信しているため、ここでは何もしない
+                pass
             else:
                 logging.warning(f"Generic CheckFailure for command '{interaction.command.name}' by user {interaction.user.id}: {error}")
                 await interaction.response.send_message(f"このコマンドを実行できませんでした（権限エラーなど）。", ephemeral=True)
@@ -318,6 +318,7 @@ def run_bot():
     # これはhelp_commandコグでbot.GUILD_IDを参照するために必要
     bot.GUILD_ID = GUILD_ID
     bot.APPLICATION_ID = APPLICATION_ID
+    bot.OWNER_ID = OWNER_ID # オーナーIDもボットインスタンスに設定
 
     if TOKEN:
         bot.run(TOKEN)
