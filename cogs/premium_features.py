@@ -166,7 +166,9 @@ class PremiumManagerCog(commands.Cog):
         logging.info(f"Premium info sent to {interaction.user.name}.")
 
     @app_commands.command(name="premium_exclusive_command", description="プレミアムユーザー限定のすごい機能！")
-    @is_premium_check() # ここでカスタムチェックを適用
+    # ★修正: is_premium_check() をコメントアウトし、is_bot_owner() を追加
+    # @is_premium_check() 
+    @is_bot_owner() 
     async def premium_exclusive_command(self, interaction: discord.Interaction):
         """プレミアムユーザーのみが利用できるコマンドの例"""
         logging.info(f"Command '/premium_exclusive_command' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
@@ -184,7 +186,6 @@ class PremiumManagerCog(commands.Cog):
 
     @app_commands.command(name="grant_premium", description="指定ユーザーにプレミアムステータスを付与します (オーナー限定)。")
     @app_commands.default_permissions(manage_roles=True)
-    # ★修正: is_bot_owner() を使用
     @is_bot_owner() 
     async def grant_premium(self, interaction: discord.Interaction, user: discord.Member, days: app_commands.Range[int, 1, 365] = 30):
         """ボットのオーナーがユーザーにプレミアムステータスを付与するためのコマンド"""
@@ -237,7 +238,6 @@ class PremiumManagerCog(commands.Cog):
 
     @app_commands.command(name="revoke_premium", description="指定ユーザーからプレミアムステータスを剥奪します (オーナー限定)。")
     @app_commands.default_permissions(manage_roles=True)
-    # ★修正: is_bot_owner() を使用
     @is_bot_owner()
     async def revoke_premium(self, interaction: discord.Interaction, user: discord.Member):
         """ボットのオーナーがユーザーからプレミアムステータスを剥奪するためのコマンド"""
