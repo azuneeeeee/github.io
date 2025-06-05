@@ -184,101 +184,168 @@ class PremiumManagerCog(commands.Cog):
         await interaction.followup.send(embed=embed)
         logging.info(f"Premium exclusive command executed for {interaction.user.name}.")
 
-    @app_commands.command(name="grant_premium", description="指定ユーザーにプレミアムステータスを付与します (オーナー限定)。")
+    @app_commands.command(name="grant_premium", description="指定ユーザーのIDにプレミアムステータスを付与します (オーナー限定)。")
     @app_commands.default_permissions(manage_roles=True)
     @is_bot_owner() 
-    async def grant_premium(self, interaction: discord.Interaction, user: discord.Member, days: app_commands.Range[int, 1, 365] = 30):
+    async def grant_premium(self, interaction: discord.Interaction, 
+                            user_id: str, # ★変更: discord.Member から str (ユーザーID) に変更
+                            days: app_commands.Range[int, 1, 365] = 30):
         """ボットのオーナーがユーザーにプレミアムステータスを付与するためのコマンド"""
-        logging.info(f"Command '/grant_premium' invoked by {interaction.user.name} (ID: {interaction.user.id}) for user {user.name} for {days} days.")
+        logging.info(f"Command '/grant_premium' invoked by {interaction.user.name} (ID: {interaction.user.id}) for user ID {user_id} for {days} days.")
         await interaction.response.defer(ephemeral=True)
 
-        user_id = str(user.id)
-        
+        try:
+            # ユーザーIDが数値であることを確認
+            target_user_id = int(user_id)
+        except ValueError:
+            await interaction.followup.send("無効なユーザーIDです。有効なDiscordユーザーID (数字のみ) を入力してください。", ephemeral=True)
+            return
+
+        # Discord APIからユーザーオブジェクトを取得 (サーバーにいるかどうかに関わらず)
+        target_user = self.bot.get_user(target_user_id) # get_userはキャッシュから取得、fetch_userはAPIリクエスト
+        if target_user is None:
+            # キャッシュにない場合はAPIからフェッチを試みる
+            try:
+                target_user = await self.bot.fetch_user(target_user_id)
+            except discord.NotFound:
+                await interaction.followup.send(f"Discord上でID `{target_user_id}` のユーザーが見つかりませんでした。無効なIDの可能性があります。", ephemeral=True)
+                logging.warning(f"User ID {target_user_id} not found via fetch_user.")
+                return
+            except discord.HTTPException as e:
+                await interaction.followup.send(f"ユーザー情報の取得中にエラーが発生しました: {e.status}", ephemeral=True)
+                logging.error(f"HTTPException when fetching user {target_user_id}: {e}", exc_info=True)
+                return
+            
         # 現在のUTC時刻を基準に有効期限を設定
         expiration_date = datetime.now(timezone.utc) + timedelta(days=days)
 
-        self.premium_users[user_id] = {
-            "username": user.name,
-            "discriminator": user.discriminator,
-            "display_name": user.display_name,
+        self.premium_users[user_id] = { # user_id (文字列) をキーとして保存
+            "username": target_user.name, # 取得したユーザーオブジェクトから情報を取得
+            "discriminator": target_user.discriminator,
+            "display_name": target_user.display_name,
             "expiration_date": expiration_date # datetimeオブジェクトとして保存
         }
         save_premium_data(self.premium_users)
 
-        # Discordロールの付与 (ボットにロール管理権限が必要)
+        status_message = f"{target_user.display_name} (ID: `{target_user.id}`) にプレミアムステータスを付与しました。"
+
+        # ロール付与の処理 (サーバーにいるメンバーの場合のみ)
         target_guild = interaction.guild
         if target_guild:
-            premium_role = target_guild.get_role(PREMIUM_ROLE_ID) 
-            
-            if premium_role and user:
-                try:
-                    await user.add_roles(premium_role)
-                    logging.info(f"Added role {premium_role.name} to {user.name}.")
-                except discord.Forbidden:
-                    logging.error(f"Bot lacks permissions to assign role {premium_role.name} to {user.name}.")
-                    await interaction.followup.send("ロールを付与する権限がありません。ボットのロールがプレミアムロールより上位にあるか確認してください。", ephemeral=True)
-                except Exception as e:
-                    logging.error(f"Error adding role to user {user.name}: {e}", exc_info=True)
+            # ターゲットユーザーがこのサーバーのメンバーであるか確認
+            member = target_guild.get_member(target_user.id)
+            if member: # メンバーとして存在する場合
+                premium_role = target_guild.get_role(PREMIUM_ROLE_ID) 
+                if premium_role:
+                    try:
+                        await member.add_roles(premium_role)
+                        status_message += f"\nまた、サーバー内で `{premium_role.name}` ロールを付与しました。"
+                        logging.info(f"Added role {premium_role.name} to {member.name} in guild {target_guild.name}.")
+                    except discord.Forbidden:
+                        status_message += f"\nしかし、ボットに `{premium_role.name}` ロールを付与する権限がありませんでした。ボットのロールがプレミアムロールより上位にあるか確認してください。"
+                        logging.error(f"Bot lacks permissions to assign role {premium_role.name} to {member.name}.")
+                    except Exception as e:
+                        status_message += f"\nしかし、ロール付与中にエラーが発生しました: {e}"
+                        logging.error(f"Error adding role to member {member.name}: {e}", exc_info=True)
+                else:
+                    status_message += f"\nしかし、プレミアムロール (ID: `{PREMIUM_ROLE_ID}`) がこのサーバーで見つかりませんでした。"
+                    logging.warning(f"Premium role (ID: {PREMIUM_ROLE_ID}) not found in guild {target_guild.name}.")
             else:
-                logging.warning(f"Premium role (ID: {PREMIUM_ROLE_ID}) or user {user.name} not found in guild {target_guild.name}.")
-                await interaction.followup.send("プレミアムロールが見つからないか、ユーザーがこのサーバーにいませんでした。", ephemeral=True)
+                status_message += f"\nターゲットユーザーは現在このサーバーにいません。ユーザーがサーバーに参加した際に手動でロールを付与するか、別途自動化を検討してください。"
+                logging.info(f"Target user {target_user.name} (ID: {target_user.id}) is not a member of guild {target_guild.name}.")
         else:
-            await interaction.followup.send("このコマンドはサーバー内でのみ実行できます。", ephemeral=True)
+            status_message += f"\nこのコマンドはDMでは実行できません。ロール操作はサーバー内でのみ可能です。"
+            logging.warning("grant_premium command invoked in DM. Role operation skipped.")
 
 
         expires_at_jst = expiration_date.astimezone(JST)
         embed = discord.Embed(
             title="✅ プレミアムステータス付与",
-            description=f"{user.display_name} にプレミアムステータスを付与しました。",
+            description=status_message,
             color=discord.Color.green()
         )
         embed.add_field(name="期限", value=f"<t:{int(expires_at_jst.timestamp())}:F>", inline=False)
         await interaction.followup.send(embed=embed, ephemeral=True)
-        logging.info(f"Premium status granted to {user.name} by {interaction.user.name}.")
+        logging.info(f"Premium status granted to user ID {user_id} by {interaction.user.name}. Details: {status_message}")
 
-    @app_commands.command(name="revoke_premium", description="指定ユーザーからプレミアムステータスを剥奪します (オーナー限定)。")
+
+    @app_commands.command(name="revoke_premium", description="指定ユーザーのIDからプレミアムステータスを剥奪します (オーナー限定)。")
     @app_commands.default_permissions(manage_roles=True)
     @is_bot_owner()
-    async def revoke_premium(self, interaction: discord.Interaction, user: discord.Member):
+    async def revoke_premium(self, interaction: discord.Interaction, 
+                             user_id: str): # ★変更: discord.Member から str (ユーザーID) に変更
         """ボットのオーナーがユーザーからプレミアムステータスを剥奪するためのコマンド"""
-        logging.info(f"Command '/revoke_premium' invoked by {interaction.user.name} (ID: {interaction.user.id}) for user {user.name}.")
+        logging.info(f"Command '/revoke_premium' invoked by {interaction.user.name} (ID: {interaction.user.id}) for user ID {user_id}.")
         await interaction.response.defer(ephemeral=True)
 
-        user_id = str(user.id)
+        try:
+            target_user_id = int(user_id)
+        except ValueError:
+            await interaction.followup.send("無効なユーザーIDです。有効なDiscordユーザーID (数字のみ) を入力してください。", ephemeral=True)
+            return
+
+        # プレミアムデータからユーザー情報を取得（表示用）
+        user_info_from_data = self.premium_users.get(user_id)
+        display_name = user_info_from_data.get("display_name", f"不明なユーザー (ID: `{user_id}`)")
+
+        status_message = ""
         if user_id in self.premium_users:
             del self.premium_users[user_id]
             save_premium_data(self.premium_users)
+            status_message = f"{display_name} からプレミアムステータスを剥奪しました。"
 
-            # Discordロールの剥奪 (ボットにロール管理権限が必要)
+            # Discord APIからユーザーオブジェクトを取得 (サーバーにいるかどうかに関わらず)
+            target_user = self.bot.get_user(target_user_id)
+            if target_user is None:
+                try:
+                    target_user = await self.bot.fetch_user(target_user_id)
+                except discord.NotFound:
+                    logging.warning(f"User ID {target_user_id} not found via fetch_user for role removal.")
+                    target_user = None # ユーザーオブジェクトが取得できない場合はロール操作をスキップ
+                except discord.HTTPException as e:
+                    logging.error(f"HTTPException when fetching user {target_user_id} for role removal: {e}", exc_info=True)
+                    target_user = None
+            
+            # ロール剥奪の処理 (サーバーにいるメンバーの場合のみ)
             target_guild = interaction.guild
-            if target_guild:
-                premium_role = target_guild.get_role(PREMIUM_ROLE_ID) 
-                
-                if premium_role and user:
-                    try:
-                        await user.remove_roles(premium_role)
-                        logging.info(f"Removed role {premium_role.name} from {user.name}.")
-                    except discord.Forbidden:
-                        logging.error(f"Bot lacks permissions to remove role {premium_role.name} from {user.name}.")
-                        await interaction.followup.send("ロールを剥奪する権限がありません。", ephemeral=True)
-                    except Exception as e:
-                        logging.error(f"Error removing role from user {user.name}: {e}", exc_info=True)
+            if target_guild and target_user: # target_userがNoneでないことを確認
+                member = target_guild.get_member(target_user.id)
+                if member: # メンバーとして存在する場合
+                    premium_role = target_guild.get_role(PREMIUM_ROLE_ID) 
+                    if premium_role:
+                        try:
+                            await member.remove_roles(premium_role)
+                            status_message += f"\nまた、サーバー内で `{premium_role.name}` ロールを剥奪しました。"
+                            logging.info(f"Removed role {premium_role.name} from {member.name} in guild {target_guild.name}.")
+                        except discord.Forbidden:
+                            status_message += f"\nしかし、ボットに `{premium_role.name}` ロールを剥奪する権限がありませんでした。"
+                            logging.error(f"Bot lacks permissions to remove role {premium_role.name} from {member.name}.")
+                        except Exception as e:
+                            status_message += f"\nしかし、ロール剥奪中にエラーが発生しました: {e}"
+                            logging.error(f"Error removing role from member {member.name}: {e}", exc_info=True)
+                    else:
+                        status_message += f"\nしかし、プレミアムロール (ID: `{PREMIUM_ROLE_ID}`) がこのサーバーで見つかりませんでした。"
+                        logging.warning(f"Premium role (ID: {PREMIUM_ROLE_ID}) not found in guild {target_guild.name}.")
                 else:
-                    logging.warning(f"Premium role (ID: {PREMIUM_ROLE_ID}) or user {user.name} not found in guild {target_guild.name}.")
-                    await interaction.followup.send("プレミアムロールが見つからないか、ユーザーがこのサーバーにいませんでした。", ephemeral=True)
-            else:
-                await interaction.followup.send("このコマンドはサーバー内でのみ実行できます。", ephemeral=True)
-
-            embed = discord.Embed(
-                title="✅ プレミアムステータス剥奪",
-                description=f"{user.display_name} からプレミアムステータスを剥奪しました。",
-                color=discord.Color.orange()
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            logging.info(f"Premium status revoked from {user.name} by {interaction.user.name}.")
+                    status_message += f"\nターゲットユーザーは現在このサーバーにいませんでした。ロール剥奪はスキップされました。"
+                    logging.info(f"Target user {target_user.name} (ID: {target_user.id}) is not a member of guild {target_guild.name}. Role removal skipped.")
+            elif not target_guild:
+                status_message += f"\nこのコマンドはDMでは実行できません。ロール操作はサーバー内でのみ可能です。"
+                logging.warning("revoke_premium command invoked in DM. Role operation skipped.")
+            else: # target_user is Noneの場合
+                 status_message += f"\nユーザーオブジェクトが取得できなかったため、ロール操作はスキップされました。"
+                 logging.warning(f"Could not fetch target user {target_user_id} for role removal. Role operation skipped.")
         else:
-            logging.info(f"User {user.name} does not have premium status to revoke.")
-            await interaction.followup.send(f"{user.display_name} はプレミアムユーザーではありません。", ephemeral=True)
+            status_message = f"{display_name} はプレミアムユーザーではありません。"
+            logging.info(f"User ID {user_id} does not have premium status to revoke.")
+
+        embed = discord.Embed(
+            title="✅ プレミアムステータス剥奪",
+            description=status_message,
+            color=discord.Color.orange()
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        logging.info(f"Premium status revoked for user ID {user_id} by {interaction.user.name}. Details: {status_message}")
 
 async def setup(bot):
     cog = PremiumManagerCog(bot)
