@@ -77,7 +77,7 @@ class MyBot(commands.Bot):
             'cogs.proseka_rankmatch',    # ランクマッチ選曲コグ
             'cogs.pjsk_rankmatch_result',# ランクマッチリザルトコグ
             'cogs.pjsk_record_result',   # 精度記録コグ
-            'cogs.premium_features'      # ★追加: プレミアム機能コグ
+            'cogs.premium_features'      # プレミアム機能コグ
         ]
         self.proseka_songs_data = [] # 楽曲データをボットインスタンスに保持
         self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"] # 難易度データをここに保持
@@ -90,7 +90,7 @@ class MyBot(commands.Bot):
         self.pjsk_record_result_cog = None
         self.help_command_cog = None
         self.pjsk_rankmatch_result_cog = None 
-        self.premium_manager_cog = None # ★追加: プレミアムマネージャーコグの参照
+        self.premium_manager_cog = None # プレミアムマネージャーコグの参照
 
         logging.info("Bot instance created.")
 
@@ -162,7 +162,7 @@ class MyBot(commands.Bot):
         self.pjsk_record_result_cog = self.get_cog("PjskRecordResult")
         self.help_command_cog = self.get_cog("HelpCommand")
         self.pjsk_rankmatch_result_cog = self.get_cog("ProsekaRankmatchResult") 
-        self.premium_manager_cog = self.get_cog("PremiumManagerCog") # ★追加: プレミアムマネージャーコグの参照
+        self.premium_manager_cog = self.get_cog("PremiumManagerCog") # プレミアムマネージャーコグの参照
 
         if self.proseka_general_cog:
             self.proseka_general_cog.songs_data = self.proseka_songs_data
@@ -190,7 +190,7 @@ class MyBot(commands.Bot):
         else:
             logging.warning("PjskRankMatchResult cog not found after loading.")
 
-        if self.premium_manager_cog: # ★追加: プレミアムコグの参照確認
+        if self.premium_manager_cog: 
             logging.info("PremiumManagerCog found.")
         else:
             logging.warning("PremiumManagerCog not found after loading.")
@@ -283,9 +283,8 @@ class MyBot(commands.Bot):
             elif isinstance(error, discord.app_commands.MissingPermissions):
                 logging.warning(f"Missing permissions for user {interaction.user.id} on command '{interaction.command.name}'. Permissions: {error.missing_permissions}")
                 await interaction.response.send_message(f"このコマンドを実行するための権限がありません。", ephemeral=True)
-            elif isinstance(error, app_commands.CheckFailure): # カスタムチェックのエラーはこちらで処理される
-                logging.warning(f"Custom check failed for command '{interaction.command.name}' by user {interaction.user.id}: {error}")
-                # is_premium_checkで既にメッセージを送信しているため、ここでは何もしない
+            elif isinstance(error, discord.app_commands.AppCommandError): # カスタムチェックのエラーはこちらで処理される (CheckFailureのサブクラス)
+                # is_premium_check や is_bot_owner で既にメッセージを送信しているため、ここでは何もしない
                 pass
             else:
                 logging.warning(f"Generic CheckFailure for command '{interaction.command.name}' by user {interaction.user.id}: {error}")
