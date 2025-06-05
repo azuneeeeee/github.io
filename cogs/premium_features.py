@@ -7,13 +7,19 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional # Optional をインポート
 
-# ロギング設定 (main.pyで一元管理されるため、ここでは簡易的に)
+# --- Firebase Admin SDK Imports ---
+# Firebase Admin SDK は pip install firebase-admin でインストールする必要があります
+import firebase_admin
+from firebase_admin import credentials, firestore, auth
+from google.cloud.firestore_v1.base_query import FieldFilter # FieldFilterのインポート (Firestoreクエリで使用する場合)
+
+# ロギング設定
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s [%(levelname)s] %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
 
-# プレミアムユーザーデータを保存するファイルパス
-PREMIUM_DATA_FILE = "data/premium_users.json"
+# プレミアムユーザーデータを保存するファイルパス (Firestoreに移行するため、ファイルはバックアップ用途)
+PREMIUM_DATA_FILE = "data/premium_users.json" # Keep for local backup/dev if needed
 DATA_DIR = os.path.dirname(PREMIUM_DATA_FILE)
 
 # UTC+9 (日本標準時) のタイムゾーンオフセット
@@ -28,51 +34,138 @@ try:
     from cogs.pjsk_record_result import SUPPORT_GUILD_ID
 except ImportError:
     logging.error("Failed to import SUPPORT_GUILD_ID from cogs.pjsk_record_result. Please ensure pjsk_record_result.py is correctly set up and defines SUPPORT_GUILD_ID.")
-    SUPPORT_GUILD_ID = 0 # フォールバック。実際にはmain.pyでbot.GUILD_IDが設定されるはずだが、念のため。
+    SUPPORT_GUILD_ID = 0
 
+# Firestoreのクライアントインスタンスをグローバルに保持
+db = None
+# アプリケーションIDもFirestoreのコレクションパスで使用するためグローバルに保持
+app_id_global = None 
 
-def load_premium_data():
-    """プレミアムユーザーデータをJSONファイルからロードします。"""
-    if not os.path.exists(PREMIUM_DATA_FILE):
-        return {}
+def init_firestore():
+    """Firebase Admin SDKとFirestoreクライアントを初期化します。"""
+    global db, app_id_global
+    if firebase_admin._apps: # アプリが既に初期化されているかチェック
+        logging.info("Firebase app already initialized globally.")
+        db = firestore.client()
+        # app_id_globalは環境変数から取得し続ける
+        app_id_global = os.getenv('__app_id')
+        if not app_id_global:
+            logging.critical("__app_id environment variable is not set. Firestore collection path might be incorrect (using default).")
+            app_id_global = "default-app-id"
+        return
+
     try:
-        with open(PREMIUM_DATA_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            # 日付文字列をdatetimeオブジェクトに変換（存在する場合）
-            for user_id, user_info in data.items():
-                if 'expiration_date' in user_info and user_info['expiration_date']:
-                    try:
-                        # UTCで保存されたISOフォーマット文字列をdatetimeオブジェクトに変換
-                        user_info['expiration_date'] = datetime.fromisoformat(user_info['expiration_date'])
-                    except ValueError:
-                        logging.warning(f"Invalid datetime format for user {user_id}: {user_info['expiration_date']}")
-                        user_info['expiration_date'] = None # 無効な場合はNoneとする
-            return data
-    except json.JSONDecodeError:
-        logging.warning(f"JSONDecodeError in {PREMIUM_DATA_FILE}. Initializing with empty data.")
-        return {}
+        # Render環境変数からFirebase設定を読み込み
+        firebase_config_str = os.getenv('__firebase_config')
+        if not firebase_config_str:
+            raise ValueError("__firebase_config environment variable is not set. Cannot initialize Firebase.")
+        
+        # サービスアカウントキーのJSON文字列をパース
+        # Renderの環境変数には直接JSON文字列を格納していると仮定
+        service_account_info = json.loads(firebase_config_str)
+        cred = credentials.Certificate(service_account_info)
+        
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        logging.info("Firestore initialized successfully using service account credentials.")
+
+        app_id_global = os.getenv('__app_id')
+        if not app_id_global:
+            logging.critical("__app_id environment variable is not set. Firestore collection path might be incorrect (using default).")
+            app_id_global = "default-app-id"
+
+    except ValueError as ve:
+        logging.critical(f"Firestore initialization failed (ValueError): {ve}. Ensure __firebase_config is a valid JSON string and __app_id is set.", exc_info=True)
+        db = None
+        app_id_global = "default-app-id"
     except Exception as e:
-        logging.error(f"Error loading {PREMIUM_DATA_FILE}: {e}", exc_info=True)
+        logging.critical(f"An unexpected error occurred during Firestore initialization: {e}", exc_info=True)
+        db = None
+        app_id_global = "default-app-id"
+
+# Firestoreからプレミアムユーザーデータをロードする関数
+async def load_premium_data_from_firestore():
+    if not db:
+        logging.error("Firestore client is not initialized. Cannot load premium data from Firestore.")
+        return {} # Firestoreが利用できない場合は空の辞書を返す
+    if not app_id_global or app_id_global == "default-app-id":
+        logging.error("App ID is not set or is default. Firestore collection path might be incorrect. Please set __app_id.")
         return {}
 
-def save_premium_data(data):
-    """プレミアムユーザーデータをJSONファイルに保存します。"""
-    os.makedirs(DATA_DIR, exist_ok=True)
-    # datetimeオブジェクトをISOフォーマットの文字列に変換して保存
-    serializable_data = {}
-    for user_id, user_info in data.items():
-        serializable_info = user_info.copy()
-        if 'expiration_date' in serializable_info and serializable_info['expiration_date']:
-            # UTCで保存するために .astimezone(timezone.utc).isoformat() を使用
-            serializable_info['expiration_date'] = serializable_info['expiration_date'].astimezone(timezone.utc).isoformat()
-        # expiration_date が None の場合はそのまま None を保存
-        elif 'expiration_date' in serializable_info and serializable_info['expiration_date'] is None:
-            serializable_info['expiration_date'] = None
-        serializable_data[user_id] = serializable_info
+    premium_users = {}
+    # Firestoreのコレクションパス定義 (公共データとして保存)
+    # ユーザー認証はここでは行わないため、public/dataを使用
+    collection_path = f"artifacts/{app_id_global}/public/data/premium_users" 
     
-    with open(PREMIUM_DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump(serializable_data, f, ensure_ascii=False, indent=4)
+    try:
+        # stream() は同期的に動作するが、通常は高速
+        docs = db.collection(collection_path).stream()
+        for doc in docs:
+            data = doc.to_dict()
+            user_id = doc.id
+            # FirestoreのTimestampオブジェクトをdatetimeに変換
+            if 'expiration_date' in data and isinstance(data.get('expiration_date'), firestore.Timestamp):
+                data['expiration_date'] = data['expiration_date'].astimezone(timezone.utc)
+            # Noneの場合や他の型の場合はそのまま保持
+            elif 'expiration_date' in data and data.get('expiration_date') is not None:
+                # 念のため、ISOフォーマット文字列などの可能性がある場合も対応
+                try:
+                    data['expiration_date'] = datetime.fromisoformat(data['expiration_date']).astimezone(timezone.utc)
+                except (ValueError, TypeError):
+                    data['expiration_date'] = None # 無効な場合はNoneとする
+            premium_users[user_id] = data
+        logging.info(f"Loaded {len(premium_users)} premium users from Firestore collection: {collection_path}.")
+        return premium_users
+    except Exception as e:
+        logging.error(f"Error loading premium data from Firestore collection '{collection_path}': {e}", exc_info=True)
+        return {}
 
+# Firestoreにプレミアムユーザーデータを保存する関数
+# この関数は単一のユーザーのデータを保存するために最適化されています。
+async def save_premium_user_to_firestore(user_id: str, user_data: dict):
+    if not db:
+        logging.error("Firestore client is not initialized. Cannot save premium user.")
+        return
+    if not app_id_global or app_id_global == "default-app-id":
+        logging.error("App ID is not set or is default. Firestore collection path might be incorrect. Please set __app_id.")
+        return
+
+    collection_path = f"artifacts/{app_id_global}/public/data/premium_users"
+    doc_ref = db.collection(collection_path).document(user_id)
+    
+    serializable_data = user_data.copy()
+    # datetimeオブジェクトをFirestoreのTimestampに変換
+    if 'expiration_date' in serializable_data and isinstance(serializable_data['expiration_date'], datetime):
+        serializable_data['expiration_date'] = firestore.Timestamp.from_datetime(serializable_data['expiration_date'])
+    elif 'expiration_date' in serializable_data and serializable_data['expiration_date'] is None:
+        serializable_data['expiration_date'] = None # Explicitly save None
+    
+    try:
+        # set() はドキュメントが存在すれば更新、存在しなければ作成
+        await doc_ref.set(serializable_data) # set() is synchronous in Firebase Admin SDK, so no await unless wrapped.
+        logging.info(f"User {user_id} saved/updated in Firestore.")
+    except Exception as e:
+        logging.error(f"Error saving user {user_id} to Firestore: {e}", exc_info=True)
+
+# Firestoreから特定のユーザーを削除するヘルパー関数
+async def delete_premium_user_from_firestore(user_id: str):
+    if not db:
+        logging.error("Firestore client is not initialized. Cannot delete premium user.")
+        return
+    if not app_id_global or app_id_global == "default-app-id":
+        logging.error("App ID is not set or is default. Firestore collection path might be incorrect. Please set __app_id.")
+        return
+
+    collection_path = f"artifacts/{app_id_global}/public/data/premium_users"
+    doc_ref = db.collection(collection_path).document(user_id)
+    try:
+        await doc_ref.delete() # delete() is synchronous in Firebase Admin SDK, so no await unless wrapped.
+        logging.info(f"User {user_id} deleted from Firestore.")
+    except Exception as e:
+        logging.error(f"Error deleting user {user_id} from Firestore: {e}", exc_info=True)
+
+
+# --- is_premium_check, is_bot_owner 関数 (Firestore対応のため変更あり) ---
 def is_premium_check():
     """
     ユーザーがプレミアムステータスを持っているかをチェックするカスタムデコレータ。
@@ -80,7 +173,7 @@ def is_premium_check():
     """
     async def predicate(interaction: discord.Interaction):
         user_id = str(interaction.user.id)
-        premium_users = load_premium_data()
+        premium_users = await load_premium_data_from_firestore() # Firestoreからロード
         
         user_info = premium_users.get(user_id)
         if not user_info:
@@ -98,9 +191,8 @@ def is_premium_check():
 
         if expiration_date < datetime.now(JST): # 現在のJST時刻と比較
             logging.info(f"Premium status for user {user_id} expired on {expiration_date.astimezone(JST).strftime('%Y-%m-%d %H:%M:%S JST')}. Revoking automatically.")
-            # 期限切れの場合は自動的にプレミアムステータスを削除
-            del premium_users[user_id]
-            save_premium_data(premium_users)
+            # 期限切れの場合は自動的にプレミアムステータスをFirestoreから削除
+            await delete_premium_user_from_firestore(user_id) 
             await interaction.response.send_message(
                 f"あなたのプレミアムステータスは {expiration_date.astimezone(JST).strftime('%Y年%m月%d日 %H時%M分')} に期限切れとなりました。再度購読してください。",
                 ephemeral=True
@@ -112,10 +204,9 @@ def is_premium_check():
 
     return app_commands.check(predicate)
 
-# ★追加: ボットのオーナーをチェックするカスタムデコレータ
 def is_bot_owner():
+    """ボットのオーナーをチェックするカスタムデコレータ。"""
     async def predicate(interaction: discord.Interaction):
-        # main.pyで bot.OWNER_ID が設定されていることを前提とします
         if hasattr(interaction.client, 'OWNER_ID') and interaction.user.id == interaction.client.OWNER_ID:
             return True
         await interaction.response.send_message("このコマンドはボットのオーナーのみが実行できます。", ephemeral=True)
@@ -126,11 +217,26 @@ def is_bot_owner():
 class PremiumManagerCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # 起動時にデータディレクトリが存在することを確認
         os.makedirs(DATA_DIR, exist_ok=True)
-        self.premium_users = load_premium_data() # プレミアムユーザーデータをロード
+        # Firebase初期化はコグのインスタンス作成時に行いますが、
+        # main.pyのsetup_hookで既にグローバルに初期化されていることを推奨します。
+        # ここでは念のため呼び出しておきますが、二重初期化はされません。
+        init_firestore() 
+        # premium_users は on_ready イベントでFirestoreからロードされます
+        self.premium_users = {} 
         logging.info("PremiumManagerCog initialized.")
-        logging.info(f"Loaded {len(self.premium_users)} premium users.")
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        """ボットが完全に起動し、Discordに接続された後に実行されます。"""
+        # Firestoreの初期化が完了していることを確認
+        global db
+        if db: 
+            self.premium_users = await load_premium_data_from_firestore()
+            logging.info(f"Loaded {len(self.premium_users)} premium users from Firestore during on_ready.")
+        else:
+            logging.warning("Firestore client not initialized during on_ready. Premium features might not load correctly.")
+
 
     @app_commands.command(name="premium_info", description="あなたのプレミアムステータスを表示します。")
     async def premium_info(self, interaction: discord.Interaction):
@@ -139,6 +245,8 @@ class PremiumManagerCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         user_id = str(interaction.user.id)
+        # コマンド実行時に常に最新データをFirestoreからロードして確認
+        self.premium_users = await load_premium_data_from_firestore() 
         user_info = self.premium_users.get(user_id)
 
         embed = discord.Embed(title="プレミアムステータス", color=discord.Color.gold())
@@ -146,7 +254,6 @@ class PremiumManagerCog(commands.Cog):
         if user_info:
             expiration_date = user_info.get('expiration_date')
             if expiration_date:
-                # JSTに変換して表示
                 expires_at_jst = expiration_date.astimezone(JST)
                 if expires_at_jst > datetime.now(JST):
                     embed.description = f"あなたは現在プレミアムユーザーです！\n期限: <t:{int(expires_at_jst.timestamp())}:F>"
@@ -154,9 +261,11 @@ class PremiumManagerCog(commands.Cog):
                 else:
                     embed.description = f"あなたのプレミアムステータスは期限切れです。\n期限: <t:{int(expires_at_jst.timestamp())}:F>"
                     embed.color = discord.Color.red()
-                    # 期限切れの場合は、念のため内部データからも削除する
-                    del self.premium_users[user_id]
-                    save_premium_data(self.premium_users)
+                    # 期限切れの場合は、念のためFirestoreからも削除する
+                    await delete_premium_user_from_firestore(user_id)
+                    # 内部状態も更新
+                    if user_id in self.premium_users:
+                        del self.premium_users[user_id]
             else:
                 embed.description = "あなたは現在プレミアムユーザーです！ (期限なし)"
                 embed.color = discord.Color.green()
@@ -164,7 +273,6 @@ class PremiumManagerCog(commands.Cog):
             embed.description = "あなたは現在プレミアムユーザーではありません。"
             embed.color = discord.Color.red()
 
-        # ここにウェブサイトへのリンクを追加することも可能
         embed.add_field(
             name="プレミアムプランのご案内", 
             value="より多くの機能を利用するには、当社のウェブサイトでプレミアムプランをご購入ください。\n[ウェブサイトはこちら](https://your-website-url.com/premium)",
@@ -175,15 +283,12 @@ class PremiumManagerCog(commands.Cog):
         logging.info(f"Premium info sent to {interaction.user.name}.")
 
     @app_commands.command(name="premium_exclusive_command", description="プレミアムユーザー限定のすごい機能！")
-    # ★修正: is_premium_check() をコメントアウトし、is_bot_owner() を追加
-    # @is_premium_check() 
-    @is_bot_owner() 
+    @is_bot_owner() # 開発中はオーナー限定 (本番運用時は @is_premium_check() に戻す)
     async def premium_exclusive_command(self, interaction: discord.Interaction):
         """プレミアムユーザーのみが利用できるコマンドの例"""
         logging.info(f"Command '/premium_exclusive_command' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
         await interaction.response.defer(ephemeral=False)
         
-        # 実際にプレミアム機能の処理を行う
         embed = discord.Embed(
             title="✨ プレミアム機能へようこそ！ ✨",
             description=f"おめでとうございます、{interaction.user.display_name}さん！\nこれはプレミアムユーザーだけが使える特別な機能です。",
@@ -199,36 +304,30 @@ class PremiumManagerCog(commands.Cog):
     @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
     async def grant_premium(self, interaction: discord.Interaction, 
                             user_id: str, # ユーザーIDは必須
-                            days: Optional[app_commands.Range[int, 1, 365]] = None): # ★修正: days を Optional[int] に変更し、デフォルト値を None に設定
+                            days: Optional[app_commands.Range[int, 1, 365]] = None): # Optional で無期限も可能に
         """ボットのオーナーがユーザーにプレミアムステータスを付与するためのコマンド"""
         logging.info(f"Command '/grant_premium' invoked by {interaction.user.name} (ID: {interaction.user.id}) for user ID {user_id}. Days: {days}")
         
-        # defer を最速で試みる
         try:
             await interaction.response.defer(ephemeral=True)
             logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
         except discord.errors.NotFound:
-            logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound). This will be caught by global error handler.", exc_info=True)
-            # deferに失敗した場合は、これ以上処理を進めない
+            logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound).", exc_info=True)
             return
         except Exception as e:
             logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
-            # deferに失敗した場合は、これ以上処理を進めない
             return
 
         try:
-            # ユーザーIDが数値であることを確認
             target_user_id = int(user_id)
         except ValueError:
             await interaction.followup.send("無効なユーザーIDです。有効なDiscordユーザーID (数字のみ) を入力してください。", ephemeral=True)
             return
 
-        # Discord APIからユーザーオブジェクトを取得 (サーバーにいるかどうかに関わらず)
-        target_user = self.bot.get_user(target_user_id) # get_userはキャッシュから取得、fetch_userはAPIリクエスト
+        target_user = self.bot.get_user(target_user_id) # キャッシュから取得
         if target_user is None:
-            # キャッシュにない場合はAPIからフェッチを試みる
             try:
-                target_user = await self.bot.fetch_user(target_user_id)
+                target_user = await self.bot.fetch_user(target_user_id) # APIからフェッチ
             except discord.NotFound:
                 await interaction.followup.send(f"Discord上でID `{target_user_id}` のユーザーが見つかりませんでした。無効なIDの可能性があります。", ephemeral=True)
                 logging.warning(f"User ID {target_user_id} not found via fetch_user.")
@@ -238,29 +337,26 @@ class PremiumManagerCog(commands.Cog):
                 logging.error(f"HTTPException when fetching user {target_user_id}: {e}", exc_info=True)
                 return
             
-        # 現在のUTC時刻を基準に有効期限を設定
         expiration_date = None
         if days is not None:
             expiration_date = datetime.now(timezone.utc) + timedelta(days=days)
 
-        self.premium_users[user_id] = { # user_id (文字列) をキーとして保存
-            "username": target_user.name, # 取得したユーザーオブジェクトから情報を取得
+        user_data_to_save = { # Firestoreに保存するデータ構造
+            "username": target_user.name, 
             "discriminator": target_user.discriminator,
             "display_name": target_user.display_name,
-            "expiration_date": expiration_date # datetimeオブジェクトとして保存 (None の可能性あり)
+            "expiration_date": expiration_date # datetimeオブジェクト (None の可能性あり)
         }
-        save_premium_data(self.premium_users)
-        # ★追加: コグの内部状態を更新
-        self.premium_users = load_premium_data() 
+        
+        await save_premium_user_to_firestore(user_id, user_data_to_save) # Firestoreに保存
+        self.premium_users = await load_premium_data_from_firestore() # 内部状態をFirestoreから再ロード
 
         status_message = f"{target_user.display_name} (ID: `{target_user.id}`) にプレミアムステータスを付与しました。"
 
-        # ロール付与の処理 (サーバーにいるメンバーの場合のみ)
         target_guild = interaction.guild
         if target_guild:
-            # ターゲットユーザーがこのサーバーのメンバーであるか確認
             member = target_guild.get_member(target_user.id)
-            if member: # メンバーとして存在する場合
+            if member: # メンバーとして存在する場合のみロールを付与
                 premium_role = target_guild.get_role(PREMIUM_ROLE_ID) 
                 if premium_role:
                     try:
@@ -283,16 +379,15 @@ class PremiumManagerCog(commands.Cog):
             status_message += f"\nこのコマンドはDMでは実行できません。ロール操作はサーバー内でのみ可能です。"
             logging.warning("grant_premium command invoked in DM. Role operation skipped.")
 
-
         embed = discord.Embed(
             title="✅ プレミアムステータス付与",
             description=status_message,
             color=discord.Color.green()
         )
-        if expiration_date: # 期限がある場合のみ表示
+        if expiration_date: 
             expires_at_jst = expiration_date.astimezone(JST)
             embed.add_field(name="期限", value=f"<t:{int(expires_at_jst.timestamp())}:F>", inline=False)
-        else: # 期限がない場合
+        else: 
             embed.add_field(name="期限", value="無期限", inline=False)
         await interaction.followup.send(embed=embed, ephemeral=True)
         logging.info(f"Premium status granted to user ID {user_id} by {interaction.user.name}. Details: {status_message}")
@@ -303,21 +398,18 @@ class PremiumManagerCog(commands.Cog):
     @is_bot_owner()
     @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
     async def revoke_premium(self, interaction: discord.Interaction, 
-                             user_id: str): # ★変更: discord.Member から str (ユーザーID) に変更
+                             user_id: str): 
         """ボットのオーナーがユーザーからプレミアムステータスを剥奪するためのコマンド"""
         logging.info(f"Command '/revoke_premium' invoked by {interaction.user.name} (ID: {interaction.user.id}) for user ID {user_id}.")
         
-        # defer を最速で試みる
         try:
             await interaction.response.defer(ephemeral=True)
             logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
         except discord.errors.NotFound:
-            logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound). This will be caught by global error handler.", exc_info=True)
-            # deferに失敗した場合は、これ以上処理を進めない
+            logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound).", exc_info=True)
             return
         except Exception as e:
             logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
-            # deferに失敗した場合は、これ以上処理を進めない
             return
 
         try:
@@ -327,20 +419,22 @@ class PremiumManagerCog(commands.Cog):
             return
 
         status_message = ""
+        # コマンド実行時に常に最新データをFirestoreからロードして確認
+        self.premium_users = await load_premium_data_from_firestore() 
+        
         if user_id in self.premium_users:
             user_info_from_data = self.premium_users.get(user_id)
             display_name = user_info_from_data.get("display_name", f"不明なユーザー (ID: `{user_id}`)") 
             
-            del self.premium_users[user_id]
-            save_premium_data(self.premium_users)
-            # ★追加: コグの内部状態を更新
-            self.premium_users = load_premium_data()
+            await delete_premium_user_from_firestore(user_id) # Firestoreから削除
+            self.premium_users = await load_premium_data_from_firestore() # 内部状態をFirestoreから再ロード
 
-            # Discord APIからユーザーオブジェクトを取得 (サーバーにいるかどうかに関わらず)
-            target_user = self.bot.get_user(target_user_id)
+            status_message = f"{display_name} からプレミアムステータスを剥奪しました。"
+
+            target_user = self.bot.get_user(target_user_id) # キャッシュから取得
             if target_user is None:
                 try:
-                    target_user = await self.bot.fetch_user(target_user_id)
+                    target_user = await self.bot.fetch_user(target_user_id) # APIからフェッチ
                 except discord.NotFound:
                     logging.warning(f"User ID {target_user_id} not found via fetch_user for role removal.")
                     target_user = None 
@@ -348,11 +442,10 @@ class PremiumManagerCog(commands.Cog):
                     logging.error(f"HTTPException when fetching user {target_user_id} for role removal: {e}", exc_info=True)
                     target_user = None
             
-            # ロール剥奪の処理 (サーバーにいるメンバーの場合のみ)
             target_guild = interaction.guild
             if target_guild and target_user: 
                 member = target_guild.get_member(target_user.id)
-                if member: 
+                if member: # メンバーとして存在する場合のみロールを剥奪
                     premium_role = target_guild.get_role(PREMIUM_ROLE_ID) 
                     if premium_role:
                         try:
