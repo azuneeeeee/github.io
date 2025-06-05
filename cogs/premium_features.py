@@ -21,6 +21,15 @@ JST = timezone(timedelta(hours=9))
 # ★ユーザーが提供したプレミアムロールIDをここに設定
 PREMIUM_ROLE_ID = 1380155806485315604 
 
+# pjsk_record_result.py から SUPPORT_GUILD_ID をインポート
+# これは、サポートサーバーのIDを指すことを想定しています
+try:
+    from cogs.pjsk_record_result import SUPPORT_GUILD_ID
+except ImportError:
+    logging.error("Failed to import SUPPORT_GUILD_ID from cogs.pjsk_record_result. Please ensure pjsk_record_result.py is correctly set up and defines SUPPORT_GUILD_ID.")
+    SUPPORT_GUILD_ID = 0 # フォールバック。実際にはmain.pyでbot.GUILD_IDが設定されるはずだが、念のため。
+
+
 def load_premium_data():
     """プレミアムユーザーデータをJSONファイルからロードします。"""
     if not os.path.exists(PREMIUM_DATA_FILE):
@@ -187,6 +196,7 @@ class PremiumManagerCog(commands.Cog):
     @app_commands.command(name="grant_premium", description="指定ユーザーのIDにプレミアムステータスを付与します (オーナー限定)。")
     @app_commands.default_permissions(manage_roles=True)
     @is_bot_owner() 
+    @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
     async def grant_premium(self, interaction: discord.Interaction, 
                             user_id: str, # ★変更: discord.Member から str (ユーザーID) に変更
                             days: app_commands.Range[int, 1, 365] = 30):
@@ -272,6 +282,8 @@ class PremiumManagerCog(commands.Cog):
     @app_commands.command(name="revoke_premium", description="指定ユーザーのIDからプレミアムステータスを剥奪します (オーナー限定)。")
     @app_commands.default_permissions(manage_roles=True)
     @is_bot_owner()
+    # ★追加: スラッシュコマンドをオーナーが管理するギルドに限定
+    @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
     async def revoke_premium(self, interaction: discord.Interaction, 
                              user_id: str): # ★変更: discord.Member から str (ユーザーID) に変更
         """ボットのオーナーがユーザーからプレミアムステータスを剥奪するためのコマンド"""
