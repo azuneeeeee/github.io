@@ -39,6 +39,32 @@ MIN_PREMIUM_PLEDGE_AMOUNT = 1.0
 if not PATREON_CREATOR_ACCESS_TOKEN:
     logging.critical("PATREON_CREATOR_ACCESS_TOKEN environment variable is not set. Patreon automation will not work.")
 
+# --- Patreon テストモードの設定 --- ★追加★
+# 環境変数でテストモードを有効にするか制御
+PATREON_TEST_MODE_ENABLED = os.getenv('PATREON_TEST_MODE_ENABLED', 'False').lower() == 'true'
+
+# テストモード用のパトロンデータ（メールアドレスは小文字で指定）
+# 支払いせずにテストする場合、ここにテストしたいユーザーのPatreon登録メールアドレス（またはそれに紐付けるメールアドレス）を設定
+# is_active_patron: True にするとプレミアム付与、False にすると剥奪のテストができます
+TEST_PATRON_DATA = [
+    {
+        "patreon_user_id": "test_patron_id_1",
+        "email": "testuser1@example.com", # テストユーザー1のPatreon登録メールアドレス
+        "is_active_patron": True, # このユーザーは現在アクティブな支援者であるとみなす
+        "pledge_amount_cents": int(MIN_PREMIUM_PLEDGE_AMOUNT * 100) # 最低額以上の支援
+    },
+    {
+        "patreon_user_id": "test_patron_id_2",
+        "email": "testuser2@example.com", # テストユーザー2のPatreon登録メールアドレス
+        "is_active_patron": False, # このユーザーは現在非アクティブな支援者であるとみなす
+        "pledge_amount_cents": 0 # 支援なし
+    },
+    # 必要に応じて、さらにテストユーザーを追加できます
+]
+logging.info(f"Patreon Test Mode Enabled: {PATREON_TEST_MODE_ENABLED}")
+if PATREON_TEST_MODE_ENABLED:
+    logging.warning("Patreon Test Mode is ENABLED. Actual Patreon API calls are bypassed.")
+
 
 def _get_patreon_client():
     if not PATREON_CREATOR_ACCESS_TOKEN:
@@ -53,6 +79,15 @@ def _get_patreon_client():
         return None
 
 async def _fetch_patrons_from_patreon():
+    """
+    Patreon APIからキャンペーンの全パトロン情報を取得します。
+    テストモードが有効な場合は、TEST_PATRON_DATAを返します。
+    """
+    if PATREON_TEST_MODE_ENABLED: # ★変更★
+        logging.info("Returning TEST_PATRON_DATA as Patreon Test Mode is enabled.")
+        return TEST_PATRON_DATA
+
+    # 以下はテストモードが無効な場合の実際のAPI呼び出し
     api_client = _get_patreon_client()
     if not api_client:
         return []
@@ -349,7 +384,7 @@ class PremiumManagerCog(commands.Cog):
         await self.bot.wait_until_ready()
         logging.info("Bot ready, starting Patreon sync task loop.")
 
-    async def _perform_patreon_sync_job(self, interaction: Optional['discord.Interaction'] = None): # ★変更★
+    async def _perform_patreon_sync_job(self, interaction: Optional['discord.Interaction'] = None):
         sync_start_time = datetime.now(JST)
         success_count = 0
         removed_count = 0
@@ -378,7 +413,7 @@ class PremiumManagerCog(commands.Cog):
             await interaction.followup.send("Patreonとプレミアムステータスの同期を開始します...", ephemeral=True)
         logging.info("Starting Patreon and premium status synchronization.")
 
-        patreon_patrons = await _fetch_patrons_from_patreon()
+        patreon_patrons = await _fetch_patrons_from_patreon() # ★テストモードが有効な場合はここがTEST_PATRON_DATAを返す★
         if not patreon_patrons:
             logging.error("Failed to fetch patrons from Patreon. Skipping sync.")
             if interaction:
