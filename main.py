@@ -108,7 +108,7 @@ class MyBot(commands.Bot):
         self.proseka_songs_data = [] # Project SEKAI song data
         self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"] # List of valid difficulties
         self.is_bot_ready = False # Flag to indicate if the bot is ready
-        self.is_admin_mode_active = False # ★追加: 管理者モードの状態を保持するフラグ
+        self.is_admin_mode_active = False # 管理者モードの状態を保持するフラグ
 
         # Initialize attributes for cog references (will be set after cogs are loaded)
         self.proseka_general_cog = None
@@ -299,19 +299,25 @@ class MyBot(commands.Bot):
     # on_app_command event handler
     async def on_app_command(self, interaction: discord.Interaction):
         """Handles slash command invocations, checking bot status for admin mode."""
-        # コマンドが呼び出された際のログ出力
-        logging.info(f"on_app_command triggered by user {interaction.user.name} (ID: {interaction.user.id}) for command /{interaction.command.name}. Bot's internal admin mode flag: {self.is_admin_mode_active}")
+        # コマンドが呼び出された際の詳細なログ出力
+        logging.info(f"on_app_command triggered: Command=/{interaction.command.name}, User={interaction.user.name} (ID: {interaction.user.id}).")
+        logging.info(f"Bot's internal admin mode flag: {self.is_admin_mode_active}, Bot's configured OWNER_ID: {self.OWNER_ID}.")
 
         # 管理者モードが有効になっているか、およびコマンド実行者がオーナーではないかチェック
         if self.is_admin_mode_active and interaction.user.id != self.OWNER_ID:
-            logging.info(f"Non-owner user {interaction.user.name} (ID: {interaction.user.id}) attempted command /{interaction.command.name} while bot is in admin mode. Blocking.")
+            logging.info(f"Blocking command /{interaction.command.name} for non-owner user {interaction.user.name} (ID: {interaction.user.id}) due to admin mode.")
             
             # 既にレスポンス済みの場合、追加のレスポンスはできないためログのみ
             if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    "現在、ボットは管理者モードです。全てのコマンドは製作者のみが利用できます。",
-                    ephemeral=True # メッセージはコマンド実行者のみに見える
-                )
+                try:
+                    await interaction.response.send_message(
+                        "現在、ボットは管理者モードです。全てのコマンドは製作者のみが利用できます。",
+                        ephemeral=True # メッセージはコマンド実行者のみに見える
+                    )
+                except discord.errors.NotFound:
+                    logging.warning(f"Failed to send ephemeral block message: Unknown interaction. Interaction might have timed out.")
+                except Exception as e:
+                    logging.error(f"Failed to send ephemeral block message for /{interaction.command.name}: {e}", exc_info=True)
             return # コマンドの実行をここで停止
         
         # オーナーである場合、または管理者モードではない場合は、
