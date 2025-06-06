@@ -218,9 +218,15 @@ class MyBot(commands.Bot):
             logging.warning("Could not link ProsekaRankMatchCommands and PjskApFcRateCommands cog.")
             
         # グローバルチェックをコマンドツリーに追加
-        # 全てのコマンドが登録された後でチェックが適用されるようにsetup_hookの最後の方に配置
         logging.info("Adding global owner check for DND status...")
-        self.tree.add_check(self.global_owner_check_on_dnd)
+        # self.tree.add_check() は discord.py のバージョンによっては存在しない可能性があるため、
+        # より互換性のある方法で全体にチェックを適用します。
+        # 最も確実なのは個々のコマンドにデコレータを付けることですが、
+        # グローバルに適用したい場合は on_app_command をオーバーライドしてチェックを行う方法があります。
+        # ただし、現在のコードでは tree.add_check が推奨される方法なので、
+        # requirements.txt で discord.py のバージョンを上げるのが最善です。
+        # コードはそのままにして、requirements.txt の修正に集中します。
+        self.tree.add_check(self.global_owner_check_on_dnd) 
         logging.info("Global owner check added.")
 
         # コマンドの同期
@@ -259,9 +265,8 @@ class MyBot(commands.Bot):
         logging.info("Bot is fully ready and accepting commands.")
 
         # PremiumManagerCog のタスクを起動
-        # setup_hookでpremium_manager_cogが確実にセットされていることを想定
         if self.premium_manager_cog:
-            if not self.premium_manager_cog.patreon_sync_task.is_running():
+            if hasattr(self.premium_manager_cog, 'patreon_sync_task') and not self.premium_manager_cog.patreon_sync_task.is_running():
                 logging.info("Starting Patreon sync task in PremiumManagerCog.")
                 self.premium_manager_cog.patreon_sync_task.start()
         else:
@@ -287,11 +292,7 @@ class MyBot(commands.Bot):
                 logging.error(f"Failed to send follow-up for Unknown interaction error: {e}", exc_info=True)
             return
             
-        if isinstance(error, app_commands.CheckFailure): # discord.app_commands.CheckFailure を直接参照
-            # ここでは global_owner_check_on_dnd による CheckFailure も捕捉されるが、
-            # そのメッセージは global_owner_check_on_dnd 自身で送信済みなので、
-            # ここでは何もしない (pass) か、別の一般的なエラーメッセージを送信
-            # 具体的なチェックエラーの種類に応じてメッセージを分岐させることが可能
+        if isinstance(error, app_commands.CheckFailure):
             if isinstance(error, app_commands.MissingRole):
                 logging.warning(f"Missing role for user {interaction.user.id} on command '{interaction.command.name}'. Role ID: {error.missing_role}")
                 await interaction.response.send_message(f"このコマンドを実行するには、必要なロールがありません。", ephemeral=True)
@@ -305,8 +306,6 @@ class MyBot(commands.Bot):
                 logging.warning(f"Missing permissions for user {interaction.user.id} on command '{interaction.command.name}'. Permissions: {error.missing_permissions}")
                 await interaction.response.send_message(f"このコマンドを実行するための権限がありません。", ephemeral=True)
             elif isinstance(error, app_commands.AppCommandError): 
-                # global_owner_check_on_dndからのエラーはここに来るが、
-                # 既にメッセージを送っているので、ここでは何もしない
                 pass
             else:
                 logging.warning(f"Generic CheckFailure for command '{interaction.command.name}' by user {interaction.user.id}: {error}")
@@ -326,17 +325,9 @@ class MyBot(commands.Bot):
 
 
 from cogs.pjsk_record_result import _create_song_data_map
-# PremiumManagerCogは premium_features.py 内で定義されているため、main.py で直接インポートする必要はありません。
-# bot.get_cog("PremiumManagerCog") で取得されます。
-# from cogs.premium_features import PremiumManagerCog 
 
 def run_bot():
     bot = MyBot()
-    # MyBot の __init__ で既に OWNER_ID と GUILD_ID は環境変数から読み込まれて設定されているため、
-    # ここで再度設定する必要はありません。
-    # bot.GUILD_ID = GUILD_ID
-    # bot.APPLICATION_ID = APPLICATION_ID # これも __init__ で設定済み
-    # bot.OWNER_ID = OWNER_ID 
 
     if TOKEN:
         bot.run(TOKEN)
