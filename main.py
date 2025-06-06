@@ -5,11 +5,11 @@ import json
 import asyncio
 import traceback
 import logging
-from datetime import datetime, timedelta, timezone # PremiumManagerCogで使用するため追加
-from discord import app_commands # app_commands.CheckFailure のために必要
+from datetime import datetime, timedelta, timezone
+from discord import app_commands
 
 # ロギング設定
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.INFO, # INFOレベルでログを出力
                     format='%(asctime)s [%(levelname)s] %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
 
@@ -63,7 +63,12 @@ SONGS_FILE = 'data/songs.py'
 
 # グローバルなオーナー判定デコレータ関数 (スラッシュコマンド用)
 def is_bot_owner():
+    """
+    Checks if the slash command was executed by the bot's owner.
+    """
     async def predicate(interaction: discord.Interaction):
+        # Use bot.owner_id if set, otherwise use the OWNER_ID environment variable.
+        # (bot.owner_id should always be set via super().__init__ if OWNER_ID is provided)
         actual_owner_id = interaction.client.owner_id if interaction.client.owner_id else interaction.client.OWNER_ID
         if interaction.user.id == actual_owner_id:
             return True
@@ -72,18 +77,23 @@ def is_bot_owner():
     return app_commands.check(predicate)
 
 class MyBot(commands.Bot):
+    """
+    Custom Discord bot class. Manages cogs and defines event handlers.
+    """
     def __init__(self):
+        # Set default intents and enable message content, members, and guild intents.
         intents = discord.Intents.default()
-        intents.message_content = True
-        intents.members = True
-        intents.guilds = True
+        intents.message_content = True  # Enable message content intent
+        intents.members = True # Required to fetch member information
+        intents.guilds = True # Required to fetch guild information (e.g., roles)
 
         super().__init__(
-            command_prefix=commands.when_mentioned_or('!'),
+            command_prefix=commands.when_mentioned_or('!'), # Command prefix (e.g., !help)
             intents=intents,
-            application_id=APPLICATION_ID, # ここにAPPLICATION_IDを渡す
-            owner_id=OWNER_ID
+            application_id=APPLICATION_ID, # Required for slash command synchronization
+            owner_id=OWNER_ID # Required for commands.is_owner() decorator
         )
+        # List of cogs to load
         self.initial_extensions = [
             'cogs.pjsk_ap_fc_rate',
             'cogs.proseka_general',
@@ -92,13 +102,14 @@ class MyBot(commands.Bot):
             'cogs.pjsk_rankmatch_result',
             'cogs.pjsk_record_result',
             'cogs.premium_features',
-            'cogs.debug_commands',
-            'cogs.status_commands'
+            'cogs.debug_commands', # Debug cog
+            'cogs.status_commands' # Status command cog
         ]
-        self.proseka_songs_data = []
-        self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
-        self.is_bot_ready = False
+        self.proseka_songs_data = [] # Project SEKAI song data
+        self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"] # List of valid difficulties
+        self.is_bot_ready = False # Flag to indicate if the bot is ready
 
+        # Initialize attributes for cog references (will be set after cogs are loaded)
         self.proseka_general_cog = None
         self.proseka_rankmatch_cog = None
         self.pjsk_ap_fc_rate_cog = None
@@ -109,13 +120,14 @@ class MyBot(commands.Bot):
         self.debug_commands_cog = None
         self.status_commands_cog = None
 
-        self.OWNER_ID = OWNER_ID
+        # Store OWNER_ID and GUILD_ID in the bot instance
+        self.OWNER_ID = OWNER_ID 
         self.GUILD_ID = GUILD_ID 
 
         logging.info("Bot instance created.")
 
     async def _load_songs_data_async(self):
-        """data/songs.py から楽曲データを非同期で読み込む"""
+        """Loads song data from data/songs.py asynchronously."""
         logging.info(f"Attempting to load songs data from {SONGS_FILE} asynchronously.")
         try:
             loop = asyncio.get_running_loop()
@@ -123,6 +135,7 @@ class MyBot(commands.Bot):
                 file_content = await loop.run_in_executor(None, f.read)
 
             _globals = {}
+            # Execute the file content to get proseka_songs and VALID_DIFFICULTIES
             await loop.run_in_executor(None, exec, file_content, _globals)
 
             self.proseka_songs_data = _globals.get('proseka_songs', [])
@@ -149,10 +162,12 @@ class MyBot(commands.Bot):
 
 
     async def setup_hook(self):
+        """Called when the bot is starting up to load cogs and synchronize slash commands."""
         logging.info("Starting setup_hook...")
 
-        await self._load_songs_data_async()
+        await self._load_songs_data_async() # Load song data asynchronously
 
+        # Load all initial extensions (cogs)
         for extension in self.initial_extensions:
             try:
                 logging.info(f"Attempting to load extension: {extension}...")
@@ -169,7 +184,7 @@ class MyBot(commands.Bot):
             except Exception as e:
                 logging.error(f"An unexpected error occurred while loading extension '{extension}': {e}", exc_info=True)
 
-        # --- DEBUG: Checking bot.tree after all cogs are loaded ---
+        # --- DEBUG: Check bot.tree state after all cogs are loaded ---
         logging.info("--- DEBUG: Checking bot.tree after all cogs are loaded ---")
         global_commands_after_load = self.tree.get_commands(guild=None)
         logging.info(f"Global commands in bot.tree after loading cogs: {[cmd.name for cmd in global_commands_after_load]}")
@@ -184,7 +199,7 @@ class MyBot(commands.Bot):
             logging.info("GUILD_ID is 0, skipping guild command check in bot.tree after loading cogs.")
         logging.info("--- END DEBUG: bot.tree check ---")
         
-        # 全てのコグがロードされた後に、コグ参照を設定
+        # After all cogs are loaded, set cog references
         logging.info("Attempting to set cog references and song data.")
         self.proseka_general_cog = self.get_cog("ProsekaGeneralCommands")
         self.proseka_rankmatch_cog = self.get_cog("ProsekaRankMatchCommands")
@@ -196,6 +211,7 @@ class MyBot(commands.Bot):
         self.debug_commands_cog = self.get_cog("DebugCommands")
         self.status_commands_cog = self.get_cog("StatusCommands")
 
+        # Set song data and difficulty data in relevant cogs
         if self.proseka_general_cog:
             self.proseka_general_cog.songs_data = self.proseka_songs_data
             self.proseka_general_cog.valid_difficulties = self.valid_difficulties_data
@@ -212,6 +228,8 @@ class MyBot(commands.Bot):
 
         if self.pjsk_record_result_cog:
             self.pjsk_record_result_cog.songs_data = self.proseka_songs_data
+            # Import _create_song_data_map from the pjsk_record_result cog itself
+            from cogs.pjsk_record_result import _create_song_data_map
             self.pjsk_record_result_cog.SONG_DATA_MAP = _create_song_data_map(self.proseka_songs_data)
             logging.info("Set songs_data and updated SONG_DATA_MAP in PjskRecordResult cog.")
         else:
@@ -226,7 +244,7 @@ class MyBot(commands.Bot):
             self.premium_manager_cog.is_setup_complete = True
             logging.info("PremiumManagerCog found and setup complete flag set.")
         else:
-            logging.warning("PremiumManagerCog not found after loading.")
+            logging.warning("PremiumManagerCog not found or not fully set up, cannot start Patreon sync task on_ready.")
         
         if self.debug_commands_cog:
             logging.info("DebugCommands cog found.")
@@ -238,7 +256,7 @@ class MyBot(commands.Bot):
         else:
             logging.warning("StatusCommands cog not found after loading.")
 
-        # 相互参照の設定 (AP/FCレートの自動更新のため)
+        # Set cross-references (e.g., for automatic AP/FC rate updates)
         if self.proseka_general_cog and self.pjsk_ap_fc_rate_cog:
             self.proseka_general_cog.ap_fc_rate_cog = self.pjsk_ap_fc_rate_cog
             logging.info("Set ap_fc_rate_cog reference in ProsekaGeneralCommands.")
@@ -251,22 +269,24 @@ class MyBot(commands.Bot):
         else:
             logging.warning("Could not link ProsekaRankMatchCommands and PjskApFcRateCommands cog.")
             
-        # コマンドの同期
+        # Synchronize commands
         logging.info("Attempting to sync commands during setup_hook...")
         try:
             if self.GUILD_ID != 0:
                 support_guild = discord.Object(id=self.GUILD_ID)
                 
-                # ボットの内部ツリーにある全てのコマンドを、そのギルドに同期
+                # Synchronize all commands in the bot's internal tree to the specified guild.
+                # This will copy global commands to the guild if they are not already there.
+                self.tree.copy_global_to(guild=support_guild) # Ensure global commands are copied to guild
                 synced_guild_commands = await self.tree.sync(guild=support_guild)
                 logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID} during setup_hook.")
                 
-                # ボットの内部で登録されているコマンドを確認（デバッグ用）
+                # Debugging: check commands registered in bot's internal tree for the guild
                 registered_commands_internal = [cmd.name for cmd in self.tree.get_commands(guild=support_guild)]
                 logging.info(f"Commands registered in bot's internal tree for guild {self.GUILD_ID} after setup_hook sync: {registered_commands_internal}")
             else:
                 logging.warning("GUILD_ID is not set or invalid (0). Skipping guild command sync during setup_hook.")
-                # GUILD_ID が設定されていない場合、グローバル同期を試みる
+                # If GUILD_ID is not set, attempt global synchronization.
                 synced_global = await self.tree.sync()
                 logging.info(f"Synced {len(synced_global)} global commands (GUILD_ID not set) during setup_hook.")
 
@@ -275,34 +295,56 @@ class MyBot(commands.Bot):
 
         logging.info("setup_hook completed.")
 
-    # on_app_command イベントハンドラ
+    # on_app_command event handler
     async def on_app_command(self, interaction: discord.Interaction):
-        if interaction.client.user.status == discord.Status.dnd:
+        """Handles slash command invocations, checking bot status for admin mode."""
+        # コマンドが呼び出された際のログ出力（INFOレベルで十分）
+        logging.info(f"on_app_command triggered by user {interaction.user.name} (ID: {interaction.user.id}) for command /{interaction.command.name}. Bot status: {self.user.status}")
+
+        # ボットの現在のステータスが「応答不可 (Do Not Disturb)」であるかチェック
+        if self.user.status == discord.Status.dnd: # self.user.status はボット自身の現在のステータス
+            # DNDモードに入っていることを検知した際の詳細ログ (DEBUGレベル)
+            logging.debug(f"Bot is in DND mode. Checking user ID {interaction.user.id} against owner ID {self.OWNER_ID}.")
+            
+            # コマンドを実行したユーザーがオーナーではない場合
             if interaction.user.id != self.OWNER_ID:
+                # 非オーナーユーザーがDND中にコマンドを試行した際のログ (INFOレベル)
+                logging.info(f"Non-owner user {interaction.user.name} (ID: {interaction.user.id}) attempted command /{interaction.command.name} while bot is in DND. Blocking.")
                 await interaction.response.send_message(
                     "現在、ボットは管理者モードです。全てのコマンドは製作者のみが利用できます。",
-                    ephemeral=True
+                    ephemeral=True # メッセージはコマンド実行者のみに見える
                 )
-                return
+                return # コマンドの実行をここで停止
+            else:
+                # オーナーユーザーがDND中にコマンドを試行した際のログ (INFOレベル)
+                logging.info(f"Owner user {interaction.user.name} (ID: {interaction.user.id}) used command /{interaction.command.name} while bot is in DND. Allowing.")
         
+        # ユーザーがオーナーである場合、またはボットがDNDモードではない場合は、
+        # 通常のコマンド処理（discord.py の内部ディスパッチャーが処理）を続行します。
+
     async def on_ready(self):
+        """Called when the bot connects to Discord and is ready."""
         logging.info(f"Logged in as {self.user.name} (ID: {self.user.id})")
         logging.info("------")
         
-        self.is_bot_ready = True
+        self.is_bot_ready = True # Set bot ready flag
         
+        # Set bot's status based on song data
         total_songs = len(self.proseka_songs_data)
         total_charts = 0
         for song in self.proseka_songs_data:
             total_charts += sum(1 for diff in self.valid_difficulties_data if diff.lower() in song and song[diff.lower()] is not None)
         
         activity_message = f"{total_songs}曲/{total_charts}譜面が登録済み"
+        # Use custom activity
         activity = discord.CustomActivity(name=activity_message) 
-        await self.change_presence(activity=activity, status=discord.Status.online)
+        await self.change_presence(activity=activity, status=discord.Status.online) # Default to online status
         
         logging.info(f"Status set to: {activity_message}")
         logging.info("Bot is fully ready and accepting commands.")
 
+        # Start PremiumManagerCog's task
+        # Ensure the cog reference is set and the cog's setup is complete
         if self.premium_manager_cog and hasattr(self.premium_manager_cog, 'is_setup_complete') and self.premium_manager_cog.is_setup_complete:
             if hasattr(self.premium_manager_cog, 'patreon_sync_task') and not self.premium_manager_cog.patreon_sync_task.is_running():
                 logging.info("Starting Patreon sync task in PremiumManagerCog.")
@@ -313,16 +355,20 @@ class MyBot(commands.Bot):
             logging.warning("PremiumManagerCog not found or not fully set up, cannot start Patreon sync task on_ready.")
 
     async def on_command_error(self, ctx, error):
+        """Handles prefix command errors."""
         if isinstance(error, commands.CommandNotFound):
-            return
+            return # Ignore if command is not found
         logging.error(f"An error occurred in command {ctx.command}: {error}", exc_info=True)
         await ctx.send(f"エラーが発生しました: {error}")
 
     async def on_app_command_error(self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
+        """Handles slash command errors."""
+        # If interaction already responded, ignore error
         if interaction.response.is_done():
             logging.error(f"App command error (interaction already responded): {error}", exc_info=True)
             return
 
+        # Discord API timeout error (Unknown interaction)
         if isinstance(error, discord.errors.NotFound) and error.code == 10062:
             logging.error(f"Unknown interaction (404 Not Found) for command '{interaction.command.name}' by user {interaction.user.id}. Interaction might have timed out before defer/response.", exc_info=True)
             try:
@@ -331,6 +377,7 @@ class MyBot(commands.Bot):
                 logging.error(f"Failed to send follow-up for Unknown interaction error: {e}", exc_info=True)
             return
             
+        # Other app_commands.CheckFailure errors (missing role, cooldown, etc.)
         if isinstance(error, app_commands.CheckFailure):
             if isinstance(error, app_commands.MissingRole):
                 logging.warning(f"Missing role for user {interaction.user.id} on command '{interaction.command.name}'. Role ID: {error.missing_role}")
@@ -349,21 +396,24 @@ class MyBot(commands.Bot):
                 await interaction.response.send_message(f"このコマンドを実行できませんでした（権限エラーなど）。", ephemeral=True)
             return
             
-        logging.error(f"An unexpected error occurred during app command '{interaction.command.name}' by {interaction.user.id}: {e}", exc_info=True)
+        # Unexpected errors
+        logging.error(f"An unexpected error occurred during app command '{interaction.command.name}' by {interaction.user.id}: {error}", exc_info=True)
         try:
             if interaction.is_acknowledged():
-                await interaction.followup.send(f"コマンドの実行中に予期せぬエラーが発生しました: `{e}`", ephemeral=True)
+                await interaction.followup.send(f"コマンドの実行中に予期せぬエラーが発生しました: `{error}`", ephemeral=True)
             else:
-                await interaction.response.send_message(f"コマンドの実行中に予期せぬエラーが発生しました: `{e}`", ephemeral=True)
+                await interaction.response.send_message(f"コマンドの実行中に予期せぬエラーが発生しました: `{error}`", ephemeral=True)
         except discord.errors.InteractionResponded:
-            pass
+            pass # Already responded, so ignore
         except Exception as e:
             logging.error(f"Failed to send error message to user: {e}", exc_info=True)
 
-
+# Import _create_song_data_map from cogs.pjsk_record_result
+# This is used in setup_hook to initialize song data for the cog.
 from cogs.pjsk_record_result import _create_song_data_map
 
 def run_bot():
+    """Initializes and runs the bot."""
     bot = MyBot()
 
     if TOKEN:
