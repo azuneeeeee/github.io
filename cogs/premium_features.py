@@ -1,4 +1,4 @@
-import discord
+#import discord
 from discord.ext import commands, tasks # tasks をインポート ★変更★
 from discord import app_commands
 import json
@@ -44,7 +44,7 @@ if not GITHUB_TOKEN or not GIST_ID:
 # --- Patreon 関連の設定とヘルパー関数 ---
 PATREON_CREATOR_ACCESS_TOKEN = os.getenv('PATREON_CREATOR_ACCESS_TOKEN')
 # PATREON_WEBHOOK_SECRET は不要になるため削除 ★変更★
-MIN_PREMIUM_PLEDGE_AMOUNT = 1.0 # プレミアムとみなす最低月額支援額（ドル）
+MIN_PREMIUM_PLEDGE_AMOUNT = 3.0 # プレミアムとみなす最低月額支援額（ドル）
 
 if not PATREON_CREATOR_ACCESS_TOKEN:
     logging.critical("PATREON_CREATOR_ACCESS_TOKEN environment variable is not set. Patreon automation will not work.")
