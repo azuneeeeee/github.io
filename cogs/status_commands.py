@@ -20,9 +20,7 @@ class StatusCommands(commands.Cog):
     @app_commands.command(name="set_status", description="ボットのステータスを設定します (オーナー限定)。")
     @app_commands.default_permissions(administrator=True) # 管理者権限が必要なことを示唆
     @is_bot_owner() # オーナー限定
-    # 注意: @app_commands.guilds は setup 関数で動的に設定されるため、ここでは仮のID (0) を指定
-    # setup 関数で bot.GUILD_ID に基づいて設定される
-    @app_commands.guilds(discord.Object(id=0)) 
+    # @app_commands.guilds(discord.Object(id=0)) # この行を削除することで、コマンドはグローバルとして登録される
     @app_commands.choices(
         status=[
             app_commands.Choice(name="オンライン", value="online"), # オンラインを選択肢として追加
@@ -93,16 +91,8 @@ class StatusCommands(commands.Cog):
 
 async def setup(bot):
     cog = StatusCommands(bot)
-    # bot.GUILD_ID が利用可能になるのは on_ready 以降なので、setup_hook 時には 0 で初期化する
-    # その後、setup_hook の中でツリーの同期が行われる際に、正しい GUILD_ID が使用されるように、
-    # setup_hook の tree.sync(guild=support_guild) が適切に処理する
-    # ここでは、bot.GUILD_ID が 0 でない場合にのみギルドを渡す
-    if bot.GUILD_ID != 0:
-        await bot.add_cog(cog, guilds=[discord.Object(id=bot.GUILD_ID)])
-    else:
-        # GUILD_ID が設定されていない場合は、グローバルコマンドとして追加
-        await bot.add_cog(cog)
-        logging.warning("GUILD_ID is 0, StatusCommands cog added globally. It is recommended to set GUILD_ID for guild-specific commands.")
-
+    # add_cogのguildsパラメータを削除し、常にグローバルとして追加
+    # これにより、bot.tree.copy_global_toがこのコマンドを正しくコピーできるようになる
+    await bot.add_cog(cog)
     logging.info("StatusCommands Cog loaded.")
 
