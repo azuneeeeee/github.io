@@ -1,10 +1,11 @@
+import os
 import discord
 from discord.ext import commands
-import os
 import json
 import asyncio
 import traceback
 import logging
+from discord import app_commands # app_commands.CheckFailure のために必要
 
 # ロギング設定
 logging.basicConfig(level=logging.INFO,
@@ -87,7 +88,25 @@ class MyBot(commands.Bot):
         self.pjsk_rankmatch_result_cog = None 
         self.premium_manager_cog = None 
 
+        # ボットインスタンスにオーナーIDとギルドIDを保存
+        self.OWNER_ID = OWNER_ID
+        self.GUILD_ID = GUILD_ID # グローバルチェックで使用するため bot オブジェクトに設定
+
         logging.info("Bot instance created.")
+
+    # グローバルチェック関数として MyBot クラスのメソッドとして定義
+    async def global_owner_check_on_dnd(self, interaction: discord.Interaction) -> bool:
+        # ボットの現在のステータスが「取り込み中 (Do Not Disturb)」であるか確認
+        if interaction.client.user.status == discord.Status.dnd:
+            # もしボットが「取り込み中」で、かつコマンド実行者がオーナーではない場合
+            if interaction.user.id != self.OWNER_ID: # self.OWNER_ID を参照
+                await interaction.response.send_message(
+                    "現在、ボットは管理者モードです。全てのコマンドは製作者のみが利用できます。",
+                    ephemeral=True # 他のユーザーには見えないメッセージ
+                )
+                return False # コマンドの実行を停止
+        return True # ボットが「取り込み中」でない、または実行者がオーナーであればコマンドを許可
+
 
     async def _load_songs_data_async(self):
         """data/songs.py から楽曲データを非同期で読み込む"""
@@ -144,7 +163,7 @@ class MyBot(commands.Bot):
             except Exception as e:
                 logging.error(f"An unexpected error occurred while loading extension '{extension}': {e}", exc_info=True)
 
-
+        # 全てのコグがロードされた後に、コグ参照を設定
         logging.info("Attempting to set cog references and song data.")
         self.proseka_general_cog = self.get_cog("ProsekaGeneralCommands")
         self.proseka_rankmatch_cog = self.get_cog("ProsekaRankMatchCommands")
@@ -152,7 +171,7 @@ class MyBot(commands.Bot):
         self.pjsk_record_result_cog = self.get_cog("PjskRecordResult")
         self.help_command_cog = self.get_cog("HelpCommand")
         self.pjsk_rankmatch_result_cog = self.get_cog("ProsekaRankmatchResult") 
-        self.premium_manager_cog = self.get_cog("PremiumManagerCog") # setup()関数でcogが登録されるため、ここで取得できる
+        self.premium_manager_cog = self.get_cog("PremiumManagerCog") 
 
         if self.proseka_general_cog:
             self.proseka_general_cog.songs_data = self.proseka_songs_data
@@ -185,7 +204,6 @@ class MyBot(commands.Bot):
         else:
             logging.warning("PremiumManagerCog not found after loading.")
 
-
         # 相互参照の設定 (AP/FCレートの自動更新のため)
         if self.proseka_general_cog and self.pjsk_ap_fc_rate_cog:
             self.proseka_general_cog.ap_fc_rate_cog = self.pjsk_ap_fc_rate_cog
@@ -198,17 +216,23 @@ class MyBot(commands.Bot):
             logging.info("Set ap_fc_rate_cog reference in ProsekaRankMatchCommands.")
         else:
             logging.warning("Could not link ProsekaRankMatchCommands and PjskApFcRateCommands cog.")
-        
+            
+        # グローバルチェックをコマンドツリーに追加
+        # 全てのコマンドが登録された後でチェックが適用されるようにsetup_hookの最後の方に配置
+        logging.info("Adding global owner check for DND status...")
+        self.tree.add_check(self.global_owner_check_on_dnd)
+        logging.info("Global owner check added.")
+
         # コマンドの同期
         logging.info("Attempting to sync commands...")
         try:
             synced_global = await self.tree.sync()
             logging.info(f"Synced {len(synced_global)} global commands.")
 
-            if GUILD_ID != 0: 
-                support_guild = discord.Object(id=GUILD_ID)
+            if self.GUILD_ID != 0: # self.GUILD_ID を参照
+                support_guild = discord.Object(id=self.GUILD_ID)
                 synced_guild_commands = await self.tree.sync(guild=support_guild)
-                logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {GUILD_ID}.")
+                logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID}.")
             else:
                 logging.warning("GUILD_ID is not set or invalid (0). Skipping guild command sync.")
 
@@ -235,11 +259,13 @@ class MyBot(commands.Bot):
         logging.info("Bot is fully ready and accepting commands.")
 
         # PremiumManagerCog のタスクを起動
+        # setup_hookでpremium_manager_cogが確実にセットされていることを想定
         if self.premium_manager_cog:
-            logging.info("Starting Patreon sync task in PremiumManagerCog.")
-            self.premium_manager_cog.patreon_sync_task.start()
+            if not self.premium_manager_cog.patreon_sync_task.is_running():
+                logging.info("Starting Patreon sync task in PremiumManagerCog.")
+                self.premium_manager_cog.patreon_sync_task.start()
         else:
-            logging.warning("PremiumManagerCog not found, cannot start Patreon sync task.")
+            logging.warning("PremiumManagerCog not found, cannot start Patreon sync task on_ready.")
 
 
     async def on_command_error(self, ctx, error):
@@ -261,26 +287,32 @@ class MyBot(commands.Bot):
                 logging.error(f"Failed to send follow-up for Unknown interaction error: {e}", exc_info=True)
             return
             
-        if isinstance(error, discord.app_commands.CheckFailure):
-            if isinstance(error, discord.app_commands.MissingRole):
+        if isinstance(error, app_commands.CheckFailure): # discord.app_commands.CheckFailure を直接参照
+            # ここでは global_owner_check_on_dnd による CheckFailure も捕捉されるが、
+            # そのメッセージは global_owner_check_on_dnd 自身で送信済みなので、
+            # ここでは何もしない (pass) か、別の一般的なエラーメッセージを送信
+            # 具体的なチェックエラーの種類に応じてメッセージを分岐させることが可能
+            if isinstance(error, app_commands.MissingRole):
                 logging.warning(f"Missing role for user {interaction.user.id} on command '{interaction.command.name}'. Role ID: {error.missing_role}")
                 await interaction.response.send_message(f"このコマンドを実行するには、必要なロールがありません。", ephemeral=True)
-            elif isinstance(error, discord.app_commands.NoPrivateMessage):
+            elif isinstance(error, app_commands.NoPrivateMessage):
                 logging.warning(f"Private message usage for command '{interaction.command.name}' by user {interaction.user.id}.")
                 await interaction.response.send_message("このコマンドはDMでは実行できません。", ephemeral=True)
-            elif isinstance(error, discord.app_commands.CommandOnCooldown):
+            elif isinstance(error, app_commands.CommandOnCooldown):
                 logging.warning(f"Command '{interaction.command.name}' on cooldown for user {interaction.user.id}. Retry after {error.retry_after:.2f}s.")
                 await interaction.response.send_message(f"このコマンドはクールダウン中です。{error.retry_after:.2f}秒後に再試行してください。", ephemeral=True)
-            elif isinstance(error, discord.app_commands.MissingPermissions):
+            elif isinstance(error, app_commands.MissingPermissions):
                 logging.warning(f"Missing permissions for user {interaction.user.id} on command '{interaction.command.name}'. Permissions: {error.missing_permissions}")
                 await interaction.response.send_message(f"このコマンドを実行するための権限がありません。", ephemeral=True)
-            elif isinstance(error, discord.app_commands.AppCommandError): 
+            elif isinstance(error, app_commands.AppCommandError): 
+                # global_owner_check_on_dndからのエラーはここに来るが、
+                # 既にメッセージを送っているので、ここでは何もしない
                 pass
             else:
                 logging.warning(f"Generic CheckFailure for command '{interaction.command.name}' by user {interaction.user.id}: {error}")
                 await interaction.response.send_message(f"このコマンドを実行できませんでした（権限エラーなど）。", ephemeral=True)
             return
-        
+            
         logging.error(f"An unexpected error occurred during app command '{interaction.command.name}' by {interaction.user.id}: {error}", exc_info=True)
         try:
             if interaction.is_acknowledged():
@@ -294,13 +326,17 @@ class MyBot(commands.Bot):
 
 
 from cogs.pjsk_record_result import _create_song_data_map
-from cogs.premium_features import PremiumManagerCog # PremiumManagerCogを直接インポート
+# PremiumManagerCogは premium_features.py 内で定義されているため、main.py で直接インポートする必要はありません。
+# bot.get_cog("PremiumManagerCog") で取得されます。
+# from cogs.premium_features import PremiumManagerCog 
 
 def run_bot():
     bot = MyBot()
-    bot.GUILD_ID = GUILD_ID
-    bot.APPLICATION_ID = APPLICATION_ID
-    bot.OWNER_ID = OWNER_ID 
+    # MyBot の __init__ で既に OWNER_ID と GUILD_ID は環境変数から読み込まれて設定されているため、
+    # ここで再度設定する必要はありません。
+    # bot.GUILD_ID = GUILD_ID
+    # bot.APPLICATION_ID = APPLICATION_ID # これも __init__ で設定済み
+    # bot.OWNER_ID = OWNER_ID 
 
     if TOKEN:
         bot.run(TOKEN)
@@ -309,4 +345,3 @@ def run_bot():
 
 if __name__ == '__main__':
     run_bot()
-
