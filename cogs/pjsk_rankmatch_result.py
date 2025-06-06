@@ -5,6 +5,9 @@ from typing import List, Tuple, Dict, Any
 import traceback
 import logging
 
+# main.pyからis_not_admin_mode_for_non_ownerをインポート
+from main import is_not_admin_mode_for_non_owner 
+
 # pjsk_record_result.py から SUPPORT_GUILD_ID をインポート
 # これにより、ギルドIDをグローバルに利用可能にする
 try:
@@ -274,6 +277,7 @@ class ProsekaRankmatchResult(commands.Cog):
     @app_commands.command(name="pjsk_rankmatch_result", description="ランクマッチの結果を投稿・集計します。(最大5人対応)")
     # SUPPORT_GUILD_ID を直接使用
     @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
+    @is_not_admin_mode_for_non_owner() # ★追加: 管理者モードチェックを適用★
     async def pjsk_rankmatch_result(self, interaction: discord.Interaction):
         """ランクマッチの結果を入力するためのモーダルを表示します。"""
         logging.info(f"Command '/pjsk_rankmatch_result' invoked by {interaction.user.name} (ID: {interaction.user.id}).") # ロギングを追加
