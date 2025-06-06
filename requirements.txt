@@ -3,3 +3,4 @@ python-dotenv
 PyNaCl
 firebase-admin
 requests
+patreon
