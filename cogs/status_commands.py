@@ -25,31 +25,26 @@ class StatusCommands(commands.Cog):
 
     @app_commands.command(name="set_status", description="ボットのステータスを設定します (オーナーのみ)")
     @app_commands.describe(
-        status="設定するステータス (オンラインまたは応答不可)",
-        activity_type="アクティビティタイプ",
-        activity_name="アクティビティ名 (例: プレイ中)"
+        # ★修正点: activity_typeとactivity_nameの説明を削除★
+        status="設定するステータス (オンライン, 退席中, 取り込み中, オフライン/ステルス)" # 説明を更新
     )
     @app_commands.choices(
         status=[
-            app_commands.Choice(name="オンライン", value="online"),
-            app_commands.Choice(name="応答不可", value="dnd")
-        ],
-        activity_type=[
-            app_commands.Choice(name="プレイ中", value="playing"),
-            app_commands.Choice(name="ストリーミング中", value="streaming"),
-            app_commands.Choice(name="視聴中", value="watching"),
-            app_commands.Choice(name="競合中", value="competing"),
-            app_commands.Choice(name="リスニング", value="listening")
+            app_commands.Choice(name="オンライン (緑の丸)", value="online"),
+            app_commands.Choice(name="退席中 (オレンジの三日月)", value="idle"),
+            app_commands.Choice(name="取り込み中 (赤い横棒)", value="dnd"), # ★修正点: 「応答不可」を「取り込み中」に変更★
+            app_commands.Choice(name="オフライン/ステルス (灰色の丸)", value="invisible")
         ]
+        # ★修正点: activity_typeとactivity_nameのchoicesを削除★
     )
-    @app_commands.check(is_owner_global)
-    async def set_status(self, interaction: discord.Interaction, status: str, activity_type: str = None, activity_name: str = None):
+    # ★修正点: function signatureからactivity_typeとactivity_nameを削除★
+    async def set_status(self, interaction: discord.Interaction, status: str):
         """
-        Sets the bot's Discord status and activity.
+        Sets the bot's Discord status.
         """
-        logging.info(f"Set_status command invoked by owner {interaction.user.name} (ID: {interaction.user.id}). Status: {status}, Activity Type: {activity_type}, Activity Name: {activity_name}")
+        # ★修正点: ログメッセージを簡略化★
+        logging.info(f"Set_status command invoked by owner {interaction.user.name} (ID: {interaction.user.id}). Status: {status}.")
         
-        # ★修正点: defer を try-except で囲み、成功/失敗をフラグで管理
         defer_successful = False
         if not interaction.response.is_done():
             try:
@@ -68,57 +63,54 @@ class StatusCommands(commands.Cog):
         try:
             discord_status = getattr(discord.Status, status)
             
+            # ★修正点: activityを常にNoneに設定（アクティビティ項目を削除したため）★
             activity = None
-            if activity_type and activity_name:
-                if activity_type == "playing":
-                    activity = discord.Game(name=activity_name)
-                elif activity_type == "streaming":
-                    activity = discord.Streaming(name=activity_name, url="https://www.twitch.tv/discord") # URLはダミー
-                elif activity_type == "watching":
-                    activity = discord.Activity(type=discord.ActivityType.watching, name=activity_name)
-                elif activity_type == "competing":
-                    activity = discord.Activity(type=discord.ActivityType.competing, name=activity_name)
-                elif activity_type == "listening":
-                    activity = discord.Activity(type=discord.ActivityType.listening, name=activity_name)
-                
-            elif activity_name and not activity_type: # Only activity name provided without type
-                activity = discord.CustomActivity(name=activity_name) # Default to Custom if type is not specified but name is.
-            elif not activity_name and not activity_type:
-                # If neither activity_name nor activity_type is provided, reset to default (empty activity)
-                activity = None
 
             await self.bot.change_presence(status=discord_status, activity=activity)
             
             # ボットの管理者モードフラグを更新
+            # dndの場合のみTrue、それ以外（online, idle, invisible）はFalse
             self.bot.is_admin_mode_active = (status == "dnd")
             logging.info(f"Bot's internal admin mode flag set to {self.bot.is_admin_mode_active} by {interaction.user.name} (status: {status}).")
 
-            status_display = status.capitalize()
-            activity_display = f"({activity_type.capitalize()}: {activity_name})" if activity_type and activity_name else ""
-            if activity_name and not activity_type:
-                activity_display = f"(カスタム: {activity_name})"
+            # ★修正点: ステータスの表示名と視覚的な説明を強化（「取り込み中」に対応）★
+            status_display_with_visual_hint = ""
+            if status == "online":
+                status_display_with_visual_hint = "オンライン (緑の丸)"
+            elif status == "idle":
+                status_display_with_visual_hint = "退席中 (オレンジの三日月)"
+            elif status == "dnd":
+                status_display_with_visual_hint = "取り込み中 (赤い横棒)" # ★修正点: ここも「取り込み中」に★
+            elif status == "invisible":
+                status_display_with_visual_hint = "オフライン/ステルス (灰色の丸)"
+            else:
+                status_display_with_visual_hint = status.capitalize() # Fallback
 
-            response_message = f"✅ ボットのステータスを `{status_display}` {activity_display} に設定しました。"
-            logging.info(f"Bot status changed to {status_display} {activity_display}.")
+            # ★修正点: activity_displayの構築ロジックを削除（アクティビティ項目を削除したため）★
+
+            response_message = (
+                f"✅ ボットのステータスを `{status_display_with_visual_hint}` に設定しました。\n"
+                "**変更がDiscordクライアントに反映されない場合は、Discordアプリを完全に再起動してみてください。**"
+            )
+            # ★修正点: ログメッセージを簡略化★
+            logging.info(f"Bot status changed to {status_display_with_visual_hint}.")
 
         except AttributeError:
-            logging.error(f"Invalid status or activity type provided by user {interaction.user.id}.", exc_info=True)
-            response_message = "❌ 無効なステータスまたはアクティビティタイプが指定されました。"
+            # ★修正点: エラーメッセージを簡略化★
+            logging.error(f"Invalid status provided by user {interaction.user.id}.", exc_info=True)
+            response_message = "❌ 無効なステータスが指定されました。"
         except Exception as e:
             logging.error(f"Failed to set bot status for user {interaction.user.id}: {e}", exc_info=True)
             response_message = f"❌ ステータスの設定中にエラーが発生しました: {e}"
         
-        # ★修正点: defer が成功したかどうかにかかわらず、followup.send を試みる★
+        # defer が成功したかどうかにかかわらず、followup.send を試みる
         if defer_successful:
             await interaction.followup.send(response_message)
         else:
             # defer が失敗した場合、元々の interaction.response.send_message で試す
-            # ただし、これは最初の応答でしか使えないため、既にタイムアウトしている場合はこれも失敗する可能性が高い
-            # その場合は、エラーがログに記録されるだけで、ユーザーにはメッセージが届かない。
-            # Discord APIのタイムアウトが原因の場合、ユーザーにはボットからの応答がない状態となる。
             if not interaction.response.is_done():
                 try:
-                    await interaction.response.send_message(response_message, ephemeral=True) # ephemeralでユーザーにだけ表示
+                    await interaction.response.send_message(response_message, ephemeral=True)
                 except Exception as e:
                     logging.error(f"Failed to send direct response after defer failure: {e}", exc_info=True)
 
