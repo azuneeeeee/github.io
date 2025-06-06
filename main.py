@@ -207,23 +207,32 @@ class MyBot(commands.Bot):
         # コマンドの同期
         logging.info("Attempting to sync commands...")
         try:
-            # グローバルコマンドを同期 (MyBotクラスに直接定義されたコマンドも含む)
-            synced_global = await self.tree.sync()
-            logging.info(f"Synced {len(synced_global)} global commands.")
-
             if self.GUILD_ID != 0:
                 support_guild = discord.Object(id=self.GUILD_ID)
                 
-                # ギルドのコマンドを一度クリアし、Discordのキャッシュを強制的に更新
+                # ギルドのコマンドを一度完全にクリア (重複と古い定義を排除)
+                logging.info(f"Clearing ALL commands for guild {self.GUILD_ID}...")
                 self.tree.clear_commands(guild=support_guild)
-                await self.tree.sync(guild=support_guild) # 空のリストを同期してクリアを確定
+                # クリアを反映させるために同期
+                await self.tree.sync(guild=support_guild) 
+                logging.info(f"Commands for guild {self.GUILD_ID} cleared. {len(self.tree.get_commands(guild=support_guild))} commands remaining in tree for this guild after clear.")
                 
+                # MyBotクラスに直接定義されたコマンドも、ここでツリーに追加される（デコレータにより）
                 # グローバルコマンドをギルドにコピーし、ギルド固有のコマンドも一緒に同期
-                self.tree.copy_global_to(guild=support_guild)
+                # self.tree.copy_global_to(guild=support_guild) # これにより重複する可能性があるので削除
                 synced_guild_commands = await self.tree.sync(guild=support_guild)
-                logging.info(f"Cleared and re-synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID}.")
+                logging.info(f"Re-synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID}.")
+                
+                # コマンドが認識されるか確認ログ
+                registered_commands = [cmd.name for cmd in self.tree.get_commands(guild=support_guild)]
+                logging.info(f"Commands registered for guild {self.GUILD_ID} internally: {registered_commands}")
             else:
                 logging.warning("GUILD_ID is not set or invalid (0). Skipping guild command clear/sync during setup_hook.")
+                # GUILD_ID が設定されていない場合、グローバル同期を試みる（もしグローバルコマンドがあれば）
+                # しかし、今回は基本的にギルド固有コマンドのみを想定している
+                synced_global = await self.tree.sync()
+                logging.info(f"Synced {len(synced_global)} global commands (GUILD_ID not set).")
+
 
         except Exception as e:
             logging.error(f"Failed to sync commands: {e}", exc_info=True)
@@ -331,40 +340,37 @@ class MyBot(commands.Bot):
         return app_commands.check(predicate)
 
     # デバッグ用の同期コマンド
-    # このコマンドはグローバルに登録されます
     @app_commands.command(name="sync", description="スラッシュコマンドをDiscordと同期します (オーナー限定)。")
     @is_bot_owner()
+    @app_commands.guilds(discord.Object(id=GUILD_ID)) # GUILD_ID で指定されたギルド固有に戻す
     async def sync_commands(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
         sync_status_message = ""
-        try:
-            # グローバルコマンドを同期
-            synced_global = await self.tree.sync()
-            sync_status_message += f"グローバルコマンドを同期しました: {len(synced_global)}個\n"
-            logging.info(f"Globally synced {len(synced_global)} commands via /sync.")
-        except Exception as e:
-            sync_status_message += f"グローバルコマンドの同期に失敗しました: {e}\n"
-            logging.error(f"Failed to global sync commands via /sync: {e}", exc_info=True)
-
         if self.GUILD_ID != 0:
             try:
                 guild_obj = discord.Object(id=self.GUILD_ID)
-                # ギルドのコマンドを一度クリアし、Discordのキャッシュを強制的に更新
-                self.tree.clear_commands(guild=guild_obj) # 特定ギルドのコマンドをクリア
+                
+                # ギルドのコマンドを一度完全にクリア (重複と古い定義を排除)
+                logging.info(f"Clearing ALL commands for guild {self.GUILD_ID} via /sync command...")
+                self.tree.clear_commands(guild=guild_obj)
                 await self.tree.sync(guild=guild_obj) # クリアを反映させるために同期
                 
+                # MyBotクラスに直接定義されたコマンドも、ここでツリーに追加される（デコレータにより）
                 # グローバルコマンドをギルドにコピーし、ギルド固有のコマンドも一緒に同期
-                self.tree.copy_global_to(guild=guild_obj)
+                # self.tree.copy_global_to(guild=guild_obj) # setup_hook からも削除済み。ここでも不要と判断
                 synced_guild_commands = await self.tree.sync(guild=guild_obj)
+                
                 sync_status_message += f"このギルド ({self.GUILD_ID}) のコマンドを再同期しました: {len(synced_guild_commands)}個"
-                logging.info(f"Cleared and re-synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID} via /sync.")
+                logging.info(f"Re-synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID} via /sync command.")
             except Exception as e:
                 sync_status_message += f"ギルドコマンドの同期に失敗しました: {e}"
-                logging.error(f"Failed to guild sync commands via /sync: {e}", exc_info=True)
+                logging.error(f"Failed to guild sync commands via /sync command: {e}", exc_info=True)
         else:
-            sync_status_message += "GUILD_ID が設定されていないため、ギルドコマンドの同期はできません。"
-            logging.warning("GUILD_ID not set, skipping guild command sync via /sync.")
+            # GUILD_IDが設定されていない場合、グローバル同期は /sync コマンドでは行わない
+            # その場合、GUILD_IDが設定されていない旨を伝える
+            sync_status_message += "GUILD_ID が設定されていないため、ギルドコマンドの同期はできません。グローバル同期はできません。"
+            logging.warning("GUILD_ID not set, skipping guild command sync via /sync command.")
         
         await interaction.followup.send(sync_status_message, ephemeral=True)
 
