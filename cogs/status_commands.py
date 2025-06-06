@@ -20,8 +20,6 @@ class StatusCommands(commands.Cog):
     @app_commands.command(name="set_status", description="ボットのステータスを設定します (オーナー限定)。")
     @app_commands.default_permissions(administrator=True) # 管理者権限が必要なことを示唆
     @is_bot_owner() # オーナー限定
-    # @app_commands.guilds(discord.Object(id=0)) # この行を削除することで、コマンドはグローバルとして登録される
-                                               # setup関数でadd_cog時にguilds引数も渡さない
     @app_commands.choices(
         status=[
             app_commands.Choice(name="オンライン", value="online"), # オンラインを選択肢として追加
@@ -91,9 +89,17 @@ class StatusCommands(commands.Cog):
 
 
 async def setup(bot):
+    logging.info("Entering StatusCommands setup function.")
     cog = StatusCommands(bot)
-    # add_cogのguildsパラメータを削除し、常にグローバルとして追加
-    # これにより、bot.tree.copy_global_toがこのコマンドを正しくコピーできるようになる
     await bot.add_cog(cog)
+    logging.info("StatusCommands Cog added to bot.")
+
+    # コグが追加された直後に、bot.treeにコマンドが追加されているか確認
+    # この時点ではまだグローバル同期は行われていないため、bot.treeの内部状態を見る
+    global_commands_in_tree = bot.tree.get_commands(guild=None)
+    status_command_found = any(cmd.name == "set_status" for cmd in global_commands_in_tree)
+    logging.info(f"DEBUG: After StatusCommands setup, 'set_status' in bot.tree (global): {status_command_found}")
+    logging.info(f"DEBUG: All global commands in bot.tree after StatusCommands setup: {[cmd.name for cmd in global_commands_in_tree]}")
+
     logging.info("StatusCommands Cog loaded.")
 
