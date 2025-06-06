@@ -94,10 +94,6 @@ class MyBot(commands.Bot):
 
         logging.info("Bot instance created.")
 
-    # global_owner_check_on_dnd 関数は、on_app_command で直接呼び出すため、
-    # ここでの定義は不要となります。
-    # on_app_command_error の前に on_app_command を定義します。
-
     async def _load_songs_data_async(self):
         """data/songs.py から楽曲データを非同期で読み込む"""
         logging.info(f"Attempting to load songs data from {SONGS_FILE} asynchronously.")
@@ -207,48 +203,22 @@ class MyBot(commands.Bot):
         else:
             logging.warning("Could not link ProsekaRankMatchCommands and PjskApFcRateCommands cog.")
             
-        # グローバルチェックは on_app_command イベントで直接処理するため、
-        # ここでの self.tree.add_check は削除します。
-        # logging.info("Adding global owner check for DND status...")
-        # self.tree.add_check(self.global_owner_check_on_dnd) 
-        # logging.info("Global owner check added.")
-
-        # コマンドの同期
-        logging.info("Attempting to sync commands...")
-        try:
-            synced_global = await self.tree.sync()
-            logging.info(f"Synced {len(synced_global)} global commands.")
-
-            if self.GUILD_ID != 0: # self.GUILD_ID を参照
-                support_guild = discord.Object(id=self.GUILD_ID)
-                synced_guild_commands = await self.tree.sync(guild=support_guild)
-                logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID}.")
-            else:
-                logging.warning("GUILD_ID is not set or invalid (0). Skipping guild command sync.")
-
-        except Exception as e:
-            logging.error(f"Failed to sync commands: {e}", exc_info=True)
-
         logging.info("setup_hook completed.")
 
-    # on_app_command イベントハンドラを追加
+    # on_app_command イベントハンドラ
     async def on_app_command(self, interaction: discord.Interaction):
         # ボットの現在のステータスが「取り込み中 (Do Not Disturb)」であるか確認
         if interaction.client.user.status == discord.Status.dnd:
             # もしボットが「取り込み中」で、かつコマンド実行者がオーナーではない場合
-            if interaction.user.id != self.OWNER_ID: # self.OWNER_ID を参照
-                # コマンドを処理せずに、ユーザーにメッセージを送信し、ここで処理を終了
+            if interaction.user.id != self.OWNER_ID: 
                 await interaction.response.send_message(
                     "現在、ボットは管理者モードです。全てのコマンドは製作者のみが利用できます。",
                     ephemeral=True # 他のユーザーには見えないメッセージ
                 )
-                return # コマンドの実行を停止
-
+                return # ここで処理を終了し、コマンド実行を停止
+        
         # オーナーであるか、ボットが「取り込み中」でない場合は、通常のコマンド処理を続行
-        # ここでは super().on_app_command を直接呼び出すのではなく、
-        # discord.py の内部処理に任せるか、必要に応じて手動でディスパッチを実装します。
-        # 通常は何も書かずに return すると、discord.py の内部が処理を続行します。
-        # これにより、`on_app_command_error` よりも先にチェックが行われます。
+        # ここには何も書かないことで、discord.py の内部が引き続きコマンドをディスパッチします。
 
     async def on_ready(self):
         logging.info(f"Logged in as {self.user.name} (ID: {self.user.id})")
@@ -282,13 +252,9 @@ class MyBot(commands.Bot):
         await ctx.send(f"エラーが発生しました: {error}")
 
     async def on_app_command_error(self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
-        # global_owner_check_on_dnd は on_app_command で処理されるため、
-        # ここでは CheckFailure のエラーハンドリングから、
-        # global_owner_check_on_dnd が送信するメッセージに関する特別な処理は不要になります。
-        # もし `global_owner_check_on_dnd` が False を返してもメッセージを送信しない設計の場合、
-        # ここで AppCommandError (CheckFailure) を捕捉し、メッセージを送る必要があります。
-        # 現在の設計では、`global_owner_check_on_dnd` がメッセージを送信して return するので、
-        # その場合はこの `on_app_command_error` には到達しません。
+        # on_app_command で既にエラーメッセージを送信し、return しているため、
+        # 通常、管理者モードによる CheckFailure はここに到達しません。
+        # ここでは他の種類の CheckFailure や予期せぬエラーを処理します。
 
         if interaction.response.is_done():
             logging.error(f"App command error (interaction already responded): {error}", exc_info=True)
@@ -315,9 +281,8 @@ class MyBot(commands.Bot):
             elif isinstance(error, app_commands.MissingPermissions):
                 logging.warning(f"Missing permissions for user {interaction.user.id} on command '{interaction.command.name}'. Permissions: {error.missing_permissions}")
                 await interaction.response.send_message(f"このコマンドを実行するための権限がありません。", ephemeral=True)
-            elif isinstance(error, app_commands.AppCommandError): 
-                pass # CheckFailure の汎用的な場合はここで吸収（メッセージは個別のチェックで送信済み）
-            else:
+            # global_owner_check_on_dnd からの CheckFailure はここで処理しない (on_app_commandで既に処理済み)
+            else: # その他の AppCommandError や汎用的な CheckFailure
                 logging.warning(f"Generic CheckFailure for command '{interaction.command.name}' by user {interaction.user.id}: {error}")
                 await interaction.response.send_message(f"このコマンドを実行できませんでした（権限エラーなど）。", ephemeral=True)
             return
