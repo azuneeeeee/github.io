@@ -3,18 +3,27 @@ from discord.ext import commands
 import logging
 import asyncio
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s [%(levelname)s] %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
+# main.pyからis_bot_ownerをインポート (既にcommands.is_owner()が使われているが、念のため)
+from main import is_bot_owner
+
+# ロギング設定は main.py で一元的に行われるため、ここでのbasicConfigは不要です。
 
 class DebugCommands(commands.Cog):
+    """
+    ボットのデバッグおよび管理コマンドを提供します。
+    これらのコマンドはオーナーのみが利用可能です。
+    """
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         logging.info("DebugCommands Cog initialized.")
 
     @commands.command(name="sync", description="スラッシュコマンドをDiscordと同期します (オーナー限定)。")
-    @commands.is_owner()
+    @commands.is_owner() # オーナー限定のため、is_not_admin_mode_for_non_ownerは不要
     async def sync_commands(self, ctx: commands.Context):
+        """
+        ボットのスラッシュコマンドをDiscord APIと同期します。
+        主に開発中に新しいコマンドや変更を適用するために使用されます。
+        """
         sync_status_message = "スラッシュコマンドの同期を開始します...\n"
         status_message_obj = await ctx.send(sync_status_message)
 
@@ -80,8 +89,12 @@ class DebugCommands(commands.Cog):
                 logging.error(f"!sync コマンドの新規メッセージ送信にも失敗しました: {e_new}", exc_info=True)
 
     @commands.command(name="check_local_commands", description="ボットが内部で認識しているスラッシュコマンドを表示します (オーナー限定)。")
-    @commands.is_owner()
+    @commands.is_owner() # オーナー限定のため、is_not_admin_mode_for_non_ownerは不要
     async def check_local_commands(self, ctx: commands.Context):
+        """
+        ボットが現在内部で認識しているスラッシュコマンドのリストを表示します。
+        グローバルコマンドとギルド固有コマンドの両方を含みます。
+        """
         global_commands = self.bot.tree.get_commands(guild=None)
         guild_commands = []
         target_guild_id = self.bot.GUILD_ID
@@ -110,6 +123,7 @@ class DebugCommands(commands.Cog):
 
         full_message = "".join(message_parts)
 
+        # Discordのメッセージ文字数制限 (2000文字) に対応
         if len(full_message) > 2000:
             chunks = [full_message[i:i+1990] for i in range(0, len(full_message), 1990)]
             for chunk in chunks:
@@ -118,6 +132,7 @@ class DebugCommands(commands.Cog):
             await ctx.send(full_message)
 
 async def setup(bot):
+    """DebugCommandsコグをボットにロードします。"""
     cog = DebugCommands(bot)
     await bot.add_cog(cog)
     logging.info("DebugCommands Cog loaded.")
