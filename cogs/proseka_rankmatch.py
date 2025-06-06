@@ -2,32 +2,16 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import random
-import os
-from dotenv import load_dotenv
 import traceback
 import logging
 import asyncio
 
-load_dotenv()
-
-_owner_id_str = os.getenv('OWNER_ID')
-if _owner_id_str is None:
-    logging.critical("OWNER_ID environment variable is not set. Please set it in Render's Environment settings.")
-    OWNER_ID = -1
-else:
-    try:
-        OWNER_ID = int(_owner_id_str)
-    except ValueError:
-        logging.critical(f"OWNER_ID environment variable '{_owner_id_str}' is not a valid integer. Please check Render's Environment settings.")
-        OWNER_ID = -1
-
-def is_owner_global(interaction: discord.Interaction) -> bool:
-    return interaction.user.id == OWNER_ID and OWNER_ID != -1
+# main.pyから必要なグローバルチェック関数をインポート
+from main import is_not_admin_mode_for_non_owner
 
 class ProsekaRankMatchCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.owner_id = OWNER_ID
         logging.info("ProsekaRankMatchCommands.__init__ started.")
 
         self.DIFFICULTY_COLORS = {
@@ -86,6 +70,7 @@ class ProsekaRankMatchCommands(commands.Cog):
             app_commands.Choice(name="マスター", value="マスター"),
         ]
     )
+    @is_not_admin_mode_for_non_owner() # ★追加: 管理者モードチェックを適用★
     async def pjsk_rankmatch_song(
         self,
         interaction: discord.Interaction,
@@ -201,6 +186,3 @@ async def setup(bot):
     cog = ProsekaRankMatchCommands(bot)
     await bot.add_cog(cog)
     logging.info("ProsekaRankMatchCommands cog loaded.")
-    # ★修正: ここで PjskRecordResult をロードするような記述がないことを確認
-    # 例: from cogs.pjsk_record_result import PjskRecordResult のようなインポートがあっても、
-    # bot.add_cog(PjskRecordResult(bot)) のような初期化・追加の呼び出しがないことを確認してください。
