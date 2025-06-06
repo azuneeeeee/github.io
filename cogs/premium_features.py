@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands, tasks # 'tasks' をインポート
 from discord import app_commands
 import json
 import os
@@ -21,9 +21,6 @@ JST = timezone(timedelta(hours=9))
 PREMIUM_ROLE_ID = 1380155806485315604 
 
 try:
-    # main.py からではなく、必要に応じてこのコグ内で定義するか、環境変数から直接取得
-    # または、bot.GUILD_ID を使って main.py から渡された値を使用
-    # 今回は SUPPORT_GUILD_ID が main.py で定義され、そこからインポートされる前提
     from cogs.pjsk_record_result import SUPPORT_GUILD_ID
 except ImportError:
     logging.error("Failed to import SUPPORT_GUILD_ID from cogs.pjsk_record_result. Please ensure pjsk_record_result.py is correctly set up and defines SUPPORT_GUILD_ID.")
@@ -41,6 +38,7 @@ MIN_PREMIUM_PLEDGE_AMOUNT = 1.0
 
 if not PATREON_CREATOR_ACCESS_TOKEN:
     logging.critical("PATREON_CREATOR_ACCESS_TOKEN environment variable is not set. Patreon automation will not work.")
+
 
 def _get_patreon_client():
     if not PATREON_CREATOR_ACCESS_TOKEN:
@@ -355,7 +353,8 @@ class PremiumManagerCog(commands.Cog):
         self.premium_users = {} 
         logging.info("PremiumManagerCog initialized.")
         
-        if hasattr(self, 'patreon_sync_task') and isinstance(self.patreon_sync_task, commands.Loop):
+        # commands.Loop ではなく tasks.Loop を使用
+        if hasattr(self, 'patreon_sync_task') and isinstance(self.patreon_sync_task, tasks.Loop): # ★ここを修正★
              self.patreon_sync_task.add_exception_type(Exception)
         else:
             logging.warning("patreon_sync_task not found or not a Loop instance during cog initialization.")
@@ -378,7 +377,6 @@ class PremiumManagerCog(commands.Cog):
         success_count = 0
         removed_count = 0
         
-        # main.py の MyBot インスタンスから GUILD_ID を取得するように変更
         guild_id_to_use = self.bot.GUILD_ID if hasattr(self.bot, 'GUILD_ID') else SUPPORT_GUILD_ID 
         if guild_id_to_use == 0:
             logging.error("GUILD_ID is not set. Cannot perform Patreon sync. Please set the GUILD_ID environment variable.")
@@ -423,7 +421,7 @@ class PremiumManagerCog(commands.Cog):
             should_be_premium_by_patreon = False
             if patreon_email:
                 patron_in_patreon = patreon_email_map.get(patreon_email.lower())
-                if patron_in_patron and patron_in_patron['is_active_patron']:
+                if patron_in_patreon and patron_in_patron['is_active_patron']:
                     should_be_premium_by_patreon = True
             
             current_is_premium = False
@@ -534,7 +532,7 @@ class PremiumManagerCog(commands.Cog):
 
     @app_commands.command(name="premium_exclusive_command", description="プレミアムユーザー限定のすごい機能！")
     @is_bot_owner() 
-    @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
+    @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID)) 
     async def premium_exclusive_command(self, interaction: discord.Interaction):
         logging.info(f"Command '/premium_exclusive_command' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
         await interaction.response.defer(ephemeral=False)
@@ -749,7 +747,7 @@ class PremiumManagerCog(commands.Cog):
     @app_commands.command(name="set_status", description="ボットのステータスとアクティビティを設定します (オーナー限定)。")
     @app_commands.default_permissions(administrator=True)
     @is_bot_owner()
-    @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID)) # SUPPORT_GUILD_IDはmain.pyで定義され、ここでインポートされる
+    @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID)) 
     @app_commands.choices(
         status=[
             app_commands.Choice(name="オンライン", value="online"),
@@ -762,7 +760,7 @@ class PremiumManagerCog(commands.Cog):
             app_commands.Choice(name="視聴中", value="watching"),
             app_commands.Choice(name="聴取中", value="listening"),
             app_commands.Choice(name="競技中", value="competing"),
-            app_commands.Choice(name="なし", value="none") # アクティビティをクリアするための選択肢
+            app_commands.Choice(name="なし", value="none") 
         ]
     )
     async def set_status(self, 
@@ -774,7 +772,6 @@ class PremiumManagerCog(commands.Cog):
         logging.info(f"Command '/set_status' invoked by {interaction.user.name} (ID: {interaction.user.id}). Status: {status}, Activity Type: {activity_type}, Activity Name: {activity_name}")
         await interaction.response.defer(ephemeral=True)
 
-        # 文字列のステータスを discord.Status enum にマッピング
         discord_status = {
             "online": discord.Status.online,
             "idle": discord.Status.idle,
@@ -786,22 +783,19 @@ class PremiumManagerCog(commands.Cog):
             await interaction.followup.send("無効なステータスが指定されました。", ephemeral=True)
             return
 
-        # 文字列のアクティビティタイプを discord.ActivityType enum にマッピング
         discord_activity_type = {
             "playing": discord.ActivityType.playing,
             "watching": discord.ActivityType.watching,
             "listening": discord.ActivityType.listening,
             "competing": discord.ActivityType.competing,
-            "none": None # 'なし' を選択した場合
+            "none": None 
         }.get(activity_type)
 
         activity = None
-        # アクティビティタイプが指定されており、かつアクティビティ名がある場合
         if discord_activity_type and activity_name:
             activity = discord.Activity(type=discord_activity_type, name=activity_name)
-        # アクティビティタイプが 'なし' に設定された場合、またはアクティビティ名が指定されなかった場合
-        elif activity_type == "none" or not activity_name:
-            activity = None # アクティビティをクリア
+        elif activity_type == "none" or (activity_type and not activity_name):
+            activity = None 
 
         try:
             await self.bot.change_presence(status=discord_status, activity=activity)
@@ -814,7 +808,7 @@ class PremiumManagerCog(commands.Cog):
                 embed.add_field(name="アクティビティ", value=f"タイプ: `{activity_type}`\n名前: `{activity_name}`", inline=False)
             elif activity_type == "none":
                 embed.add_field(name="アクティビティ", value="なし", inline=False)
-            elif not activity_name and activity_type: # activity_typeは選んだけどnameがない場合
+            elif activity_type and not activity_name: 
                 embed.add_field(name="アクティビティ", value=f"タイプ: `{activity_type}` (名前なし)", inline=False)
             
             await interaction.followup.send(embed=embed, ephemeral=True)
