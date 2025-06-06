@@ -20,7 +20,9 @@ class StatusCommands(commands.Cog):
     @app_commands.command(name="set_status", description="ボットのステータスを設定します (オーナー限定)。")
     @app_commands.default_permissions(administrator=True) # 管理者権限が必要なことを示唆
     @is_bot_owner() # オーナー限定
-    @app_commands.guilds(discord.Object(id=0)) # 仮のID。実際はGUILD_IDで制限
+    # 注意: @app_commands.guilds は setup 関数で動的に設定されるため、ここでは仮のID (0) を指定
+    # setup 関数で bot.GUILD_ID に基づいて設定される
+    @app_commands.guilds(discord.Object(id=0)) 
     @app_commands.choices(
         status=[
             app_commands.Choice(name="オンライン", value="online"), # オンラインを選択肢として追加
@@ -29,11 +31,21 @@ class StatusCommands(commands.Cog):
     )
     async def set_status(self, 
                          interaction: discord.Interaction, 
-                         status: str): # activity_typeとactivity_nameは削除
+                         status: str): 
         
         logging.info(f"Command '/set_status' invoked by {interaction.user.name} (ID: {interaction.user.id}). Status: {status}")
         
-        await interaction.response.send_message("ボットのステータスを更新しています...", ephemeral=True)
+        # タイムアウトを防ぐため、最初にdeferを呼び出す
+        try:
+            await interaction.response.defer(ephemeral=True) 
+            logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
+        except discord.errors.NotFound:
+            logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound). Interaction might have timed out before defer.", exc_info=True)
+            # defer に失敗した場合は、後続のfollowup.send も失敗するのでここで終了
+            return
+        except Exception as e:
+            logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
+            return
 
         discord_status = {
             "online": discord.Status.online,
@@ -41,6 +53,7 @@ class StatusCommands(commands.Cog):
         }.get(status)
 
         if not discord_status:
+            # defer しているので followup を使う
             await interaction.followup.send("無効なステータスが指定されました。", ephemeral=True)
             return
 
@@ -68,19 +81,28 @@ class StatusCommands(commands.Cog):
             if activity:
                 embed.add_field(name="アクティビティ", value=f"カスタムステータス: `{activity.name}`", inline=False)
             
+            # defer しているので followup を使う
             await interaction.followup.send(embed=embed, ephemeral=True)
             logging.info(f"Bot presence updated to Status: {status}, Activity: {activity.name if activity else 'None'}.")
 
         except Exception as e:
             logging.error(f"Failed to change bot presence: {e}", exc_info=True)
+            # defer しているので followup を使う
             await interaction.followup.send(f"ステータスの変更に失敗しました: {e}", ephemeral=True)
 
 
 async def setup(bot):
     cog = StatusCommands(bot)
-    # GUILD_ID をここで指定することで、このコマンドが特定のギルドでのみ同期されるようにする
-    # self.bot.GUILD_ID が利用可能になるのは on_ready 以降なので、setup_hook 時には 0 で初期化する
-    # その後、setup_hook の中でツリーの同期が行われる際に、正しい GUILD_ID が使用される
-    await bot.add_cog(cog, guilds=[discord.Object(id=bot.GUILD_ID)] if bot.GUILD_ID != 0 else [])
+    # bot.GUILD_ID が利用可能になるのは on_ready 以降なので、setup_hook 時には 0 で初期化する
+    # その後、setup_hook の中でツリーの同期が行われる際に、正しい GUILD_ID が使用されるように、
+    # setup_hook の tree.sync(guild=support_guild) が適切に処理する
+    # ここでは、bot.GUILD_ID が 0 でない場合にのみギルドを渡す
+    if bot.GUILD_ID != 0:
+        await bot.add_cog(cog, guilds=[discord.Object(id=bot.GUILD_ID)])
+    else:
+        # GUILD_ID が設定されていない場合は、グローバルコマンドとして追加
+        await bot.add_cog(cog)
+        logging.warning("GUILD_ID is 0, StatusCommands cog added globally. It is recommended to set GUILD_ID for guild-specific commands.")
+
     logging.info("StatusCommands Cog loaded.")
 
