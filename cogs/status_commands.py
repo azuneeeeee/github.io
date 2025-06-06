@@ -25,25 +25,21 @@ class StatusCommands(commands.Cog):
 
     @app_commands.command(name="set_status", description="ボットのステータスを設定します (オーナーのみ)")
     @app_commands.describe(
-        # ★修正点: activity_typeとactivity_nameの説明を削除★
-        status="設定するステータス (オンライン, 退席中, 取り込み中, オフライン/ステルス)" # 説明を更新
+        status="設定するステータス" # 説明を簡略化
     )
     @app_commands.choices(
+        # ★最終修正点: 選択可能なステータスを「オンライン」と「取り込み中」のみに限定★
+        # ★重要: 「取り込み中」のvalueを"dnd"に戻し、赤い横棒表示にマッピング★
         status=[
-            app_commands.Choice(name="オンライン (緑の丸)", value="online"),
-            app_commands.Choice(name="退席中 (オレンジの三日月)", value="idle"),
-            app_commands.Choice(name="取り込み中 (赤い横棒)", value="dnd"), # ★修正点: 「応答不可」を「取り込み中」に変更★
-            app_commands.Choice(name="オフライン/ステルス (灰色の丸)", value="invisible")
+            app_commands.Choice(name="オンライン", value="online"),
+            app_commands.Choice(name="取り込み中", value="dnd"), # 「取り込み中」を選択したら内部的にはdnd (赤い横棒)
         ]
-        # ★修正点: activity_typeとactivity_nameのchoicesを削除★
     )
-    # ★修正点: function signatureからactivity_typeとactivity_nameを削除★
     async def set_status(self, interaction: discord.Interaction, status: str):
         """
-        Sets the bot's Discord status.
+        Sets the bot's Discord status and, if "dnd", sets a custom activity.
         """
-        # ★修正点: ログメッセージを簡略化★
-        logging.info(f"Set_status command invoked by owner {interaction.user.name} (ID: {interaction.user.id}). Status: {status}.")
+        logging.info(f"Set_status command invoked by owner {interaction.user.name} (ID: {interaction.user.id}). Desired status: {status}.")
         
         defer_successful = False
         if not interaction.response.is_done():
@@ -61,53 +57,47 @@ class StatusCommands(commands.Cog):
 
         response_message = ""
         try:
-            discord_status = getattr(discord.Status, status)
+            discord_status = getattr(discord.Status, status) # "online" または "dnd"
             
-            # ★修正点: activityを常にNoneに設定（アクティビティ項目を削除したため）★
             activity = None
+            # ★最終修正点: statusが"dnd"の場合にカスタムアクティビティを設定★
+            if status == "dnd":
+                activity = discord.CustomActivity(name="現在は使用できません")
+                logging.info(f"Setting custom activity '現在は使用できません' for 'dnd' status.")
 
             await self.bot.change_presence(status=discord_status, activity=activity)
             
             # ボットの管理者モードフラグを更新
-            # dndの場合のみTrue、それ以外（online, idle, invisible）はFalse
-            self.bot.is_admin_mode_active = (status == "dnd")
-            logging.info(f"Bot's internal admin mode flag set to {self.bot.is_admin_mode_active} by {interaction.user.name} (status: {status}).")
+            # 「取り込み中」（value="dnd"）が選択された場合のみTrue、それ以外はFalse
+            self.bot.is_admin_mode_active = (status == "dnd") # ★管理者モードフラグはdndでONにする★
+            logging.info(f"Bot's internal admin mode flag set to {self.bot.is_admin_mode_active} by {interaction.user.name} (selected status: {status}).")
 
-            # ★修正点: ステータスの表示名と視覚的な説明を強化（「取り込み中」に対応）★
+            # ★最終修正点: ステータスの表示名と視覚的な説明を強化し、ユーザーの意図に合わせる★
             status_display_with_visual_hint = ""
             if status == "online":
                 status_display_with_visual_hint = "オンライン (緑の丸)"
-            elif status == "idle":
-                status_display_with_visual_hint = "退席中 (オレンジの三日月)"
-            elif status == "dnd":
-                status_display_with_visual_hint = "取り込み中 (赤い横棒)" # ★修正点: ここも「取り込み中」に★
-            elif status == "invisible":
-                status_display_with_visual_hint = "オフライン/ステルス (灰色の丸)"
+            elif status == "dnd": # UI上の「取り込み中」に相当
+                status_display_with_visual_hint = "取り込み中 (赤い横棒 / カスタムステータス: 現在は使用できません)" 
             else:
                 status_display_with_visual_hint = status.capitalize() # Fallback
 
-            # ★修正点: activity_displayの構築ロジックを削除（アクティビティ項目を削除したため）★
-
             response_message = (
                 f"✅ ボットのステータスを `{status_display_with_visual_hint}` に設定しました。\n"
+                f"製作者以外のコマンドは{'制限されました' if self.bot.is_admin_mode_active else '制限されていません'}。\n"
                 "**変更がDiscordクライアントに反映されない場合は、Discordアプリを完全に再起動してみてください。**"
             )
-            # ★修正点: ログメッセージを簡略化★
             logging.info(f"Bot status changed to {status_display_with_visual_hint}.")
 
         except AttributeError:
-            # ★修正点: エラーメッセージを簡略化★
             logging.error(f"Invalid status provided by user {interaction.user.id}.", exc_info=True)
             response_message = "❌ 無効なステータスが指定されました。"
         except Exception as e:
             logging.error(f"Failed to set bot status for user {interaction.user.id}: {e}", exc_info=True)
             response_message = f"❌ ステータスの設定中にエラーが発生しました: {e}"
         
-        # defer が成功したかどうかにかかわらず、followup.send を試みる
         if defer_successful:
             await interaction.followup.send(response_message)
         else:
-            # defer が失敗した場合、元々の interaction.response.send_message で試す
             if not interaction.response.is_done():
                 try:
                     await interaction.response.send_message(response_message, ephemeral=True)
