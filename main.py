@@ -55,10 +55,14 @@ else:
 
 SONGS_FILE = 'data/songs.py'
 
-# グローバルなオーナー判定デコレータ関数
+# グローバルなオーナー判定デコレータ関数 (スラッシュコマンド用)
+# この関数は discord.Interaction を受け取るため、app_commands.check と組み合わせる
 def is_bot_owner():
     async def predicate(interaction: discord.Interaction):
-        if hasattr(interaction.client, 'OWNER_ID') and interaction.user.id == interaction.client.OWNER_ID:
+        # bot.owner_id が設定されていればそれを使用、そうでなければ環境変数OWNER_IDを使用
+        # (ただし、bot.owner_id は super().__init__ で設定されるべきなので、常に存在するはず)
+        actual_owner_id = interaction.client.owner_id if interaction.client.owner_id else interaction.client.OWNER_ID
+        if interaction.user.id == actual_owner_id:
             return True
         await interaction.response.send_message("このコマンドはボットのオーナーのみが実行できます。", ephemeral=True)
         return False
@@ -74,7 +78,8 @@ class MyBot(commands.Bot):
         super().__init__(
             command_prefix=commands.when_mentioned_or('!'),
             intents=intents,
-            application_id=APPLICATION_ID
+            application_id=APPLICATION_ID,
+            owner_id=OWNER_ID # ここにオーナーIDを渡すことで commands.is_owner() が機能する
         )
         self.initial_extensions = [
             'cogs.pjsk_ap_fc_rate',
@@ -101,8 +106,8 @@ class MyBot(commands.Bot):
         self.debug_commands_cog = None # DebugCommandsコグの参照
 
         # ボットインスタンスにオーナーIDとギルドIDを保存
-        self.OWNER_ID = OWNER_ID
-        self.GUILD_ID = GUILD_ID # グローバルチェックで使用するため bot オブジェクトに設定
+        self.OWNER_ID = OWNER_ID # グローバルチェックで使用するため bot オブジェクトに設定 (super()で設定済みだが念のため)
+        self.GUILD_ID = GUILD_ID 
 
         logging.info("Bot instance created.")
 
