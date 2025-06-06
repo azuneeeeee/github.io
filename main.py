@@ -76,6 +76,53 @@ def is_bot_owner():
         return False
     return app_commands.check(predicate)
 
+# ★追加: 管理者モードチェック用のカスタムデコレータ関数★
+def is_not_admin_mode_for_non_owner():
+    """
+    Checks if the bot is NOT in admin mode, OR if the user is the bot's owner.
+    This check will be applied to most commands.
+    """
+    async def predicate(interaction: discord.Interaction) -> bool:
+        bot_instance = interaction.client # MyBotインスタンスを取得
+        
+        # DEBUGレベルで、より詳細な情報をログに出力
+        logging.debug(
+            f"ADMIN_MODE_CHECK: Command=/{interaction.command.name}, "
+            f"User={interaction.user.name} (ID: {interaction.user.id}), "
+            f"Admin mode active: {bot_instance.is_admin_mode_active}, "
+            f"Bot OWNER_ID: {bot_instance.OWNER_ID}"
+        )
+
+        # 管理者モードが有効 (is_admin_mode_active == True) かつ、
+        # コマンド実行者がオーナーではない場合 (interaction.user.id != bot_instance.OWNER_ID)
+        if bot_instance.is_admin_mode_active and interaction.user.id != bot_instance.OWNER_ID:
+            logging.info(
+                f"ADMIN_MODE_CHECK: Blocking command /{interaction.command.name} "
+                f"for non-owner user {interaction.user.name} (ID: {interaction.user.id}) "
+                f"due to admin mode."
+            )
+            
+            # 既にレスポンス済みの場合、追加のレスポンスはできないためログのみ
+            if not interaction.response.is_done():
+                try:
+                    await interaction.response.send_message(
+                        "現在、ボットは管理者モードです。全てのコマンドは製作者のみが利用できます。",
+                        ephemeral=True # メッセージはコマンド実行者のみに見える
+                    )
+                except discord.errors.InteractionResponded:
+                    logging.warning(f"ADMIN_MODE_CHECK: InteractionResponded error when sending block message for /{interaction.command.name}.")
+                except discord.errors.NotFound:
+                    logging.warning(f"ADMIN_MODE_CHECK: NotFound error when sending block message for /{interaction.command.name}. Interaction likely timed out.")
+                except Exception as e:
+                    logging.error(f"ADMIN_MODE_CHECK: Unexpected error sending block message for /{interaction.command.name}: {e}", exc_info=True)
+            
+            return False # コマンドをブロック
+        
+        logging.debug(f"ADMIN_MODE_CHECK: Allowing command /{interaction.command.name} for user {interaction.user.name} (ID: {interaction.user.id}).")
+        return True # コマンドを許可
+    return app_commands.check(predicate)
+
+
 class MyBot(commands.Bot):
     """
     Custom Discord bot class. Manages cogs and defines event handlers.
@@ -296,53 +343,7 @@ class MyBot(commands.Bot):
 
         logging.info("setup_hook completed.")
 
-    # ★最終修正: on_interaction イベントハンドラを実装 - ここで全てをチェック・ブロック★
-    async def on_interaction(self, interaction: discord.Interaction):
-        """
-        Handles all interactions, performing a global check for admin mode
-        before any command (slash, button, etc.) is processed.
-        """
-        # 最も早い段階でのデバッグログ (print も使用して確実に表示)
-        print(f"DEBUG: on_interaction event received. Type: {interaction.type}, User ID: {interaction.user.id}, Admin mode active: {self.is_admin_mode_active}, Bot OWNER_ID: {self.OWNER_ID}")
-        logging.debug(f"ON_INTERACTION: Interaction received. Type: {interaction.type}, User ID: {interaction.user.id}. Admin mode active: {self.is_admin_mode_active}, Bot OWNER_ID: {self.OWNER_ID}")
-
-        # スラッシュコマンド（ApplicationCommand）の場合のみ管理者モードチェックを適用
-        # ボタンクリックなども on_interaction で捕まるが、それらはここではブロックしない
-        if interaction.type == discord.InteractionType.application_command:
-            # 管理者モードが有効 (is_admin_mode_active == True) かつ、
-            # コマンド実行者がオーナーではない場合 (interaction.user.id != self.OWNER_ID)
-            if self.is_admin_mode_active and interaction.user.id != self.OWNER_ID:
-                # ブロックメッセージの送信を試みる
-                if not interaction.response.is_done():
-                    try:
-                        await interaction.response.send_message(
-                            "現在、ボットは管理者モードです。全てのコマンドは製作者のみが利用できます。",
-                            ephemeral=True # メッセージはコマンド実行者のみに見える
-                        )
-                        logging.info(f"ON_INTERACTION: Successfully sent block message for /{interaction.command.name} to non-owner user {interaction.user.name} (ID: {interaction.user.id}).")
-                    except discord.errors.InteractionResponded:
-                        logging.warning(f"ON_INTERACTION: InteractionResponded error when sending block message for /{interaction.command.name}. This indicates a quick response was needed (already acknowledged).")
-                    except discord.errors.NotFound:
-                        logging.warning(f"ON_INTERACTION: NotFound error when sending block message for /{interaction.command.name}. Interaction likely timed out before message could be sent.")
-                    except Exception as e:
-                        logging.error(f"ON_INTERACTION: Unexpected error sending block message for /{interaction.command.name}: {e}", exc_info=True)
-                else:
-                    logging.warning(f"ON_INTERACTION: Interaction for /{interaction.command.name} was already responded to or timed out. Could not send block message.")
-
-                # ★重要: ここで raise commands.CheckFailure を使用して、コマンドの処理を強制的に停止させる★
-                # on_app_command_error でこの例外を捕捉し、適切に処理する
-                raise commands.CheckFailure("Bot is in admin mode.")
-            
-            logging.debug(f"ON_INTERACTION: Allowing app command /{interaction.command.name} for user {interaction.user.id}.")
-            # ★変更: process_commands() を呼び出さない - Discord.pyが自動でコマンドを処理するはず★
-            # これまでの試行で process_commands() が原因でエラーになるケースが複数発生。
-            # on_interaction でチェックをパスしたら、discord.pyの通常のイベントディスパッチに任せる。
-            # on_interaction は他のイベントハンドラやコマンド処理の前に実行されるため、
-            # 処理を停止しない限り、自動的に次の適切なハンドラ（この場合は tree.process_commands()）に流れるはず。
-
-        # その他のインタラクションタイプ (例: MessageComponent) はこのままパスさせる
-        pass # 何もせず、discord.pyの内部処理に任せる
-
+    # on_interaction イベントハンドラを削除し、各コマンドにチェックを直接適用する
 
     async def on_ready(self):
         """Called when the bot connects to Discord and is ready."""
@@ -388,13 +389,13 @@ class MyBot(commands.Bot):
     async def on_app_command_error(self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
         """
         Handles slash command errors.
-        This will catch CheckFailure raised by our on_interaction admin mode block.
+        This will catch CheckFailure raised by our custom admin mode check decorator.
         """
         # ★最終修正: admin mode check からの CheckFailure を明示的に捕捉してログのみ★
         if isinstance(error, app_commands.CheckFailure) and str(error) == "Bot is in admin mode.":
-            # The on_interaction handler has already sent the ephemeral message.
-            # Just log and return.
-            logging.info(f"on_app_command_error: Caught CheckFailure for admin mode on command '{interaction.command.name}' by user {interaction.user.id}. Command was blocked and message sent by on_interaction.")
+            # on_app_command_error の前にカスタムチェックでメッセージが送られているはず
+            # ここではログのみを記録して、それ以上の応答はしない
+            logging.info(f"on_app_command_error: Caught CheckFailure for admin mode on command '{interaction.command.name}' by user {interaction.user.id}. Command was blocked.")
             return
 
         # If interaction already responded (e.g., by another command's defer/response or timeout), ignore error
