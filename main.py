@@ -62,25 +62,20 @@ else:
 SONGS_FILE = 'data/songs.py'
 
 # グローバルなオーナー判定デコレータ関数 (スラッシュコマンド用)
-def is_bot_owner():
+# StatusCommands cogの is_owner_global とは別で、main.pyで定義し他のコグがインポートできるよう提供
+def is_owner_global(interaction: discord.Interaction) -> bool:
     """
-    Checks if the slash command was executed by the bot's owner.
+    Checks if the command was executed by the bot's owner.
+    This function can be directly used as a check decorator.
     """
-    async def predicate(interaction: discord.Interaction):
-        # Use bot.owner_id if set, otherwise use the OWNER_ID environment variable.
-        # (bot.owner_id should always be set via super().__init__ if OWNER_ID is provided)
-        actual_owner_id = interaction.client.owner_id if interaction.client.owner_id else interaction.client.OWNER_ID
-        if interaction.user.id == actual_owner_id:
-            return True
-        await interaction.response.send_message("このコマンドはボットのオーナーのみが実行できます。", ephemeral=True)
-        return False
-    return app_commands.check(predicate)
+    actual_owner_id = interaction.client.owner_id if interaction.client.owner_id else interaction.client.OWNER_ID
+    return interaction.user.id == actual_owner_id
 
-# ★追加: 管理者モードチェック用のカスタムデコレータ関数★
+# ★重要: 管理者モードチェック用のカスタムデコレータ関数★
 def is_not_admin_mode_for_non_owner():
     """
     Checks if the bot is NOT in admin mode, OR if the user is the bot's owner.
-    This check will be applied to most commands.
+    This check will be applied to most user-facing commands.
     """
     async def predicate(interaction: discord.Interaction) -> bool:
         bot_instance = interaction.client # MyBotインスタンスを取得
@@ -286,7 +281,7 @@ class MyBot(commands.Bot):
         if self.pjsk_rankmatch_result_cog:
             logging.info("PjskRankMatchResult cog found.")
         else:
-            logging.warning("PjskRankMatchResult cog not found after loading.")
+            logging.warning("PjskRankmatchResult cog not found after loading.")
 
         if self.premium_manager_cog:
             self.premium_manager_cog.is_setup_complete = True
@@ -343,7 +338,12 @@ class MyBot(commands.Bot):
 
         logging.info("setup_hook completed.")
 
-    # on_interaction イベントハンドラを削除し、各コマンドにチェックを直接適用する
+    # ★変更: on_interaction イベントハンドラは削除する★
+    # on_interaction は discord.py の内部ディスパッチと競合する可能性があり、
+    # 各コマンドに直接チェックデコレータを適用する方が信頼性が高い。
+    # async def on_interaction(self, interaction: discord.Interaction):
+    #     pass # このメソッドはもう存在しない
+
 
     async def on_ready(self):
         """Called when the bot connects to Discord and is ready."""
@@ -388,15 +388,15 @@ class MyBot(commands.Bot):
 
     async def on_app_command_error(self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
         """
-        Handles slash command errors.
-        This will catch CheckFailure raised by our custom admin mode check decorator.
+        Handles slash command errors, including custom check failures for admin mode.
         """
-        # ★最終修正: admin mode check からの CheckFailure を明示的に捕捉してログのみ★
-        if isinstance(error, app_commands.CheckFailure) and str(error) == "Bot is in admin mode.":
-            # on_app_command_error の前にカスタムチェックでメッセージが送られているはず
-            # ここではログのみを記録して、それ以上の応答はしない
-            logging.info(f"on_app_command_error: Caught CheckFailure for admin mode on command '{interaction.command.name}' by user {interaction.user.id}. Command was blocked.")
-            return
+        # ★最終修正: カスタムチェック (is_not_admin_mode_for_non_owner) からの CheckFailure を捕捉★
+        if isinstance(error, app_commands.CheckFailure):
+            # カスタムチェックデコレータが既にメッセージを送信しているため、ここではログのみ
+            if str(error) == "現在、ボットは管理者モードです。全てのコマンドは製作者のみが利用できます。" or \
+               str(error) == "このコマンドはボットのオーナーのみが実行できます。":
+                logging.info(f"on_app_command_error: Caught expected CheckFailure for admin mode or owner check on command '{interaction.command.name}' by user {interaction.user.id}. Command was blocked and message sent by check.")
+                return # すでにチェックでメッセージが送られているので、追加で応答しない
 
         # If interaction already responded (e.g., by another command's defer/response or timeout), ignore error
         if interaction.response.is_done():
@@ -414,6 +414,8 @@ class MyBot(commands.Bot):
             return
             
         # Other app_commands.CheckFailure errors (not related to admin mode)
+        # 上記の `if isinstance(error, app_commands.CheckFailure):` でほとんどの CheckFailure は捕捉されるが、
+        # ここではメッセージ未送信の場合のフォールバックとして残す
         if isinstance(error, app_commands.CheckFailure): 
             if isinstance(error, app_commands.MissingRole):
                 logging.warning(f"Missing role for user {interaction.user.id} on command '{interaction.command.name}'. Role ID: {error.missing_role}")
