@@ -186,7 +186,9 @@ class MyBot(commands.Bot):
             logging.warning("PjskRankMatchResult cog not found after loading.")
 
         if self.premium_manager_cog: 
-            logging.info("PremiumManagerCog found.")
+            # PremiumManagerCog が見つかった場合、初期化完了フラグを設定
+            self.premium_manager_cog.is_setup_complete = True # ★追加★
+            logging.info("PremiumManagerCog found and setup complete flag set.")
         else:
             logging.warning("PremiumManagerCog not found after loading.")
 
@@ -237,12 +239,15 @@ class MyBot(commands.Bot):
         logging.info("Bot is fully ready and accepting commands.")
 
         # PremiumManagerCog のタスクを起動
-        if self.premium_manager_cog:
+        # コグへの参照が設定され、かつコグのセットアップが完了していることを確認
+        if self.premium_manager_cog and hasattr(self.premium_manager_cog, 'is_setup_complete') and self.premium_manager_cog.is_setup_complete: # ★修正★
             if hasattr(self.premium_manager_cog, 'patreon_sync_task') and not self.premium_manager_cog.patreon_sync_task.is_running():
                 logging.info("Starting Patreon sync task in PremiumManagerCog.")
                 self.premium_manager_cog.patreon_sync_task.start()
+            else:
+                logging.warning("Patreon sync task already running or not found in PremiumManagerCog on_ready.")
         else:
-            logging.warning("PremiumManagerCog not found, cannot start Patreon sync task on_ready.")
+            logging.warning("PremiumManagerCog not found or not fully set up, cannot start Patreon sync task on_ready.") # ★修正★
 
 
     async def on_command_error(self, ctx, error):
@@ -334,27 +339,91 @@ class MyBot(commands.Bot):
         else:
             await interaction.followup.send("無効なスコープです。`global` または `guild` を指定してください。", ephemeral=True)
 
-    # setup_hook で同期コマンドをツリーに追加
     async def setup_hook(self):
-        # その他の setup_hook 処理
-        # ... (既存の setup_hook コード) ...
+        logging.info("Starting setup_hook...")
         
+        await self._load_songs_data_async()
+
+        for extension in self.initial_extensions:
+            try:
+                logging.info(f"Loading extension: {extension}...")
+                await self.load_extension(extension)
+                logging.info(f"Successfully loaded {extension}.")
+            except commands.ExtensionNotFound:
+                logging.error(f"Extension '{extension}' not found. Check file name and path.", exc_info=True)
+            except commands.ExtensionFailed as e:
+                logging.error(f"Extension '{extension}' failed to load due to an internal error. Check the cog's code.", exc_info=True)
+            except commands.NoEntryPointError:
+                logging.error(f"Extension '{extension}' has no 'setup' function. Make sure 'async def setup(bot):' is defined.", exc_info=True)
+            except commands.ExtensionAlreadyLoaded:
+                logging.warning(f"Extension '{extension}' is already loaded. Skipping.")
+            except Exception as e:
+                logging.error(f"An unexpected error occurred while loading extension '{extension}': {e}", exc_info=True)
+
+        # 全てのコグがロードされた後に、コグ参照を設定
+        logging.info("Attempting to set cog references and song data.")
+        self.proseka_general_cog = self.get_cog("ProsekaGeneralCommands")
+        self.proseka_rankmatch_cog = self.get_cog("ProsekaRankMatchCommands")
+        self.pjsk_ap_fc_rate_cog = self.get_cog("PjskApFcRateCommands")
+        self.pjsk_record_result_cog = self.get_cog("PjskRecordResult")
+        self.help_command_cog = self.get_cog("HelpCommand")
+        self.pjsk_rankmatch_result_cog = self.get_cog("ProsekaRankmatchResult") 
+        self.premium_manager_cog = self.get_cog("PremiumManagerCog") 
+
+        if self.proseka_general_cog:
+            self.proseka_general_cog.songs_data = self.proseka_songs_data
+            self.proseka_general_cog.valid_difficulties = self.valid_difficulties_data
+            logging.info("Set songs_data and valid_difficulties in ProsekaGeneralCommands.")
+        else:
+            logging.warning("ProsekaGeneralCommands cog not found after loading.")
+
+        if self.proseka_rankmatch_cog:
+            self.proseka_rankmatch_cog.songs_data = self.proseka_songs_data
+            self.proseka_rankmatch_cog.valid_difficulties = self.valid_difficulties_data
+            logging.info("Set songs_data and valid_difficulties in ProsekaRankMatchCommands.")
+        else:
+            logging.warning("ProsekaRankMatchCommands cog not found after loading.")
+
+        if self.pjsk_record_result_cog:
+            self.pjsk_record_result_cog.songs_data = self.proseka_songs_data
+            self.pjsk_record_result_cog.SONG_DATA_MAP = _create_song_data_map(self.proseka_songs_data)
+            logging.info("Set songs_data and updated SONG_DATA_MAP in PjskRecordResult cog.")
+        else:
+            logging.warning("PjskRecordResult cog not found after loading.")
+
+        if self.pjsk_rankmatch_result_cog:
+            logging.info("PjskRankMatchResult cog found.")
+        else:
+            logging.warning("PjskRankMatchResult cog not found after loading.")
+
+        if self.premium_manager_cog: 
+            self.premium_manager_cog.is_setup_complete = True 
+            logging.info("PremiumManagerCog found and setup complete flag set.")
+        else:
+            logging.warning("PremiumManagerCog not found after loading.")
+
+        # 相互参照の設定 (AP/FCレートの自動更新のため)
+        if self.proseka_general_cog and self.pjsk_ap_fc_rate_cog:
+            self.proseka_general_cog.ap_fc_rate_cog = self.pjsk_ap_fc_rate_cog
+            logging.info("Set ap_fc_rate_cog reference in ProsekaGeneralCommands.")
+        else:
+            logging.warning("Could not link ProsekaGeneralCommands and PjskApFcRateCommands cog.")
+
+        if self.proseka_rankmatch_cog and self.pjsk_ap_fc_rate_cog:
+            self.proseka_rankmatch_cog.ap_fc_rate_cog = self.pjsk_ap_fc_rate_cog
+            logging.info("Set ap_fc_rate_cog reference in ProsekaRankMatchCommands.")
+        else:
+            logging.warning("Could not link ProsekaRankMatchCommands and PjskApFcRateCommands cog.")
+            
         # デバッグ用の同期コマンドを登録
-        self.tree.add_command(self.sync_commands, guild=discord.Object(id=self.GUILD_ID)) # ギルド固有コマンドとして登録
+        self.tree.add_command(self.sync_commands, guild=discord.Object(id=self.GUILD_ID)) 
         logging.info("'/sync' command added to command tree.")
         
         # コマンドの同期 (既存のコード)
         logging.info("Attempting to sync commands...")
         try:
-            # グローバル同期は必要に応じて手動 /sync で行うため、ここではギルド同期のみにするか、
-            # あるいは両方維持する。頻繁なグローバル同期はレートリミットに注意。
-            # 例: グローバルコマンドを頻繁に更新しない場合はコメントアウト
-            # synced_global = await self.tree.sync()
-            # logging.info(f"Synced {len(synced_global)} global commands.")
-
             if self.GUILD_ID != 0: 
                 support_guild = discord.Object(id=self.GUILD_ID)
-                # グローバルコマンドをギルドにコピーしてから同期（重要）
                 self.tree.copy_global_to(guild=support_guild) 
                 synced_guild_commands = await self.tree.sync(guild=support_guild)
                 logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID}.")
@@ -371,12 +440,6 @@ from cogs.pjsk_record_result import _create_song_data_map
 
 def run_bot():
     bot = MyBot()
-
-    # setup_hook で GUILD_ID を参照するため、bot インスタンスにセットする
-    # GUILD_ID, OWNER_ID, APPLICATION_ID は既に MyBot の __init__ で設定済み
-    # bot.GUILD_ID = GUILD_ID 
-    # bot.APPLICATION_ID = APPLICATION_ID 
-    # bot.OWNER_ID = OWNER_ID 
 
     if TOKEN:
         bot.run(TOKEN)
