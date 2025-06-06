@@ -204,18 +204,21 @@ class MyBot(commands.Bot):
         else:
             logging.warning("Could not link ProsekaRankMatchCommands and PjskApFcRateCommands cog.")
             
-        # デバッグ用の同期コマンドを登録
-        # self.tree.add_command(self.sync_commands, guild=discord.Object(id=self.GUILD_ID)) # この行を削除/コメントアウト
+        # デバッグ用の同期コマンドを登録 (コメント解除)
+        # MyBotクラスに直接定義されたコマンドは、setup_hookで手動でtreeに追加する必要がある
+        if self.GUILD_ID != 0:
+            self.tree.add_command(self.sync_commands, guild=discord.Object(id=self.GUILD_ID)) 
+            logging.info("'/sync' command added to command tree for specified guild.")
+        else:
+            # GUILD_IDが設定されていない場合でも、少なくともグローバルに登録を試みる
+            self.tree.add_command(self.sync_commands)
+            logging.warning("GUILD_ID not set, adding '/sync' command globally.")
         
         # コマンドの同期
         logging.info("Attempting to sync commands...")
         try:
-            # グローバル同期は自動で行われるべき。
-            # sync_commands メソッドで手動でグローバル/ギルド同期できるようにしたので、
-            # setup_hook での自動同期は、基本的にはギルド固有のコマンドのみを対象にするか、
-            # あるいは全コマンドを同期するが、頻繁な変更がない限りグローバル同期は控えめに。
-            # 今回は、ギルド固有のコマンドも含む全コマンドを同期する。
-            synced_global = await self.tree.sync() # グローバルコマンドを同期
+            # まずグローバルコマンドを同期
+            synced_global = await self.tree.sync() 
             logging.info(f"Synced {len(synced_global)} global commands.")
 
             if self.GUILD_ID != 0: 
