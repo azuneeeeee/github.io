@@ -1,7 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from discord.ui import Button, View, Modal, TextInput, Select # Select もインポート
+from discord.ui import Button, View, Modal, TextInput, Select
 import json
 import os
 import re
@@ -9,17 +9,10 @@ import traceback
 import logging
 
 # main.pyからis_not_admin_mode_for_non_ownerをインポート
+# _create_song_data_map は main.py に移動されたため、ここではインポート不要です。
 from main import is_not_admin_mode_for_non_owner 
 
-# songs.py のデータを SONGS_DATA_MAP に変換する関数
-# この関数をコグクラスの外に移動し、グローバル関数として定義
-def _create_song_data_map(songs_list):
-    song_map = {}
-    for song in songs_list:
-        title = song.get("title")
-        if title:
-            song_map[title.lower()] = song
-    return song_map
+# songs.py のデータを SONGS_DATA_MAP に変換する関数は main.py に移動されました。
 
 SUPPORT_GUILD_ID = 1376551581423767582
 
@@ -273,7 +266,7 @@ class UpdateRecordModal(Modal, title="記録を更新"):
         updated_embed = self.create_display_embed(interaction.user, self.song_name, self.difficulty, current_record, self.song_data_map)
         updated_embed.description = "記録が更新されました！"
 
-        view = RecordAccuracyView(self.bot, int(self.user_id), self.song_name, self.difficulty, self.song_data_map) # song_name と difficulty を渡す
+        view = RecordAccuracyView(self.bot, int(self.user_id), self.song_name, self.difficulty, self.song_data_map)
         view.set_button_states(has_record=True)
 
         await interaction.response.send_message(embed=updated_embed, view=view)
@@ -545,18 +538,18 @@ class RecordAccuracyView(View):
 
 
 class PjskRecordResult(commands.Cog):
-    def __init__(self, bot: commands.Bot, songs_data: list = None):
+    # ★修正: songs_data を songs_data_map に変更★
+    def __init__(self, bot: commands.Bot, songs_data_map: dict = None):
         self.bot = bot
-        self.songs_data = songs_data if songs_data is not None else []
-        # グローバル関数 _create_song_data_map を直接呼び出す
-        self.SONG_DATA_MAP = _create_song_data_map(self.songs_data)
+        # グローバル関数 _create_song_data_map は main.py に移動されたため、直接受け取る
+        self.SONG_DATA_MAP = songs_data_map if songs_data_map is not None else {}
         logging.info("PjskRecordResult Cog initialized.")
         logging.debug(f"SONG_DATA_MAP created with {len(self.SONG_DATA_MAP)} entries.")
 
 
     @app_commands.command(name="pjsk_record_result", description="プロセカの精度記録を管理します。")
     @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
-    @is_not_admin_mode_for_non_owner() # ★追加: 管理者モードチェックを適用★
+    @is_not_admin_mode_for_non_owner() # 管理者モードチェックを適用
     async def pjsk_record_result(
         self,
         interaction: discord.Interaction
@@ -656,9 +649,9 @@ class PjskRecordResult(commands.Cog):
 
 async def setup(bot: commands.Bot):
     os.makedirs(DATA_DIR, exist_ok=True)
-    # main.py から songs_data が設定されるのを待つ
-    # setup_hookの実行順序により、bot.proseka_songs_data は既に設定されているはず
-    songs_data = bot.proseka_songs_data if hasattr(bot, 'proseka_songs_data') else []
-    cog = PjskRecordResult(bot, songs_data=songs_data)
+    # main.py の setup_hook で SONGS_DATA_MAP が bot オブジェクトに設定されていることを期待
+    # setup_hookの実行順序により、bot.SONG_DATA_MAP は既に設定されているはず
+    songs_data_map = bot.SONG_DATA_MAP if hasattr(bot, 'SONG_DATA_MAP') else {}
+    cog = PjskRecordResult(bot, songs_data_map=songs_data_map) # ★修正: songs_data_map を渡す★
     await bot.add_cog(cog)
     logging.info("PjskRecordResult cog loaded.")
