@@ -2,33 +2,14 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import random
-import os
-from dotenv import load_dotenv
 import asyncio
 import traceback
 import logging
 from discord.ui import Button, View, Modal, TextInput, Select
 
-load_dotenv()
-
-_owner_id_str = os.getenv('OWNER_ID')
-if _owner_id_str is None:
-    logging.critical("OWNER_ID environment variable is not set. Please set it in Render's Environment settings.")
-    OWNER_ID = -1
-else:
-    try:
-        OWNER_ID = int(_owner_id_str)
-    except ValueError:
-        logging.critical(f"OWNER_ID environment variable '{_owner_id_str}' is not a valid integer. Please check Render's Environment settings.")
-        OWNER_ID = -1
-
-def is_owner_global(interaction: discord.Interaction) -> bool:
-    """
-    Checks if the interaction user is the owner (global check function).
-    This function is defined here but the cog's slash commands should ideally use the one imported from main.py
-    for consistency and proper owner_id resolution from bot.owner_id.
-    """
-    return interaction.user.id == OWNER_ID
+# main.py から is_not_admin_mode_for_non_owner 関数をインポート
+# この関数は、ボットの管理者モードが有効な場合に、非オーナーからのコマンド実行をブロックします。
+from main import is_not_admin_mode_for_non_owner 
 
 class ProsekaGeneralCommands(commands.Cog):
     """
@@ -36,7 +17,6 @@ class ProsekaGeneralCommands(commands.Cog):
     """
     def __init__(self, bot):
         self.bot = bot
-        self.owner_id = OWNER_ID # Store owner_id for this cog
         logging.info("ProsekaGeneralCommands.__init__ started.")
 
         # Define color mapping for difficulties
@@ -66,7 +46,6 @@ class ProsekaGeneralCommands(commands.Cog):
             logging.debug(f"Loaded {len(self.songs_data)} songs.")
         else:
             logging.debug("No songs loaded or songs_data is empty.")
-        # 修正: ロギングの引数渡しを修正
         logging.debug("Valid Difficulties loaded: %s", self.valid_difficulties)
 
     def _get_difficulty_level(self, song: dict, difficulty_name: str) -> int | None:
@@ -74,6 +53,7 @@ class ProsekaGeneralCommands(commands.Cog):
         return song.get(difficulty_name.lower())
 
     @app_commands.command(name="pjsk_list_songs", description="プロジェクトセカイの楽曲一覧をメニューで並べ替えて表示します。")
+    @is_not_admin_mode_for_non_owner() # ★追加: 管理者モードチェックを適用★
     async def pjsk_list_songs(self, interaction: discord.Interaction):
         """
         Displays an interactive list of Project SEKAI songs with sorting and filtering options.
@@ -147,6 +127,7 @@ class ProsekaGeneralCommands(commands.Cog):
     @app_commands.choices(
         difficulty=[app_commands.Choice(name=d, value=d) for d in ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]]
     )
+    @is_not_admin_mode_for_non_owner() # ★追加: 管理者モードチェックを適用★
     async def pjsk_random_song(self, 
                                interaction: discord.Interaction, 
                                difficulty: str = None, 
@@ -201,7 +182,7 @@ class ProsekaGeneralCommands(commands.Cog):
                     d_lower = d_upper.lower()
                     level = self._get_difficulty_level(song, d_lower)
                     if level is not None:
-                         # Check if level is within range if provided
+                        # Check if level is within range if provided
                         if (min_level is None or level >= min_level) and \
                            (max_level is None or level <= max_level):
                             eligible_difficulties_for_song.append({"difficulty": d_lower, "level": level})
@@ -424,7 +405,7 @@ class SongListView(discord.ui.View):
             )
             total_songs_count_for_footer = total_songs_with_filtered_difficulty
             total_songs_label = f"{self.current_difficulty_filter}譜面あり"
-        
+            
         embed.set_footer(text=f"{total_songs_label} {total_songs_count_for_footer} 曲 | ページ {self.current_page + 1}/{self.total_pages} | ソート: {sort_display_name} | フィルター: {filter_display_name}")
         
         return embed
