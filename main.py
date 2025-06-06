@@ -50,11 +50,13 @@ _application_id_str = os.getenv('APPLICATION_ID')
 if _application_id_str:
     try:
         APPLICATION_ID = int(_application_id_str)
+        if APPLICATION_ID == 0:
+            logging.critical("APPLICATION_ID environment variable is set to 0. Global slash commands will not register correctly. Please ensure it's a valid application ID.")
     except ValueError:
         logging.critical(f"APPLICATION_ID environment variable '{_application_id_str}' is not a valid integer. Using default 0.", exc_info=True)
         APPLICATION_ID = 0
 else:
-    logging.critical("APPLICATION_ID environment variable is not set. Using default 0. Please set it in Render's Environment settings or .env file.")
+    logging.critical("APPLICATION_ID environment variable is not set. Using default 0. Global slash commands will not register correctly. Please set it in Render's Environment settings or .env file.")
     APPLICATION_ID = 0
 
 SONGS_FILE = 'data/songs.py'
@@ -79,7 +81,7 @@ class MyBot(commands.Bot):
         super().__init__(
             command_prefix=commands.when_mentioned_or('!'),
             intents=intents,
-            application_id=APPLICATION_ID,
+            application_id=APPLICATION_ID, # ここにAPPLICATION_IDを渡す
             owner_id=OWNER_ID
         )
         self.initial_extensions = [
@@ -166,6 +168,21 @@ class MyBot(commands.Bot):
                 logging.warning(f"ExtensionAlreadyLoaded: Extension '{extension}' is already loaded. Skipping.")
             except Exception as e:
                 logging.error(f"An unexpected error occurred while loading extension '{extension}': {e}", exc_info=True)
+
+        # --- DEBUG: Checking bot.tree after all cogs are loaded ---
+        logging.info("--- DEBUG: Checking bot.tree after all cogs are loaded ---")
+        global_commands_after_load = self.tree.get_commands(guild=None)
+        logging.info(f"Global commands in bot.tree after loading cogs: {[cmd.name for cmd in global_commands_after_load]}")
+        logging.info(f"Total global commands in bot.tree after loading cogs: {len(global_commands_after_load)}")
+
+        if self.GUILD_ID != 0:
+            guild_obj_for_debug = discord.Object(id=self.GUILD_ID)
+            guild_commands_after_load = self.tree.get_commands(guild=guild_obj_for_debug)
+            logging.info(f"Guild commands in bot.tree for GUILD_ID {self.GUILD_ID} after loading cogs: {[cmd.name for cmd in guild_commands_after_load]}")
+            logging.info(f"Total guild commands in bot.tree for GUILD_ID {self.GUILD_ID} after loading cogs: {len(guild_commands_after_load)}")
+        else:
+            logging.info("GUILD_ID is 0, skipping guild command check in bot.tree after loading cogs.")
+        logging.info("--- END DEBUG: bot.tree check ---")
         
         # 全てのコグがロードされた後に、コグ参照を設定
         logging.info("Attempting to set cog references and song data.")
@@ -241,8 +258,6 @@ class MyBot(commands.Bot):
                 support_guild = discord.Object(id=self.GUILD_ID)
                 
                 # ボットの内部ツリーにある全てのコマンドを、そのギルドに同期
-                # グローバルとして定義されたスラッシュコマンドもguilds引数なしでadd_cogされた場合は
-                # このタイミングで特定のギルドにコピー・同期できる
                 synced_guild_commands = await self.tree.sync(guild=support_guild)
                 logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID} during setup_hook.")
                 
