@@ -186,8 +186,7 @@ class MyBot(commands.Bot):
             logging.warning("PjskRankMatchResult cog not found after loading.")
 
         if self.premium_manager_cog: 
-            # PremiumManagerCog が見つかった場合、初期化完了フラグを設定
-            self.premium_manager_cog.is_setup_complete = True # ★追加★
+            self.premium_manager_cog.is_setup_complete = True 
             logging.info("PremiumManagerCog found and setup complete flag set.")
         else:
             logging.warning("PremiumManagerCog not found after loading.")
@@ -205,6 +204,33 @@ class MyBot(commands.Bot):
         else:
             logging.warning("Could not link ProsekaRankMatchCommands and PjskApFcRateCommands cog.")
             
+        # デバッグ用の同期コマンドを登録
+        # self.tree.add_command(self.sync_commands, guild=discord.Object(id=self.GUILD_ID)) # この行を削除/コメントアウト
+        
+        # コマンドの同期
+        logging.info("Attempting to sync commands...")
+        try:
+            # グローバル同期は自動で行われるべき。
+            # sync_commands メソッドで手動でグローバル/ギルド同期できるようにしたので、
+            # setup_hook での自動同期は、基本的にはギルド固有のコマンドのみを対象にするか、
+            # あるいは全コマンドを同期するが、頻繁な変更がない限りグローバル同期は控えめに。
+            # 今回は、ギルド固有のコマンドも含む全コマンドを同期する。
+            synced_global = await self.tree.sync() # グローバルコマンドを同期
+            logging.info(f"Synced {len(synced_global)} global commands.")
+
+            if self.GUILD_ID != 0: 
+                support_guild = discord.Object(id=self.GUILD_ID)
+                # グローバルコマンドをギルドにコピーしてから同期（重要）
+                # これにより、ギルドコマンドとして登録されたものも更新される
+                self.tree.copy_global_to(guild=support_guild) 
+                synced_guild_commands = await self.tree.sync(guild=support_guild)
+                logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID}.")
+            else:
+                logging.warning("GUILD_ID is not set or invalid (0). Skipping guild command sync.")
+
+        except Exception as e:
+            logging.error(f"Failed to sync commands: {e}", exc_info=True)
+
         logging.info("setup_hook completed.")
 
     # on_app_command イベントハンドラ
@@ -240,14 +266,14 @@ class MyBot(commands.Bot):
 
         # PremiumManagerCog のタスクを起動
         # コグへの参照が設定され、かつコグのセットアップが完了していることを確認
-        if self.premium_manager_cog and hasattr(self.premium_manager_cog, 'is_setup_complete') and self.premium_manager_cog.is_setup_complete: # ★修正★
+        if self.premium_manager_cog and hasattr(self.premium_manager_cog, 'is_setup_complete') and self.premium_manager_cog.is_setup_complete: 
             if hasattr(self.premium_manager_cog, 'patreon_sync_task') and not self.premium_manager_cog.patreon_sync_task.is_running():
                 logging.info("Starting Patreon sync task in PremiumManagerCog.")
                 self.premium_manager_cog.patreon_sync_task.start()
             else:
                 logging.warning("Patreon sync task already running or not found in PremiumManagerCog on_ready.")
         else:
-            logging.warning("PremiumManagerCog not found or not fully set up, cannot start Patreon sync task on_ready.") # ★修正★
+            logging.warning("PremiumManagerCog not found or not fully set up, cannot start Patreon sync task on_ready.")
 
 
     async def on_command_error(self, ctx, error):
@@ -297,143 +323,6 @@ class MyBot(commands.Bot):
             pass
         except Exception as e:
             logging.error(f"Failed to send error message to user: {e}", exc_info=True)
-
-    # オーナー判定デコレータ
-    def is_bot_owner():
-        async def predicate(interaction: discord.Interaction):
-            if hasattr(interaction.client, 'OWNER_ID') and interaction.user.id == interaction.client.OWNER_ID:
-                return True
-            await interaction.response.send_message("このコマンドはボットのオーナーのみが実行できます。", ephemeral=True)
-            return False
-        return app_commands.check(predicate)
-
-    # デバッグ用の同期コマンド
-    @app_commands.command(name="sync", description="スラッシュコマンドをDiscordと同期します (オーナー限定)。")
-    @is_bot_owner()
-    @app_commands.guilds(discord.Object(id=GUILD_ID)) # GUILD_ID は MyBot の属性としてアクセス
-    async def sync_commands(self, interaction: discord.Interaction, scope: str = "guild"):
-        await interaction.response.defer(ephemeral=True)
-
-        if scope == "global":
-            try:
-                synced = await self.tree.sync()
-                await interaction.followup.send(f"グローバルコマンドを同期しました: {len(synced)}個", ephemeral=True)
-                logging.info(f"Globally synced {len(synced)} commands.")
-            except Exception as e:
-                await interaction.followup.send(f"グローバルコマンドの同期に失敗しました: {e}", ephemeral=True)
-                logging.error(f"Failed to global sync commands: {e}", exc_info=True)
-        elif scope == "guild":
-            if self.GUILD_ID != 0:
-                try:
-                    guild_obj = discord.Object(id=self.GUILD_ID)
-                    self.tree.copy_global_to(guild=guild_obj) # グローバルをギルドにコピー
-                    synced = await self.tree.sync(guild=guild_obj)
-                    await interaction.followup.send(f"このギルド ({self.GUILD_ID}) のコマンドを同期しました: {len(synced)}個", ephemeral=True)
-                    logging.info(f"Guild ({self.GUILD_ID}) synced {len(synced)} commands.")
-                except Exception as e:
-                    await interaction.followup.send(f"ギルドコマンドの同期に失敗しました: {e}", ephemeral=True)
-                    logging.error(f"Failed to guild sync commands: {e}", exc_info=True)
-            else:
-                await interaction.followup.send("GUILD_ID が設定されていないため、ギルドコマンドの同期はできません。", ephemeral=True)
-                logging.warning("GUILD_ID not set, skipping guild command sync.")
-        else:
-            await interaction.followup.send("無効なスコープです。`global` または `guild` を指定してください。", ephemeral=True)
-
-    async def setup_hook(self):
-        logging.info("Starting setup_hook...")
-        
-        await self._load_songs_data_async()
-
-        for extension in self.initial_extensions:
-            try:
-                logging.info(f"Loading extension: {extension}...")
-                await self.load_extension(extension)
-                logging.info(f"Successfully loaded {extension}.")
-            except commands.ExtensionNotFound:
-                logging.error(f"Extension '{extension}' not found. Check file name and path.", exc_info=True)
-            except commands.ExtensionFailed as e:
-                logging.error(f"Extension '{extension}' failed to load due to an internal error. Check the cog's code.", exc_info=True)
-            except commands.NoEntryPointError:
-                logging.error(f"Extension '{extension}' has no 'setup' function. Make sure 'async def setup(bot):' is defined.", exc_info=True)
-            except commands.ExtensionAlreadyLoaded:
-                logging.warning(f"Extension '{extension}' is already loaded. Skipping.")
-            except Exception as e:
-                logging.error(f"An unexpected error occurred while loading extension '{extension}': {e}", exc_info=True)
-
-        # 全てのコグがロードされた後に、コグ参照を設定
-        logging.info("Attempting to set cog references and song data.")
-        self.proseka_general_cog = self.get_cog("ProsekaGeneralCommands")
-        self.proseka_rankmatch_cog = self.get_cog("ProsekaRankMatchCommands")
-        self.pjsk_ap_fc_rate_cog = self.get_cog("PjskApFcRateCommands")
-        self.pjsk_record_result_cog = self.get_cog("PjskRecordResult")
-        self.help_command_cog = self.get_cog("HelpCommand")
-        self.pjsk_rankmatch_result_cog = self.get_cog("ProsekaRankmatchResult") 
-        self.premium_manager_cog = self.get_cog("PremiumManagerCog") 
-
-        if self.proseka_general_cog:
-            self.proseka_general_cog.songs_data = self.proseka_songs_data
-            self.proseka_general_cog.valid_difficulties = self.valid_difficulties_data
-            logging.info("Set songs_data and valid_difficulties in ProsekaGeneralCommands.")
-        else:
-            logging.warning("ProsekaGeneralCommands cog not found after loading.")
-
-        if self.proseka_rankmatch_cog:
-            self.proseka_rankmatch_cog.songs_data = self.proseka_songs_data
-            self.proseka_rankmatch_cog.valid_difficulties = self.valid_difficulties_data
-            logging.info("Set songs_data and valid_difficulties in ProsekaRankMatchCommands.")
-        else:
-            logging.warning("ProsekaRankMatchCommands cog not found after loading.")
-
-        if self.pjsk_record_result_cog:
-            self.pjsk_record_result_cog.songs_data = self.proseka_songs_data
-            self.pjsk_record_result_cog.SONG_DATA_MAP = _create_song_data_map(self.proseka_songs_data)
-            logging.info("Set songs_data and updated SONG_DATA_MAP in PjskRecordResult cog.")
-        else:
-            logging.warning("PjskRecordResult cog not found after loading.")
-
-        if self.pjsk_rankmatch_result_cog:
-            logging.info("PjskRankMatchResult cog found.")
-        else:
-            logging.warning("PjskRankMatchResult cog not found after loading.")
-
-        if self.premium_manager_cog: 
-            self.premium_manager_cog.is_setup_complete = True 
-            logging.info("PremiumManagerCog found and setup complete flag set.")
-        else:
-            logging.warning("PremiumManagerCog not found after loading.")
-
-        # 相互参照の設定 (AP/FCレートの自動更新のため)
-        if self.proseka_general_cog and self.pjsk_ap_fc_rate_cog:
-            self.proseka_general_cog.ap_fc_rate_cog = self.pjsk_ap_fc_rate_cog
-            logging.info("Set ap_fc_rate_cog reference in ProsekaGeneralCommands.")
-        else:
-            logging.warning("Could not link ProsekaGeneralCommands and PjskApFcRateCommands cog.")
-
-        if self.proseka_rankmatch_cog and self.pjsk_ap_fc_rate_cog:
-            self.proseka_rankmatch_cog.ap_fc_rate_cog = self.pjsk_ap_fc_rate_cog
-            logging.info("Set ap_fc_rate_cog reference in ProsekaRankMatchCommands.")
-        else:
-            logging.warning("Could not link ProsekaRankMatchCommands and PjskApFcRateCommands cog.")
-            
-        # デバッグ用の同期コマンドを登録
-        self.tree.add_command(self.sync_commands, guild=discord.Object(id=self.GUILD_ID)) 
-        logging.info("'/sync' command added to command tree.")
-        
-        # コマンドの同期 (既存のコード)
-        logging.info("Attempting to sync commands...")
-        try:
-            if self.GUILD_ID != 0: 
-                support_guild = discord.Object(id=self.GUILD_ID)
-                self.tree.copy_global_to(guild=support_guild) 
-                synced_guild_commands = await self.tree.sync(guild=support_guild)
-                logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID}.")
-            else:
-                logging.warning("GUILD_ID is not set or invalid (0). Skipping guild command sync.")
-
-        except Exception as e:
-            logging.error(f"Failed to sync commands: {e}", exc_info=True)
-
-        logging.info("setup_hook completed.")
 
 
 from cogs.pjsk_record_result import _create_song_data_map
