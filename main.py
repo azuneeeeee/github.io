@@ -108,6 +108,7 @@ class MyBot(commands.Bot):
         self.proseka_songs_data = [] # Project SEKAI song data
         self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"] # List of valid difficulties
         self.is_bot_ready = False # Flag to indicate if the bot is ready
+        self.is_admin_mode_active = False # ★追加: 管理者モードの状態を保持するフラグ
 
         # Initialize attributes for cog references (will be set after cogs are loaded)
         self.proseka_general_cog = None
@@ -298,28 +299,22 @@ class MyBot(commands.Bot):
     # on_app_command event handler
     async def on_app_command(self, interaction: discord.Interaction):
         """Handles slash command invocations, checking bot status for admin mode."""
-        # コマンドが呼び出された際のログ出力（INFOレベルで十分）
-        logging.info(f"on_app_command triggered by user {interaction.user.name} (ID: {interaction.user.id}) for command /{interaction.command.name}. Bot status: {self.user.status}")
+        # コマンドが呼び出された際のログ出力
+        logging.info(f"on_app_command triggered by user {interaction.user.name} (ID: {interaction.user.id}) for command /{interaction.command.name}. Bot's internal admin mode flag: {self.is_admin_mode_active}")
 
-        # ボットの現在のステータスが「応答不可 (Do Not Disturb)」であるかチェック
-        if self.user.status == discord.Status.dnd: # self.user.status はボット自身の現在のステータス
-            # DNDモードに入っていることを検知した際の詳細ログ (DEBUGレベル)
-            logging.debug(f"Bot is in DND mode. Checking user ID {interaction.user.id} against owner ID {self.OWNER_ID}.")
+        # 管理者モードが有効になっているか、およびコマンド実行者がオーナーではないかチェック
+        if self.is_admin_mode_active and interaction.user.id != self.OWNER_ID:
+            logging.info(f"Non-owner user {interaction.user.name} (ID: {interaction.user.id}) attempted command /{interaction.command.name} while bot is in admin mode. Blocking.")
             
-            # コマンドを実行したユーザーがオーナーではない場合
-            if interaction.user.id != self.OWNER_ID:
-                # 非オーナーユーザーがDND中にコマンドを試行した際のログ (INFOレベル)
-                logging.info(f"Non-owner user {interaction.user.name} (ID: {interaction.user.id}) attempted command /{interaction.command.name} while bot is in DND. Blocking.")
+            # 既にレスポンス済みの場合、追加のレスポンスはできないためログのみ
+            if not interaction.response.is_done():
                 await interaction.response.send_message(
                     "現在、ボットは管理者モードです。全てのコマンドは製作者のみが利用できます。",
                     ephemeral=True # メッセージはコマンド実行者のみに見える
                 )
-                return # コマンドの実行をここで停止
-            else:
-                # オーナーユーザーがDND中にコマンドを試行した際のログ (INFOレベル)
-                logging.info(f"Owner user {interaction.user.name} (ID: {interaction.user.id}) used command /{interaction.command.name} while bot is in DND. Allowing.")
+            return # コマンドの実行をここで停止
         
-        # ユーザーがオーナーである場合、またはボットがDNDモードではない場合は、
+        # オーナーである場合、または管理者モードではない場合は、
         # 通常のコマンド処理（discord.py の内部ディスパッチャーが処理）を続行します。
 
     async def on_ready(self):
@@ -338,7 +333,9 @@ class MyBot(commands.Bot):
         activity_message = f"{total_songs}曲/{total_charts}譜面が登録済み"
         # Use custom activity
         activity = discord.CustomActivity(name=activity_message) 
-        await self.change_presence(activity=activity, status=discord.Status.online) # Default to online status
+        # 初期状態では通常オンラインに設定し、管理者モードフラグはFalse
+        await self.change_presence(activity=activity, status=discord.Status.online) 
+        self.is_admin_mode_active = False # ボット起動時は管理者モードを無効化
         
         logging.info(f"Status set to: {activity_message}")
         logging.info("Bot is fully ready and accepting commands.")
