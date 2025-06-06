@@ -30,7 +30,6 @@ class StatusCommands(commands.Cog):
         activity_name="アクティビティ名 (例: プレイ中)"
     )
     @app_commands.choices(
-        # ★修正点: 選択可能なステータスを「オンライン」と「応答不可」のみに制限★
         status=[
             app_commands.Choice(name="オンライン", value="online"),
             app_commands.Choice(name="応答不可", value="dnd")
@@ -49,7 +48,21 @@ class StatusCommands(commands.Cog):
         Sets the bot's Discord status and activity.
         """
         logging.info(f"Set_status command invoked by owner {interaction.user.name} (ID: {interaction.user.id}). Status: {status}, Activity Type: {activity_type}, Activity Name: {activity_name}")
-        await interaction.response.defer(ephemeral=False) # Public defer
+        
+        # ★修正点: deferする前に既にレスポンス済みでないかチェック★
+        if not interaction.response.is_done():
+            try:
+                await interaction.response.defer(ephemeral=False) # Public defer
+                logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
+            except discord.errors.NotFound:
+                logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound). This will be caught by global error handler.", exc_info=True)
+                return # deferに失敗したら処理を停止
+            except Exception as e:
+                logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
+                return # deferに失敗したら処理を停止
+        else:
+            logging.warning(f"Interaction for '{interaction.command.name}' was already responded to or timed out before defer. Proceeding without defer.")
+
 
         try:
             discord_status = getattr(discord.Status, status)
@@ -75,8 +88,7 @@ class StatusCommands(commands.Cog):
 
             await self.bot.change_presence(status=discord_status, activity=activity)
             
-            # ★修正点: ボットの管理者モードフラグを更新
-            # dndの場合のみTrue、それ以外はFalse
+            # ボットの管理者モードフラグを更新
             self.bot.is_admin_mode_active = (status == "dnd")
             logging.info(f"Bot's internal admin mode flag set to {self.bot.is_admin_mode_active} by {interaction.user.name} (status: {status}).")
 
@@ -85,15 +97,18 @@ class StatusCommands(commands.Cog):
             if activity_name and not activity_type:
                 activity_display = f"(カスタム: {activity_name})"
 
+            # defer後なのでfollowup.sendを使用
             await interaction.followup.send(f"✅ ボットのステータスを `{status_display}` {activity_display} に設定しました。")
             logging.info(f"Bot status changed to {status_display} {activity_display}.")
 
         except AttributeError:
             logging.error(f"Invalid status or activity type provided by user {interaction.user.id}.", exc_info=True)
-            await interaction.followup.send("❌ 無効なステータスまたはアクティビティタイプが指定されました。")
+            if not interaction.response.is_done(): # エラー時にも既にレスポンス済みか確認
+                await interaction.followup.send("❌ 無効なステータスまたはアクティビティタイプが指定されました。")
         except Exception as e:
             logging.error(f"Failed to set bot status for user {interaction.user.id}: {e}", exc_info=True)
-            await interaction.followup.send(f"❌ ステータスの設定中にエラーが発生しました: {e}")
+            if not interaction.response.is_done(): # エラー時にも既にレスポンス済みか確認
+                await interaction.followup.send(f"❌ ステータスの設定中にエラーが発生しました: {e}")
 
 
 async def setup(bot):
