@@ -12,6 +12,9 @@ import asyncio
 
 import patreon 
 
+# main.py からグローバルな is_bot_owner 関数をインポート
+from main import is_bot_owner
+
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s [%(levelname)s] %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
@@ -338,14 +341,6 @@ def is_premium_check():
 
     return app_commands.check(predicate)
 
-def is_bot_owner():
-    async def predicate(interaction: discord.Interaction):
-        if hasattr(interaction.client, 'OWNER_ID') and interaction.user.id == interaction.client.OWNER_ID:
-            return True
-        await interaction.response.send_message("このコマンドはボットのオーナーのみが実行できます。", ephemeral=True)
-        return False
-    return app_commands.check(predicate)
-
 
 class PremiumManagerCog(commands.Cog):
     DEFAULT_PATREON_SYNC_INTERVAL_HOURS = 12 
@@ -353,8 +348,8 @@ class PremiumManagerCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.premium_users = {} 
-        self.is_setup_complete = False # ★追加: セットアップ完了フラグ★
-        self.patreon_sync_task.add_exception_type(Exception) # ★修正: ここで add_exception_type を呼び出す★
+        self.is_setup_complete = False 
+        self.patreon_sync_task.add_exception_type(Exception) 
         logging.info("PremiumManagerCog initialized.")
 
     @tasks.loop(hours=DEFAULT_PATREON_SYNC_INTERVAL_HOURS) 
@@ -419,7 +414,7 @@ class PremiumManagerCog(commands.Cog):
             should_be_premium_by_patreon = False
             if patreon_email:
                 patron_in_patreon = patreon_email_map.get(patreon_email.lower())
-                if patron_in_patreon and patron_in_patron['is_active_patron']:
+                if patron_in_patron and patron_in_patron['is_active_patron']:
                     should_be_premium_by_patreon = True
             
             current_is_premium = False
@@ -729,7 +724,11 @@ class PremiumManagerCog(commands.Cog):
             else: 
                 status_message += f"\nこのコマンドはDMでは実行できません。ロール操作はサーバー内でのみ可能です。"
                 logging.warning("revoke_premium command invoked in DM. Role operation skipped.") 
-            logging.info(f"User ID {user_id} does not have premium status to revoke.")
+            # この else ブロックの外で、status_message が設定されていない場合に備える
+            if not status_message: # status_message が空の場合（ユーザーがプレミアムではない場合）
+                display_name = f"不明なユーザー (ID: `{user_id}`)" 
+                status_message = f"{display_name} はプレミアムユーザーではありません。"
+                logging.info(f"User ID {user_id} does not have premium status to revoke.")
 
             embed = discord.Embed(
                 title="✅ プレミアムステータス剥奪",
@@ -738,82 +737,92 @@ class PremiumManagerCog(commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
             logging.info(f"Premium status revoked for user ID {user_id} by {interaction.user.name}. Details: {status_message}")
+        else: # user_id が premium_users に存在しない場合
+            display_name = f"不明なユーザー (ID: `{user_id}`)" 
+            status_message = f"{display_name} はプレミアムユーザーではありません。"
+            logging.info(f"User ID {user_id} does not have premium status to revoke.")
+            embed = discord.Embed(
+                title="❌ プレミアムステータス剥奪失敗",
+                description=status_message,
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
-        @app_commands.command(name="set_status", description="ボットのステータスとアクティビティを設定します (オーナー限定)。")
-        @app_commands.default_permissions(administrator=True)
-        @is_bot_owner()
-        @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID)) 
-        @app_commands.choices(
-            status=[
-                app_commands.Choice(name="オンライン", value="online"),
-                app_commands.Choice(name="離席中", value="idle"),
-                app_commands.Choice(name="取り込み中", value="dnd"),
-                app_commands.Choice(name="オフライン/表示なし", value="invisible")
-            ],
-            activity_type=[
-                app_commands.Choice(name="プレイ中", value="playing"),
-                app_commands.Choice(name="視聴中", value="watching"),
-                app_commands.Choice(name="聴取中", value="listening"),
-                app_commands.Choice(name="競技中", value="competing"),
-                app_commands.Choice(name="なし", value="none") 
-            ]
-        )
-        async def set_status(self, 
-                             interaction: discord.Interaction, 
-                             status: str, 
-                             activity_type: Optional[str] = None, 
-                             activity_name: Optional[str] = None):
+
+    @app_commands.command(name="set_status", description="ボットのステータスとアクティビティを設定します (オーナー限定)。")
+    @app_commands.default_permissions(administrator=True)
+    @is_bot_owner()
+    @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID)) 
+    @app_commands.choices(
+        status=[
+            app_commands.Choice(name="オンライン", value="online"),
+            app_commands.Choice(name="離席中", value="idle"),
+            app_commands.Choice(name="取り込み中", value="dnd"),
+            app_commands.Choice(name="オフライン/表示なし", value="invisible")
+        ],
+        activity_type=[
+            app_commands.Choice(name="プレイ中", value="playing"),
+            app_commands.Choice(name="視聴中", value="watching"),
+            app_commands.Choice(name="聴取中", value="listening"),
+            app_commands.Choice(name="競技中", value="competing"),
+            app_commands.Choice(name="なし", value="none") 
+        ]
+    )
+    async def set_status(self, 
+                         interaction: discord.Interaction, 
+                         status: str, 
+                         activity_type: Optional[str] = None, 
+                         activity_name: Optional[str] = None):
+        
+        logging.info(f"Command '/set_status' invoked by {interaction.user.name} (ID: {interaction.user.id}). Status: {status}, Activity Type: {activity_type}, Activity Name: {activity_name}")
+        
+        await interaction.response.send_message("ボットのステータスを更新しています...", ephemeral=True)
+
+        discord_status = {
+            "online": discord.Status.online,
+            "idle": discord.Status.idle,
+            "dnd": discord.Status.dnd,
+            "invisible": discord.Status.invisible
+        }.get(status)
+
+        if not discord_status:
+            await interaction.followup.send("無効なステータスが指定されました。", ephemeral=True)
+            return
+
+        discord_activity_type = {
+            "playing": discord.ActivityType.playing,
+            "watching": discord.ActivityType.watching,
+            "listening": discord.ActivityType.listening,
+            "competing": discord.ActivityType.competing,
+            "none": None 
+        }.get(activity_type)
+
+        activity = None
+        if discord_activity_type and activity_name:
+            activity = discord.Activity(type=discord_activity_type, name=activity_name)
+        elif activity_type == "none" or (activity_type and not activity_name):
+            activity = None 
+
+        try:
+            await self.bot.change_presence(status=discord_status, activity=activity)
+            embed = discord.Embed(
+                title="✅ ボットステータス更新",
+                description=f"ボットのステータスを `{status}` に変更しました。",
+                color=discord.Color.green()
+            )
+            if activity:
+                embed.add_field(name="アクティビティ", value=f"タイプ: `{activity_type}`\n名前: `{activity_name}`", inline=False)
+            elif activity_type == "none":
+                embed.add_field(name="アクティビティ", value="なし", inline=False)
+            elif activity_type and not activity_name: 
+                embed.add_field(name="アクティビティ", value=f"タイプ: `{activity_type}` (名前なし)", inline=False)
             
-            logging.info(f"Command '/set_status' invoked by {interaction.user.name} (ID: {interaction.user.id}). Status: {status}, Activity Type: {activity_type}, Activity Name: {activity_name}")
-            
-            # 修正: Deferの代わりに即座にメッセージを送信
-            await interaction.response.send_message("ボットのステータスを更新しています...", ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            logging.info(f"Bot presence updated to Status: {status}, Activity: {activity_type} {activity_name}.")
 
-            discord_status = {
-                "online": discord.Status.online,
-                "idle": discord.Status.idle,
-                "dnd": discord.Status.dnd,
-                "invisible": discord.Status.invisible
-            }.get(status)
-
-            if not discord_status:
-                await interaction.followup.send("無効なステータスが指定されました。", ephemeral=True)
-                return
-
-            discord_activity_type = {
-                "playing": discord.ActivityType.playing,
-                "watching": discord.ActivityType.watching,
-                "listening": discord.ActivityType.listening,
-                "competing": discord.ActivityType.competing,
-                "none": None 
-            }.get(activity_type)
-
-            activity = None
-            if discord_activity_type and activity_name:
-                activity = discord.Activity(type=discord_activity_type, name=activity_name)
-            elif activity_type == "none" or (activity_type and not activity_name):
-                activity = None 
-
-            try:
-                await self.bot.change_presence(status=discord_status, activity=activity)
-                embed = discord.Embed(
-                    title="✅ ボットステータス更新",
-                    description=f"ボットのステータスを `{status}` に変更しました。",
-                    color=discord.Color.green()
-                )
-                if activity:
-                    embed.add_field(name="アクティビティ", value=f"タイプ: `{activity_type}`\n名前: `{activity_name}`", inline=False)
-                elif activity_type == "none":
-                    embed.add_field(name="アクティビティ", value="なし", inline=False)
-                elif activity_type and not activity_name: 
-                    embed.add_field(name="アクティビティ", value=f"タイプ: `{activity_type}` (名前なし)", inline=False)
-                
-                await interaction.followup.send(embed=embed, ephemeral=True)
-                logging.info(f"Bot presence updated to Status: {status}, Activity: {activity_type} {activity_name}.")
-
-            except Exception as e:
-                logging.error(f"Failed to change bot presence: {e}", exc_info=True)
-                await interaction.followup.send(f"ステータスの変更に失敗しました: {e}", ephemeral=True)
+        except Exception as e:
+            logging.error(f"Failed to change bot presence: {e}", exc_info=True)
+            await interaction.followup.send(f"ステータスの変更に失敗しました: {e}", ephemeral=True)
 
 
 async def setup(bot): 
