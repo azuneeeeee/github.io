@@ -204,20 +204,11 @@ class MyBot(commands.Bot):
         else:
             logging.warning("Could not link ProsekaRankMatchCommands and PjskApFcRateCommands cog.")
             
-        # デバッグ用の同期コマンドを登録 (コメント解除)
-        # MyBotクラスに直接定義されたコマンドは、setup_hookで手動でtreeに追加する必要がある
-        if self.GUILD_ID != 0:
-            self.tree.add_command(self.sync_commands, guild=discord.Object(id=self.GUILD_ID)) 
-            logging.info("'/sync' command added to command tree for specified guild.")
-        else:
-            # GUILD_IDが設定されていない場合でも、少なくともグローバルに登録を試みる
-            self.tree.add_command(self.sync_commands)
-            logging.warning("GUILD_ID not set, adding '/sync' command globally.")
-        
-        # コマンドの同期
+        # コマンドの同期 (既存のコード)
         logging.info("Attempting to sync commands...")
         try:
             # まずグローバルコマンドを同期
+            # setup_hookで一度グローバル同期を試みることで、"/sync" コマンド自体も登録されることを期待する
             synced_global = await self.tree.sync() 
             logging.info(f"Synced {len(synced_global)} global commands.")
 
@@ -326,6 +317,49 @@ class MyBot(commands.Bot):
             pass
         except Exception as e:
             logging.error(f"Failed to send error message to user: {e}", exc_info=True)
+
+    # オーナー判定デコレータ
+    def is_bot_owner():
+        async def predicate(interaction: discord.Interaction):
+            if hasattr(interaction.client, 'OWNER_ID') and interaction.user.id == interaction.client.OWNER_ID:
+                return True
+            await interaction.response.send_message("このコマンドはボットのオーナーのみが実行できます。", ephemeral=True)
+            return False
+        return app_commands.check(predicate)
+
+    # デバッグ用の同期コマンド
+    @app_commands.command(name="sync", description="スラッシュコマンドをDiscordと同期します (オーナー限定)。")
+    @is_bot_owner()
+    @app_commands.guilds(discord.Object(id=GUILD_ID)) # GUILD_ID は MyBot の属性としてアクセス
+    async def sync_commands(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
+        sync_status_message = ""
+        try:
+            # グローバルコマンドを同期
+            synced_global = await self.tree.sync()
+            sync_status_message += f"グローバルコマンドを同期しました: {len(synced_global)}個\n"
+            logging.info(f"Globally synced {len(synced_global)} commands via /sync.")
+        except Exception as e:
+            sync_status_message += f"グローバルコマンドの同期に失敗しました: {e}\n"
+            logging.error(f"Failed to global sync commands via /sync: {e}", exc_info=True)
+
+        if self.GUILD_ID != 0:
+            try:
+                guild_obj = discord.Object(id=self.GUILD_ID)
+                # グローバルコマンドをギルドにコピーしてから同期
+                self.tree.copy_global_to(guild=guild_obj)
+                synced_guild_commands = await self.tree.sync(guild=guild_obj)
+                sync_status_message += f"このギルド ({self.GUILD_ID}) のコマンドを同期しました: {len(synced_guild_commands)}個"
+                logging.info(f"Guild ({self.GUILD_ID}) synced {len(synced_guild_commands)} commands via /sync.")
+            except Exception as e:
+                sync_status_message += f"ギルドコマンドの同期に失敗しました: {e}"
+                logging.error(f"Failed to guild sync commands via /sync: {e}", exc_info=True)
+        else:
+            sync_status_message += "GUILD_ID が設定されていないため、ギルドコマンドの同期はできません。"
+            logging.warning("GUILD_ID not set, skipping guild command sync via /sync.")
+        
+        await interaction.followup.send(sync_status_message, ephemeral=True)
 
 
 from cogs.pjsk_record_result import _create_song_data_map
