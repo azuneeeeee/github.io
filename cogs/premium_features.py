@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands, tasks # 'tasks' をインポート
+from discord.ext import commands, tasks 
 from discord import app_commands
 import json
 import os
@@ -38,7 +38,6 @@ MIN_PREMIUM_PLEDGE_AMOUNT = 1.0
 
 if not PATREON_CREATOR_ACCESS_TOKEN:
     logging.critical("PATREON_CREATOR_ACCESS_TOKEN environment variable is not set. Patreon automation will not work.")
-
 
 def _get_patreon_client():
     if not PATREON_CREATOR_ACCESS_TOKEN:
@@ -337,7 +336,6 @@ def is_premium_check():
 
 def is_bot_owner():
     async def predicate(interaction: discord.Interaction):
-        # interaction.client.OWNER_ID は main.py で設定されている必要があります
         if hasattr(interaction.client, 'OWNER_ID') and interaction.user.id == interaction.client.OWNER_ID:
             return True
         await interaction.response.send_message("このコマンドはボットのオーナーのみが実行できます。", ephemeral=True)
@@ -353,8 +351,7 @@ class PremiumManagerCog(commands.Cog):
         self.premium_users = {} 
         logging.info("PremiumManagerCog initialized.")
         
-        # commands.Loop ではなく tasks.Loop を使用
-        if hasattr(self, 'patreon_sync_task') and isinstance(self.patreon_sync_task, tasks.Loop): # ★ここを修正★
+        if hasattr(self, 'patreon_sync_task') and isinstance(self.patreon_sync_task, tasks.Loop): 
              self.patreon_sync_task.add_exception_type(Exception)
         else:
             logging.warning("patreon_sync_task not found or not a Loop instance during cog initialization.")
