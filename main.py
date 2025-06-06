@@ -252,10 +252,6 @@ class MyBot(commands.Bot):
         await ctx.send(f"エラーが発生しました: {error}")
 
     async def on_app_command_error(self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
-        # on_app_command で既にエラーメッセージを送信し、return しているため、
-        # 通常、管理者モードによる CheckFailure はここに到達しません。
-        # ここでは他の種類の CheckFailure や予期せぬエラーを処理します。
-
         if interaction.response.is_done():
             logging.error(f"App command error (interaction already responded): {error}", exc_info=True)
             return
@@ -281,8 +277,7 @@ class MyBot(commands.Bot):
             elif isinstance(error, app_commands.MissingPermissions):
                 logging.warning(f"Missing permissions for user {interaction.user.id} on command '{interaction.command.name}'. Permissions: {error.missing_permissions}")
                 await interaction.response.send_message(f"このコマンドを実行するための権限がありません。", ephemeral=True)
-            # global_owner_check_on_dnd からの CheckFailure はここで処理しない (on_app_commandで既に処理済み)
-            else: # その他の AppCommandError や汎用的な CheckFailure
+            else: 
                 logging.warning(f"Generic CheckFailure for command '{interaction.command.name}' by user {interaction.user.id}: {error}")
                 await interaction.response.send_message(f"このコマンドを実行できませんでした（権限エラーなど）。", ephemeral=True)
             return
@@ -298,11 +293,90 @@ class MyBot(commands.Bot):
         except Exception as e:
             logging.error(f"Failed to send error message to user: {e}", exc_info=True)
 
+    # オーナー判定デコレータ
+    def is_bot_owner():
+        async def predicate(interaction: discord.Interaction):
+            if hasattr(interaction.client, 'OWNER_ID') and interaction.user.id == interaction.client.OWNER_ID:
+                return True
+            await interaction.response.send_message("このコマンドはボットのオーナーのみが実行できます。", ephemeral=True)
+            return False
+        return app_commands.check(predicate)
+
+    # デバッグ用の同期コマンド
+    @app_commands.command(name="sync", description="スラッシュコマンドをDiscordと同期します (オーナー限定)。")
+    @is_bot_owner()
+    @app_commands.guilds(discord.Object(id=GUILD_ID)) # GUILD_ID は MyBot の属性としてアクセス
+    async def sync_commands(self, interaction: discord.Interaction, scope: str = "guild"):
+        await interaction.response.defer(ephemeral=True)
+
+        if scope == "global":
+            try:
+                synced = await self.tree.sync()
+                await interaction.followup.send(f"グローバルコマンドを同期しました: {len(synced)}個", ephemeral=True)
+                logging.info(f"Globally synced {len(synced)} commands.")
+            except Exception as e:
+                await interaction.followup.send(f"グローバルコマンドの同期に失敗しました: {e}", ephemeral=True)
+                logging.error(f"Failed to global sync commands: {e}", exc_info=True)
+        elif scope == "guild":
+            if self.GUILD_ID != 0:
+                try:
+                    guild_obj = discord.Object(id=self.GUILD_ID)
+                    self.tree.copy_global_to(guild=guild_obj) # グローバルをギルドにコピー
+                    synced = await self.tree.sync(guild=guild_obj)
+                    await interaction.followup.send(f"このギルド ({self.GUILD_ID}) のコマンドを同期しました: {len(synced)}個", ephemeral=True)
+                    logging.info(f"Guild ({self.GUILD_ID}) synced {len(synced)} commands.")
+                except Exception as e:
+                    await interaction.followup.send(f"ギルドコマンドの同期に失敗しました: {e}", ephemeral=True)
+                    logging.error(f"Failed to guild sync commands: {e}", exc_info=True)
+            else:
+                await interaction.followup.send("GUILD_ID が設定されていないため、ギルドコマンドの同期はできません。", ephemeral=True)
+                logging.warning("GUILD_ID not set, skipping guild command sync.")
+        else:
+            await interaction.followup.send("無効なスコープです。`global` または `guild` を指定してください。", ephemeral=True)
+
+    # setup_hook で同期コマンドをツリーに追加
+    async def setup_hook(self):
+        # その他の setup_hook 処理
+        # ... (既存の setup_hook コード) ...
+        
+        # デバッグ用の同期コマンドを登録
+        self.tree.add_command(self.sync_commands, guild=discord.Object(id=self.GUILD_ID)) # ギルド固有コマンドとして登録
+        logging.info("'/sync' command added to command tree.")
+        
+        # コマンドの同期 (既存のコード)
+        logging.info("Attempting to sync commands...")
+        try:
+            # グローバル同期は必要に応じて手動 /sync で行うため、ここではギルド同期のみにするか、
+            # あるいは両方維持する。頻繁なグローバル同期はレートリミットに注意。
+            # 例: グローバルコマンドを頻繁に更新しない場合はコメントアウト
+            # synced_global = await self.tree.sync()
+            # logging.info(f"Synced {len(synced_global)} global commands.")
+
+            if self.GUILD_ID != 0: 
+                support_guild = discord.Object(id=self.GUILD_ID)
+                # グローバルコマンドをギルドにコピーしてから同期（重要）
+                self.tree.copy_global_to(guild=support_guild) 
+                synced_guild_commands = await self.tree.sync(guild=support_guild)
+                logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID}.")
+            else:
+                logging.warning("GUILD_ID is not set or invalid (0). Skipping guild command sync.")
+
+        except Exception as e:
+            logging.error(f"Failed to sync commands: {e}", exc_info=True)
+
+        logging.info("setup_hook completed.")
+
 
 from cogs.pjsk_record_result import _create_song_data_map
 
 def run_bot():
     bot = MyBot()
+
+    # setup_hook で GUILD_ID を参照するため、bot インスタンスにセットする
+    # GUILD_ID, OWNER_ID, APPLICATION_ID は既に MyBot の __init__ で設定済み
+    # bot.GUILD_ID = GUILD_ID 
+    # bot.APPLICATION_ID = APPLICATION_ID 
+    # bot.OWNER_ID = OWNER_ID 
 
     if TOKEN:
         bot.run(TOKEN)
