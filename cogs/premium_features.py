@@ -559,7 +559,7 @@ class PremiumManagerCog(commands.Cog):
 
         embed.add_field(
             name="プレミアムプランのご案内", 
-            value=f"より多くの機能を利用するには、Patreonで私たちを支援してください。\n[Patreonはこちら](https://www.patreon.com/your_bot_name_here)\n\nPatreonとDiscordアカウントを連携するには、`/link_patreon <Patreon登録メールアドレス>` コマンドを使用してください。\n**自動同期は `{sync_interval_display}` 時間ごとに行われます。**", 
+            value=f"より多くの機能を利用するには、Patreonで私たちを支援してください。\n[Patreonはこちら](https://www.patreon.com/azune_u)\n\nPatreonとDiscordアカウントを連携するには、`/link_patreon <Patreon登録メールアドレス>` コマンドを使用してください。\n**自動同期は `{sync_interval_display}` 時間ごとに行われます。**", 
             inline=False
         )
 
