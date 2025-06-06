@@ -28,8 +28,6 @@ class StatusCommands(commands.Cog):
         status="設定するステータス" # 説明を簡略化
     )
     @app_commands.choices(
-        # ★最終修正点: 選択可能なステータスを「オンライン」と「取り込み中」のみに限定★
-        # ★重要: 「取り込み中」のvalueを"dnd"に戻し、赤い横棒表示にマッピング★
         status=[
             app_commands.Choice(name="オンライン", value="online"),
             app_commands.Choice(name="取り込み中", value="dnd"), # 「取り込み中」を選択したら内部的にはdnd (赤い横棒)
@@ -41,68 +39,79 @@ class StatusCommands(commands.Cog):
         """
         logging.info(f"Set_status command invoked by owner {interaction.user.name} (ID: {interaction.user.id}). Desired status: {status}.")
         
+        # defer は必須であるため、まず defer を試み、失敗したらそれ以上応答しない
+        # この try-except は Unknown interaction をキャッチするため。
+        # defer が成功したかどうかをフラグで管理
+        initial_response_attempted = False
         defer_successful = False
+
         if not interaction.response.is_done():
             try:
                 await interaction.response.defer(ephemeral=False) # Public defer
                 defer_successful = True
+                initial_response_attempted = True
                 logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
             except discord.errors.NotFound:
-                logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound). This means the interaction likely timed out.", exc_info=True)
+                # Unknown interaction: インタラクションがタイムアウトした
+                logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound). Interaction likely timed out.", exc_info=True)
+                # defer が失敗した場合は、ユーザーへの応答は困難なので、ここで return する
+                # ただし、以降のステータス変更ロジックは実行したいので、try-finally で囲む
             except Exception as e:
-                logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
-        else:
-            logging.warning(f"Interaction for '{interaction.command.name}' was already responded to or timed out before defer. Attempting to send followup directly.")
-
-
-        response_message = ""
-        try:
-            discord_status = getattr(discord.Status, status) # "online" または "dnd"
+                logging.error(f"Unexpected error during initial defer for '{interaction.command.name}': {e}", exc_info=True)
             
-            activity = None
-            # ★最終修正点: statusが"dnd"の場合にカスタムアクティビティを設定★
-            if status == "dnd":
-                activity = discord.CustomActivity(name="現在は使用できません")
-                logging.info(f"Setting custom activity '現在は使用できません' for 'dnd' status.")
+            # defer に失敗した場合でも、ステータス変更ロジックは実行する
+            # response_message の初期化は try の外で行う
+            response_message = ""
+            try:
+                discord_status = getattr(discord.Status, status) # "online" または "dnd"
+                
+                activity = None
+                if status == "dnd":
+                    activity = discord.CustomActivity(name="現在は使用できません")
+                    logging.info(f"Setting custom activity '現在は使用できません' for 'dnd' status.")
 
-            await self.bot.change_presence(status=discord_status, activity=activity)
+                await self.bot.change_presence(status=discord_status, activity=activity)
+                
+                self.bot.is_admin_mode_active = (status == "dnd") 
+                logging.info(f"Bot's internal admin mode flag set to {self.bot.is_admin_mode_active} by {interaction.user.name} (selected status: {status}).")
+
+                status_display_with_visual_hint = ""
+                if status == "online":
+                    status_display_with_visual_hint = "オンライン (緑の丸)"
+                elif status == "dnd": 
+                    status_display_with_visual_hint = "取り込み中 (赤い横棒 / カスタムステータス: 現在は使用できません)" 
+                else:
+                    status_display_with_visual_hint = status.capitalize() # Fallback
+
+                response_message = (
+                    f"✅ ボットのステータスを `{status_display_with_visual_hint}` に設定しました。\n"
+                    f"製作者以外のコマンドは{'制限されました' if self.bot.is_admin_mode_active else '制限されていません'}。\n"
+                    "**変更がDiscordクライアントに反映されない場合は、Discordアプリを完全に再起動してみてください。**"
+                )
+                logging.info(f"Bot status changed to {status_display_with_visual_hint}.")
+
+            except AttributeError:
+                logging.error(f"Invalid status provided by user {interaction.user.id}.", exc_info=True)
+                response_message = "❌ 無効なステータスが指定されました。"
+            except Exception as e:
+                logging.error(f"Failed to set bot status for user {interaction.user.id}: {e}", exc_info=True)
+                response_message = f"❌ ステータスの設定中にエラーが発生しました: {e}"
             
-            # ボットの管理者モードフラグを更新
-            # 「取り込み中」（value="dnd"）が選択された場合のみTrue、それ以外はFalse
-            self.bot.is_admin_mode_active = (status == "dnd") # ★管理者モードフラグはdndでONにする★
-            logging.info(f"Bot's internal admin mode flag set to {self.bot.is_admin_mode_active} by {interaction.user.name} (selected status: {status}).")
-
-            # ★最終修正点: ステータスの表示名と視覚的な説明を強化し、ユーザーの意図に合わせる★
-            status_display_with_visual_hint = ""
-            if status == "online":
-                status_display_with_visual_hint = "オンライン (緑の丸)"
-            elif status == "dnd": # UI上の「取り込み中」に相当
-                status_display_with_visual_hint = "取り込み中 (赤い横棒 / カスタムステータス: 現在は使用できません)" 
-            else:
-                status_display_with_visual_hint = status.capitalize() # Fallback
-
-            response_message = (
-                f"✅ ボットのステータスを `{status_display_with_visual_hint}` に設定しました。\n"
-                f"製作者以外のコマンドは{'制限されました' if self.bot.is_admin_mode_active else '制限されていません'}。\n"
-                "**変更がDiscordクライアントに反映されない場合は、Discordアプリを完全に再起動してみてください。**"
-            )
-            logging.info(f"Bot status changed to {status_display_with_visual_hint}.")
-
-        except AttributeError:
-            logging.error(f"Invalid status provided by user {interaction.user.id}.", exc_info=True)
-            response_message = "❌ 無効なステータスが指定されました。"
-        except Exception as e:
-            logging.error(f"Failed to set bot status for user {interaction.user.id}: {e}", exc_info=True)
-            response_message = f"❌ ステータスの設定中にエラーが発生しました: {e}"
-        
-        if defer_successful:
-            await interaction.followup.send(response_message)
-        else:
-            if not interaction.response.is_done():
+            # ここで、ユーザーへの最終的な応答を試みる
+            if defer_successful: # defer が成功していた場合のみ followup を使用
                 try:
-                    await interaction.response.send_message(response_message, ephemeral=True)
+                    await interaction.followup.send(response_message)
                 except Exception as e:
-                    logging.error(f"Failed to send direct response after defer failure: {e}", exc_info=True)
+                    logging.error(f"Failed to send follow-up message after successful defer: {e}", exc_info=True)
+            else:
+                # defer が失敗した場合、元々の interaction.response.send_message も使えない可能性が高い
+                # ここで再度 send_message を試みると InteractionResponded エラーになる可能性が高い
+                # そのため、ログに記録するだけに留める。ユーザーにはメッセージが届かない。
+                if not interaction.response.is_done(): # 念のため確認
+                    logging.warning(f"Failed to send message to user for '{interaction.command.name}' as defer failed and interaction was already acknowledged/timed out.")
+                
+        else: # interaction.response.is_done() == True の場合 (通常はここには来ないはずだが念のため)
+            logging.warning(f"Interaction for '{interaction.command.name}' was already responded to or timed out at command entry. Skipping all response attempts.")
 
 
 async def setup(bot):
