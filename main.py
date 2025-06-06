@@ -20,7 +20,7 @@ load_dotenv()
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 
 _guild_id_str = os.getenv('GUILD_ID')
-if _guild_id_str: 
+if _guild_id_str:
     try:
         GUILD_ID = int(_guild_id_str)
     except ValueError:
@@ -31,7 +31,7 @@ else:
     GUILD_ID = 0
 
 _owner_id_str = os.getenv('OWNER_ID')
-if _owner_id_str: 
+if _owner_id_str:
     try:
         OWNER_ID = int(_owner_id_str)
     except ValueError:
@@ -42,7 +42,7 @@ else:
     OWNER_ID = 0
 
 _application_id_str = os.getenv('APPLICATION_ID')
-if _application_id_str: 
+if _application_id_str:
     try:
         APPLICATION_ID = int(_application_id_str)
     except ValueError:
@@ -62,22 +62,22 @@ class MyBot(commands.Bot):
         intents.guilds = True # ギルド情報（ロールなど）を取得するために必要
 
         super().__init__(
-            command_prefix=commands.when_mentioned_or('!'), 
+            command_prefix=commands.when_mentioned_or('!'),
             intents=intents,
-            application_id=APPLICATION_ID 
+            application_id=APPLICATION_ID
         )
         self.initial_extensions = [
-            'cogs.pjsk_ap_fc_rate',      
-            'cogs.proseka_general',      
-            'cogs.help_command',         
-            'cogs.proseka_rankmatch',    
+            'cogs.pjsk_ap_fc_rate',
+            'cogs.proseka_general',
+            'cogs.help_command',
+            'cogs.proseka_rankmatch',
             'cogs.pjsk_rankmatch_result',
-            'cogs.pjsk_record_result',   
-            'cogs.premium_features'      
+            'cogs.pjsk_record_result',
+            'cogs.premium_features'
         ]
-        self.proseka_songs_data = [] 
-        self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"] 
-        self.is_bot_ready = False 
+        self.proseka_songs_data = []
+        self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
+        self.is_bot_ready = False
 
         # コグ参照のための属性を初期化
         self.proseka_general_cog = None
@@ -85,8 +85,8 @@ class MyBot(commands.Bot):
         self.pjsk_ap_fc_rate_cog = None
         self.pjsk_record_result_cog = None
         self.help_command_cog = None
-        self.pjsk_rankmatch_result_cog = None 
-        self.premium_manager_cog = None 
+        self.pjsk_rankmatch_result_cog = None
+        self.premium_manager_cog = None
 
         # ボットインスタンスにオーナーIDとギルドIDを保存
         self.OWNER_ID = OWNER_ID
@@ -101,13 +101,13 @@ class MyBot(commands.Bot):
             loop = asyncio.get_running_loop()
             with open(SONGS_FILE, 'r', encoding='utf-8') as f:
                 file_content = await loop.run_in_executor(None, f.read)
-            
+
             _globals = {}
             await loop.run_in_executor(None, exec, file_content, _globals)
 
             self.proseka_songs_data = _globals.get('proseka_songs', [])
             self.valid_difficulties_data = _globals.get('VALID_DIFFICULTIES', ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"])
-            
+
             if not isinstance(self.proseka_songs_data, list):
                 logging.error(f"proseka_songs in {SONGS_FILE} is not a list. Type: {type(self.proseka_songs_data)}. Using empty list.")
                 self.proseka_songs_data = []
@@ -130,7 +130,7 @@ class MyBot(commands.Bot):
 
     async def setup_hook(self):
         logging.info("Starting setup_hook...")
-        
+
         await self._load_songs_data_async()
 
         for extension in self.initial_extensions:
@@ -156,8 +156,8 @@ class MyBot(commands.Bot):
         self.pjsk_ap_fc_rate_cog = self.get_cog("PjskApFcRateCommands")
         self.pjsk_record_result_cog = self.get_cog("PjskRecordResult")
         self.help_command_cog = self.get_cog("HelpCommand")
-        self.pjsk_rankmatch_result_cog = self.get_cog("ProsekaRankmatchResult") 
-        self.premium_manager_cog = self.get_cog("PremiumManagerCog") 
+        self.pjsk_rankmatch_result_cog = self.get_cog("ProsekaRankmatchResult")
+        self.premium_manager_cog = self.get_cog("PremiumManagerCog")
 
         if self.proseka_general_cog:
             self.proseka_general_cog.songs_data = self.proseka_songs_data
@@ -185,8 +185,8 @@ class MyBot(commands.Bot):
         else:
             logging.warning("PjskRankMatchResult cog not found after loading.")
 
-        if self.premium_manager_cog: 
-            self.premium_manager_cog.is_setup_complete = True 
+        if self.premium_manager_cog:
+            self.premium_manager_cog.is_setup_complete = True
             logging.info("PremiumManagerCog found and setup complete flag set.")
         else:
             logging.warning("PremiumManagerCog not found after loading.")
@@ -204,19 +204,21 @@ class MyBot(commands.Bot):
         else:
             logging.warning("Could not link ProsekaRankMatchCommands and PjskApFcRateCommands cog.")
             
-        # コマンドの同期 (既存のコード)
+        # ここから下の `self.tree.add_command(self.sync_commands, ...)` の行は削除済み
+        
+        # コマンドの同期
         logging.info("Attempting to sync commands...")
         try:
             # まずグローバルコマンドを同期
             # setup_hookで一度グローバル同期を試みることで、"/sync" コマンド自体も登録されることを期待する
-            synced_global = await self.tree.sync() 
+            synced_global = await self.tree.sync()
             logging.info(f"Synced {len(synced_global)} global commands.")
 
-            if self.GUILD_ID != 0: 
+            if self.GUILD_ID != 0:
                 support_guild = discord.Object(id=self.GUILD_ID)
                 # グローバルコマンドをギルドにコピーしてから同期（重要）
                 # これにより、ギルドコマンドとして登録されたものも更新される
-                self.tree.copy_global_to(guild=support_guild) 
+                self.tree.copy_global_to(guild=support_guild)
                 synced_guild_commands = await self.tree.sync(guild=support_guild)
                 logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID}.")
             else:
@@ -232,7 +234,7 @@ class MyBot(commands.Bot):
         # ボットの現在のステータスが「取り込み中 (Do Not Disturb)」であるか確認
         if interaction.client.user.status == discord.Status.dnd:
             # もしボットが「取り込み中」で、かつコマンド実行者がオーナーではない場合
-            if interaction.user.id != self.OWNER_ID: 
+            if interaction.user.id != self.OWNER_ID:
                 await interaction.response.send_message(
                     "現在、ボットは管理者モードです。全てのコマンドは製作者のみが利用できます。",
                     ephemeral=True # 他のユーザーには見えないメッセージ
@@ -246,7 +248,7 @@ class MyBot(commands.Bot):
         logging.info(f"Logged in as {self.user.name} (ID: {self.user.id})")
         logging.info("------")
         
-        self.is_bot_ready = True 
+        self.is_bot_ready = True
         
         total_songs = len(self.proseka_songs_data)
         total_charts = 0
@@ -260,7 +262,7 @@ class MyBot(commands.Bot):
 
         # PremiumManagerCog のタスクを起動
         # コグへの参照が設定され、かつコグのセットアップが完了していることを確認
-        if self.premium_manager_cog and hasattr(self.premium_manager_cog, 'is_setup_complete') and self.premium_manager_cog.is_setup_complete: 
+        if self.premium_manager_cog and hasattr(self.premium_manager_cog, 'is_setup_complete') and self.premium_manager_cog.is_setup_complete:
             if hasattr(self.premium_manager_cog, 'patreon_sync_task') and not self.premium_manager_cog.patreon_sync_task.is_running():
                 logging.info("Starting Patreon sync task in PremiumManagerCog.")
                 self.premium_manager_cog.patreon_sync_task.start()
@@ -272,7 +274,7 @@ class MyBot(commands.Bot):
 
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandNotFound):
-            return 
+            return
         logging.error(f"An error occurred in command {ctx.command}: {error}", exc_info=True)
         await ctx.send(f"エラーが発生しました: {error}")
 
@@ -302,7 +304,7 @@ class MyBot(commands.Bot):
             elif isinstance(error, app_commands.MissingPermissions):
                 logging.warning(f"Missing permissions for user {interaction.user.id} on command '{interaction.command.name}'. Permissions: {error.missing_permissions}")
                 await interaction.response.send_message(f"このコマンドを実行するための権限がありません。", ephemeral=True)
-            else: 
+            else:
                 logging.warning(f"Generic CheckFailure for command '{interaction.command.name}' by user {interaction.user.id}: {error}")
                 await interaction.response.send_message(f"このコマンドを実行できませんでした（権限エラーなど）。", ephemeral=True)
             return
