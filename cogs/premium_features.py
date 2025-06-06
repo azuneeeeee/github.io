@@ -770,8 +770,6 @@ class PremiumManagerCog(commands.Cog):
             logging.info(f"Command '/set_status' invoked by {interaction.user.name} (ID: {interaction.user.id}). Status: {status}, Activity Type: {activity_type}, Activity Name: {activity_name}")
             
             # 修正: Deferの代わりに即座にメッセージを送信
-            # ここがエラーの原因になっている場合は、まだ前のコードがデプロイされている可能性が高いです。
-            # この行が本当に send_message になっているか、Renderのログで再確認してください。
             await interaction.response.send_message("ボットのステータスを更新しています...", ephemeral=True)
 
             discord_status = {
@@ -782,7 +780,6 @@ class PremiumManagerCog(commands.Cog):
             }.get(status)
 
             if not discord_status:
-                # send_message を使ったので followup を使う
                 await interaction.followup.send("無効なステータスが指定されました。", ephemeral=True)
                 return
 
@@ -814,18 +811,15 @@ class PremiumManagerCog(commands.Cog):
                 elif activity_type and not activity_name: 
                     embed.add_field(name="アクティビティ", value=f"タイプ: `{activity_type}` (名前なし)", inline=False)
                 
-                # 最終的なメッセージを followup で送信
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 logging.info(f"Bot presence updated to Status: {status}, Activity: {activity_type} {activity_name}.")
 
             except Exception as e:
                 logging.error(f"Failed to change bot presence: {e}", exc_info=True)
-                # エラーメッセージも followup で送信
                 await interaction.followup.send(f"ステータスの変更に失敗しました: {e}", ephemeral=True)
 
 
-    async def setup(bot):
-        cog = PremiumManagerCog(bot)
-        await bot.add_cog(cog)
-        logging.info("PremiumManagerCog loaded.")
-    
+async def setup(bot): # ★このsetup関数がファイルの一番左端から始まるようにすること！★
+    cog = PremiumManagerCog(bot)
+    await bot.add_cog(cog)
+    logging.info("PremiumManagerCog loaded.")
