@@ -83,7 +83,7 @@ async def _fetch_patrons_from_patreon():
         cursor = None
         while True:
             pledges_response = await loop.run_in_executor(
-                None, lambda c=cursor: api_client.fetch_campaign_members(campaign_id, page_size=25, includes=['user', 'currently_entitled_tiers'])
+                None, lambda c=cursor: api_client.fetch_campaign_members(campaign_id, page_size=25, cursor=c, includes=['user', 'currently_entitled_tiers'])
             )
             
             for member in pledges_response.data():
@@ -176,8 +176,11 @@ async def load_premium_data_from_gist():
             if 'expiration_date' in user_info and user_info['expiration_date']:
                 try:
                     user_info['expiration_date'] = datetime.fromisoformat(user_info['expiration_date']).astimezone(timezone.utc)
+                    # expiration_date が過去の場合は None に設定
+                    if user_info['expiration_date'] < datetime.now(timezone.utc):
+                        user_info['expiration_date'] = None
                 except ValueError:
-                    logging.warning(f"Invalid datetime format for user {user_id} in Gist: {user_info['expiration_date']}")
+                    logging.warning(f"Invalid datetime format for user {user_id} in Gist: {user_info['expiration_date']}. Setting to None.")
                     user_info['expiration_date'] = None
             premium_users[user_id] = user_info
             
@@ -350,12 +353,9 @@ class PremiumManagerCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.premium_users = {} 
+        self.is_setup_complete = False # ★追加: セットアップ完了フラグ★
+        self.patreon_sync_task.add_exception_type(Exception) # ★修正: ここで add_exception_type を呼び出す★
         logging.info("PremiumManagerCog initialized.")
-        
-        if hasattr(self, 'patreon_sync_task') and isinstance(self.patreon_sync_task, tasks.Loop): 
-             self.patreon_sync_task.add_exception_type(Exception)
-        else:
-            logging.warning("patreon_sync_task not found or not a Loop instance during cog initialization.")
 
     @tasks.loop(hours=DEFAULT_PATREON_SYNC_INTERVAL_HOURS) 
     async def patreon_sync_task(self):
@@ -419,7 +419,7 @@ class PremiumManagerCog(commands.Cog):
             should_be_premium_by_patreon = False
             if patreon_email:
                 patron_in_patreon = patreon_email_map.get(patreon_email.lower())
-                if patron_in_patron and patron_in_patron['is_active_patron']:
+                if patron_in_patreon and patron_in_patron['is_active_patron']:
                     should_be_premium_by_patreon = True
             
             current_is_premium = False
@@ -473,266 +473,263 @@ class PremiumManagerCog(commands.Cog):
             logging.info(f"Patreon sync completed. Added: {success_count}, Removed: {removed_count}. Duration: {duration:.2f}s")
 
 
-        @app_commands.command(name="premium_info", description="あなたのプレミアムステータスを表示します。")
-        async def premium_info(self, interaction: discord.Interaction):
-            logging.info(f"Command '/premium_info' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
-            await interaction.response.defer(ephemeral=True)
+    @app_commands.command(name="premium_info", description="あなたのプレミアムステータスを表示します。")
+    async def premium_info(self, interaction: discord.Interaction):
+        logging.info(f"Command '/premium_info' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
+        await interaction.response.defer(ephemeral=True)
 
-            user_id = str(interaction.user.id)
-            self.premium_users = await load_premium_data_from_gist() 
-            user_info = self.premium_users.get(user_id)
+        user_id = str(interaction.user.id)
+        self.premium_users = await load_premium_data_from_gist() 
+        user_info = self.premium_users.get(user_id)
 
-            embed = discord.Embed(title="プレミアムステータス", color=discord.Color.gold())
+        embed = discord.Embed(title="プレミアムステータス", color=discord.Color.gold())
 
-            if user_info:
-                expiration_date = user_info.get('expiration_date')
-                patreon_email = user_info.get('patreon_email') 
+        if user_info:
+            expiration_date = user_info.get('expiration_date')
+            patreon_email = user_info.get('patreon_email') 
 
-                if patreon_email: 
-                    embed.description = f"あなたは現在プレミアムユーザーです！\nPatreonアカウント: `{patreon_email}` と連携済み。"
-                    embed.color = discord.Color.green()
-                
-                    if expiration_date: 
-                        expires_at_jst = expiration_date.astimezone(JST)
-                        if expires_at_jst > datetime.now(JST):
-                            embed.description += f"\n(手動付与の期限: <t:{int(expires_at_jst.timestamp())}:F>)"
-                        else: 
-                            embed.description += f"\n(手動付与は期限切れ: <t:{int(expires_at_jst.timestamp())}:F>)"
-                            embed.color = discord.Color.orange() 
-                elif expiration_date: 
+            if patreon_email: 
+                embed.description = f"あなたは現在プレミアムユーザーです！\nPatreonアカウント: `{patreon_email}` と連携済み。"
+                embed.color = discord.Color.green()
+            
+                if expiration_date: 
                     expires_at_jst = expiration_date.astimezone(JST)
                     if expires_at_jst > datetime.now(JST):
-                        embed.description = f"あなたは現在プレミアムユーザーです！\n期限: <t:{int(expires_at_jst.timestamp())}:F>"
-                        embed.color = discord.Color.green()
-                    else:
-                        embed.description = f"あなたのプレミアムステータスは期限切れです。\n期限: <t:{int(expires_at_jst.timestamp())}:F>"
-                        embed.color = discord.Color.red()
-                        if user_id in self.premium_users:
-                            self.premium_users.pop(user_id)
-                            await save_premium_data_to_gist(self.premium_users)
-                else: 
-                    embed.description = "あなたは現在プレミアムユーザーです！ (期限なし)"
+                        embed.description += f"\n(手動付与の期限: <t:{int(expires_at_jst.timestamp())}:F>)"
+                    else: 
+                        embed.description += f"\n(手動付与は期限切れ: <t:{int(expires_at_jst.timestamp())}:F>)"
+                        embed.color = discord.Color.orange() 
+            elif expiration_date: 
+                expires_at_jst = expiration_date.astimezone(JST)
+                if expires_at_jst > datetime.now(JST):
+                    embed.description = f"あなたは現在プレミアムユーザーです！\n期限: <t:{int(expires_at_jst.timestamp())}:F>"
                     embed.color = discord.Color.green()
-            else:
-                embed.description = "あなたは現在プレミアムユーザーではありません。"
-                embed.color = discord.Color.red()
-            
-            sync_interval_display = getattr(self.patreon_sync_task, 'interval', self.DEFAULT_PATREON_SYNC_INTERVAL_HOURS)
+                else:
+                    embed.description = f"あなたのプレミアムステータスは期限切れです。\n期限: <t:{int(expires_at_jst.timestamp())}:F>"
+                    embed.color = discord.Color.red()
+                    if user_id in self.premium_users:
+                        self.premium_users.pop(user_id)
+                        await save_premium_data_to_gist(self.premium_users)
+            else: 
+                embed.description = "あなたは現在プレミアムユーザーです！ (期限なし)"
+                embed.color = discord.Color.green()
+        else:
+            embed.description = "あなたは現在プレミアムユーザーではありません。"
+            embed.color = discord.Color.red()
+        
+        sync_interval_display = getattr(self.patreon_sync_task, 'interval', self.DEFAULT_PATREON_SYNC_INTERVAL_HOURS)
 
-            embed.add_field(
-                name="プレミアムプランのご案内", 
-                value=f"より多くの機能を利用するには、Patreonで私たちを支援してください。\n[Patreonはこちら](https://www.patreon.com/your_bot_name_here)\n\nPatreonとDiscordアカウントを連携するには、`/link_patreon <Patreon登録メールアドレス>` コマンドを使用してください。\n**自動同期は `{sync_interval_display}` 時間ごとに行われます。**", 
-                inline=False
-            )
+        embed.add_field(
+            name="プレミアムプランのご案内", 
+            value=f"より多くの機能を利用するには、Patreonで私たちを支援してください。\n[Patreonはこちら](https://www.patreon.com/your_bot_name_here)\n\nPatreonとDiscordアカウントを連携するには、`/link_patreon <Patreon登録メールアドレス>` コマンドを使用してください。\n**自動同期は `{sync_interval_display}` 時間ごとに行われます。**", 
+            inline=False
+        )
 
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            logging.info(f"Premium info sent to {interaction.user.name}.")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        logging.info(f"Premium info sent to {interaction.user.name}.")
 
-        @app_commands.command(name="premium_exclusive_command", description="プレミアムユーザー限定のすごい機能！")
-        @is_bot_owner() 
-        @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID)) 
-        async def premium_exclusive_command(self, interaction: discord.Interaction):
-            logging.info(f"Command '/premium_exclusive_command' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
-            await interaction.response.defer(ephemeral=False)
-            
-            embed = discord.Embed(
-                title="✨ プレミアム機能へようこそ！ ✨",
-                description=f"おめでとうございます、{interaction.user.display_name}さん！\nこれはプレミアムユーザーだけが使える特別な機能です。",
-                color=discord.Color.blue()
-            )
-            embed.add_field(name="機能", value="より詳細な統計データや、限定の選曲オプションなどが利用できます！", inline=False)
-            await interaction.followup.send(embed=embed)
-            logging.info(f"Premium exclusive command executed for {interaction.user.name}.")
+    @app_commands.command(name="premium_exclusive_command", description="プレミアムユーザー限定のすごい機能！")
+    @is_bot_owner() 
+    @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID)) 
+    async def premium_exclusive_command(self, interaction: discord.Interaction):
+        logging.info(f"Command '/premium_exclusive_command' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
+        await interaction.response.defer(ephemeral=False)
+        
+        embed = discord.Embed(
+            title="✨ プレミアム機能へようこそ！ ✨",
+            description=f"おめでとうございます、{interaction.user.display_name}さん！\nこれはプレミアムユーザーだけが使える特別な機能です。",
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="機能", value="より詳細な統計データや、限定の選曲オプションなどが利用できます！", inline=False)
+        await interaction.followup.send(embed=embed)
+        logging.info(f"Premium exclusive command executed for {interaction.user.name}.")
 
-        @app_commands.command(name="link_patreon", description="PatreonアカウントとDiscordアカウントを連携します。")
-        async def link_patreon(self, interaction: discord.Interaction, patreon_email: str):
-            logging.info(f"Command '/link_patreon' invoked by {interaction.user.name} (ID: {interaction.user.id}) with email: {patreon_email}.")
+    @app_commands.command(name="link_patreon", description="PatreonアカウントとDiscordアカウントを連携します。")
+    async def link_patreon(self, interaction: discord.Interaction, patreon_email: str):
+        logging.info(f"Command '/link_patreon' invoked by {interaction.user.name} (ID: {interaction.user.id}) with email: {patreon_email}.")
+        try:
+            await interaction.response.defer(ephemeral=True)
+        except discord.errors.NotFound:
+            logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound).", exc_info=True)
+            return
+        except Exception as e:
+            logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
+            return
+        
+        user_id = str(interaction.user.id)
+        self.premium_users = await load_premium_data_from_gist() 
+
+        user_info = self.premium_users.get(user_id, {})
+        user_info.update({
+            "username": interaction.user.name, 
+            "discriminator": interaction.user.discriminator,
+            "display_name": interaction.user.display_name,
+            "patreon_email": patreon_email.lower() 
+        })
+        if "expiration_date" not in user_info:
+             user_info["expiration_date"] = None 
+
+        self.premium_users[user_id] = user_info
+        await save_premium_data_to_gist(self.premium_users)
+
+        sync_interval_display = getattr(self.patreon_sync_task, 'interval', self.DEFAULT_PATREON_SYNC_INTERVAL_HOURS)
+
+        embed = discord.Embed(
+            title="✅ アカウント連携完了！",
+            description=f"DiscordアカウントとPatreonメールアドレス `{patreon_email}` を連携しました。\n自動同期は `{sync_interval_display}` 時間ごとに行われます。次回同期時にプレミアムステータスが更新されます。",
+            color=discord.Color.blue()
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        logging.info(f"User {interaction.user.id} linked with Patreon email {patreon_email}.")
+
+
+    @app_commands.command(name="sync_patrons", description="PatreonのパトロンリストとDiscordのプレミアムステータスを同期します (オーナー限定)。")
+    @app_commands.default_permissions(manage_roles=True)
+    @is_bot_owner()
+    @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
+    async def sync_patrons(self, interaction: discord.Interaction):
+        logging.info(f"Command '/sync_patrons' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
+        
+        try:
+            await interaction.response.defer(ephemeral=True)
+            logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
+        except discord.errors.NotFound:
+            logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound).", exc_info=True)
+            return
+        except Exception as e:
+            logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
+            return
+
+        await self._perform_patreon_sync_job(interaction) 
+
+
+    @app_commands.command(name="grant_premium", description="指定ユーザーのIDにプレミアムステータスを付与します (オーナー限定)。")
+    @app_commands.default_permissions(manage_roles=True)
+    @is_bot_owner() 
+    @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
+    async def grant_premium(self, interaction: discord.Interaction, 
+                            user_id: str, 
+                            days: Optional[app_commands.Range[int, 1, 365]] = None): 
+        logging.info(f"Command '/grant_premium' invoked by {interaction.user.name} (ID: {interaction.user.id}) for user ID {user_id}. Days: {days}")
+        
+        try:
+            await interaction.response.defer(ephemeral=True)
+            logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
+        except discord.errors.NotFound:
+            logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound).", exc_info=True)
+            return
+        except Exception as e:
+            logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
+            return
+
+        try:
+            target_user_id = int(user_id)
+        except ValueError:
+            await interaction.followup.send("無効なユーザーIDです。有効なDiscordユーザーID (数字のみ) を入力してください。", ephemeral=True)
+            return
+
+        target_user = self.bot.get_user(target_user_id) 
+        if target_user is None:
             try:
-                await interaction.response.defer(ephemeral=True)
-            except discord.errors.NotFound:
-                logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound).", exc_info=True)
+                target_user = await self.bot.fetch_user(target_user_id) 
+            except discord.NotFound:
+                await interaction.followup.send(f"Discord上でID `{target_user_id}` のユーザーが見つかりませんでした。無効なIDの可能性があります。", ephemeral=True)
+                logging.warning(f"User ID {target_user_id} not found via fetch_user.")
                 return
-            except Exception as e:
-                logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
+            except discord.HTTPException as e:
+                await interaction.followup.send(f"ユーザー情報の取得中にエラーが発生しました: {e.status}", ephemeral=True)
+                logging.error(f"HTTPException when fetching user {target_user_id}: {e}", exc_info=True)
                 return
             
-            user_id = str(interaction.user.id)
-            self.premium_users = await load_premium_data_from_gist() 
+        expiration_date = None
+        if days is not None:
+            expiration_date = datetime.now(timezone.utc) + timedelta(days=days)
 
-            user_info = self.premium_users.get(user_id, {})
-            user_info.update({
-                "username": interaction.user.name, 
-                "discriminator": interaction.user.discriminator,
-                "display_name": interaction.user.display_name,
-                "patreon_email": patreon_email.lower() 
-            })
-            if "expiration_date" not in user_info:
-                 user_info["expiration_date"] = None 
+        self.premium_users = await load_premium_data_from_gist()
+        user_info = self.premium_users.get(user_id, {})
+        user_info.update({ 
+            "username": target_user.name, 
+            "discriminator": target_user.discriminator,
+            "display_name": target_user.display_name,
+            "expiration_date": expiration_date 
+        })
+        if "patreon_email" in user_info:
+            logging.info(f"Removing patreon_email for manually granted user {user_id}.")
+            user_info.pop("patreon_email")
 
-            self.premium_users[user_id] = user_info
-            await save_premium_data_to_gist(self.premium_users)
+        self.premium_users[user_id] = user_info 
+        await save_premium_data_to_gist(self.premium_users) 
 
-            sync_interval_display = getattr(self.patreon_sync_task, 'interval', self.DEFAULT_PATREON_SYNC_INTERVAL_HOURS)
+        status_message = f"{target_user.display_name} (ID: `{target_user.id}`) にプレミアムステータスを付与しました。"
 
-            embed = discord.Embed(
-                title="✅ アカウント連携完了！",
-                description=f"DiscordアカウントとPatreonメールアドレス `{patreon_email}` を連携しました。\n自動同期は `{sync_interval_display}` 時間ごとに行われます。次回同期時にプレミアムステータスが更新されます。",
-                color=discord.Color.blue()
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            logging.info(f"User {interaction.user.id} linked with Patreon email {patreon_email}.")
+        target_guild = interaction.guild
+        if target_guild:
+            member_id = target_user.id
+            await _update_discord_role(self.bot, target_guild.id, member_id, True)
+            status_message += f"\nDiscordロールを付与しました。"
+        else:
+            status_message += f"\nこのコマンドはDMでは実行できません。ロール操作はサーバー内でのみ可能です。"
+            logging.warning("grant_premium command invoked in DM. Role operation skipped.")
+
+        embed = discord.Embed(
+            title="✅ プレミアムステータス付与",
+            description=status_message,
+            color=discord.Color.green()
+        )
+        if expiration_date: 
+            expires_at_jst = expiration_date.astimezone(JST)
+            embed.add_field(name="期限", value=f"<t:{int(expires_at_jst.timestamp())}:F>", inline=False)
+        else: 
+            embed.add_field(name="期限", value="無期限", inline=False)
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        logging.info(f"Premium status granted to user ID {user_id} by {interaction.user.name}. Details: {status_message}")
 
 
-        @app_commands.command(name="sync_patrons", description="PatreonのパトロンリストとDiscordのプレミアムステータスを同期します (オーナー限定)。")
-        @app_commands.default_permissions(manage_roles=True)
-        @is_bot_owner()
-        @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
-        async def sync_patrons(self, interaction: discord.Interaction):
-            logging.info(f"Command '/sync_patrons' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
+    @app_commands.command(name="revoke_premium", description="指定ユーザーのIDからプレミアムステータスを剥奪します (オーナー限定)。")
+    @app_commands.default_permissions(manage_roles=True)
+    @is_bot_owner()
+    @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
+    async def revoke_premium(self, interaction: discord.Interaction, 
+                             user_id: str): 
+        logging.info(f"Command '/revoke_premium' invoked by {interaction.user.name} (ID: {interaction.user.id}) for user ID {user_id}.")
+        
+        try:
+            await interaction.response.defer(ephemeral=True)
+            logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
+        except discord.errors.NotFound:
+            logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound).", exc_info=True)
+            return
+        except Exception as e:
+            logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
+            return
+
+        try:
+            target_user_id = int(user_id)
+        except ValueError:
+            await interaction.followup.send("無効なユーザーIDです。有効なDiscordユーザーID (数字のみ) を入力してください。", ephemeral=True)
+            return
+
+        status_message = ""
+        self.premium_users = await load_premium_data_from_gist() 
+        
+        if user_id in self.premium_users:
+            user_info_from_data = self.premium_users.get(user_id)
+            display_name = user_info_from_data.get("display_name", f"不明なユーザー (ID: `{user_id}`)") 
             
-            try:
-                await interaction.response.defer(ephemeral=True)
-                logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
-            except discord.errors.NotFound:
-                logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound).", exc_info=True)
-                return
-            except Exception as e:
-                logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
-                return
-
-            await self._perform_patreon_sync_job(interaction) 
-
-
-        @app_commands.command(name="grant_premium", description="指定ユーザーのIDにプレミアムステータスを付与します (オーナー限定)。")
-        @app_commands.default_permissions(manage_roles=True)
-        @is_bot_owner() 
-        @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
-        async def grant_premium(self, interaction: discord.Interaction, 
-                                user_id: str, 
-                                days: Optional[app_commands.Range[int, 1, 365]] = None): 
-            logging.info(f"Command '/grant_premium' invoked by {interaction.user.name} (ID: {interaction.user.id}) for user ID {user_id}. Days: {days}")
-            
-            try:
-                await interaction.response.defer(ephemeral=True)
-                logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
-            except discord.errors.NotFound:
-                logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound).", exc_info=True)
-                return
-            except Exception as e:
-                logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
-                return
-
-            try:
-                target_user_id = int(user_id)
-            except ValueError:
-                await interaction.followup.send("無効なユーザーIDです。有効なDiscordユーザーID (数字のみ) を入力してください。", ephemeral=True)
-                return
-
-            target_user = self.bot.get_user(target_user_id) 
-            if target_user is None:
-                try:
-                    target_user = await self.bot.fetch_user(target_user_id) 
-                except discord.NotFound:
-                    await interaction.followup.send(f"Discord上でID `{target_user_id}` のユーザーが見つかりませんでした。無効なIDの可能性があります。", ephemeral=True)
-                    logging.warning(f"User ID {target_user_id} not found via fetch_user.")
-                    return
-                except discord.HTTPException as e:
-                    await interaction.followup.send(f"ユーザー情報の取得中にエラーが発生しました: {e.status}", ephemeral=True)
-                    logging.error(f"HTTPException when fetching user {target_user_id}: {e}", exc_info=True)
-                    return
-                
-            expiration_date = None
-            if days is not None:
-                expiration_date = datetime.now(timezone.utc) + timedelta(days=days)
-
-            self.premium_users = await load_premium_data_from_gist()
-            user_info = self.premium_users.get(user_id, {})
-            user_info.update({ 
-                "username": target_user.name, 
-                "discriminator": target_user.discriminator,
-                "display_name": target_user.display_name,
-                "expiration_date": expiration_date 
-            })
-            if "patreon_email" in user_info:
-                logging.info(f"Removing patreon_email for manually granted user {user_id}.")
-                user_info.pop("patreon_email")
-
-            self.premium_users[user_id] = user_info 
+            self.premium_users.pop(user_id, None) 
             await save_premium_data_to_gist(self.premium_users) 
 
-            status_message = f"{target_user.display_name} (ID: `{target_user.id}`) にプレミアムステータスを付与しました。"
+            status_message = f"{display_name} からプレミアムステータスを剥奪しました。"
 
             target_guild = interaction.guild
             if target_guild:
-                member_id = target_user.id
-                await _update_discord_role(self.bot, target_guild.id, member_id, True)
-                status_message += f"\nDiscordロールを付与しました。"
-            else:
-                status_message += f"\nこのコマンドはDMでは実行できません。ロール操作はサーバー内でのみ可能です。"
-                logging.warning("grant_premium command invoked in DM. Role operation skipped.")
-
-            embed = discord.Embed(
-                title="✅ プレミアムステータス付与",
-                description=status_message,
-                color=discord.Color.green()
-            )
-            if expiration_date: 
-                expires_at_jst = expiration_date.astimezone(JST)
-                embed.add_field(name="期限", value=f"<t:{int(expires_at_jst.timestamp())}:F>", inline=False)
+                member_id = target_user_id
+                await _update_discord_role(self.bot, target_guild.id, member_id, False)
+                status_message += f"\nDiscordロールを剥奪しました。"
             else: 
-                embed.add_field(name="期限", value="無期限", inline=False)
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            logging.info(f"Premium status granted to user ID {user_id} by {interaction.user.name}. Details: {status_message}")
-
-
-        @app_commands.command(name="revoke_premium", description="指定ユーザーのIDからプレミアムステータスを剥奪します (オーナー限定)。")
-        @app_commands.default_permissions(manage_roles=True)
-        @is_bot_owner()
-        @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
-        async def revoke_premium(self, interaction: discord.Interaction, 
-                                 user_id: str): 
-            logging.info(f"Command '/revoke_premium' invoked by {interaction.user.name} (ID: {interaction.user.id}) for user ID {user_id}.")
-            
-            try:
-                await interaction.response.defer(ephemeral=True)
-                logging.info(f"Successfully deferred interaction for '{interaction.command.name}'.")
-            except discord.errors.NotFound:
-                logging.error(f"Failed to defer interaction for '{interaction.command.name}': Unknown interaction (404 NotFound).", exc_info=True)
-                return
-            except Exception as e:
-                logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
-                return
-
-            try:
-                target_user_id = int(user_id)
-            except ValueError:
-                await interaction.followup.send("無効なユーザーIDです。有効なDiscordユーザーID (数字のみ) を入力してください。", ephemeral=True)
-                return
-
-            status_message = ""
-            self.premium_users = await load_premium_data_from_gist() 
-            
-            if user_id in self.premium_users:
-                user_info_from_data = self.premium_users.get(user_id)
-                display_name = user_info_from_data.get("display_name", f"不明なユーザー (ID: `{user_id}`)") 
-                
-                self.premium_users.pop(user_id, None) 
-                await save_premium_data_to_gist(self.premium_users) 
-
-                status_message = f"{display_name} からプレミアムステータスを剥奪しました。"
-
-                target_guild = interaction.guild
-                if target_guild:
-                    member_id = target_user_id
-                    await _update_discord_role(self.bot, target_guild.id, member_id, False)
-                    status_message += f"\nDiscordロールを剥奪しました。"
-                else: 
-                    status_message += f"\nこのコマンドはDMでは実行できません。ロール操作はサーバー内でのみ可能です。"
-                    logging.warning("revoke_premium command invoked in DM. Role operation skipped.") 
-            else:
-                display_name = f"不明なユーザー (ID: `{user_id}`)" 
-                status_message = f"{display_name} はプレミアムユーザーではありません。"
-                logging.info(f"User ID {user_id} does not have premium status to revoke.")
+                status_message += f"\nこのコマンドはDMでは実行できません。ロール操作はサーバー内でのみ可能です。"
+                logging.warning("revoke_premium command invoked in DM. Role operation skipped.") 
+            logging.info(f"User ID {user_id} does not have premium status to revoke.")
 
             embed = discord.Embed(
                 title="✅ プレミアムステータス剥奪",
@@ -819,7 +816,7 @@ class PremiumManagerCog(commands.Cog):
                 await interaction.followup.send(f"ステータスの変更に失敗しました: {e}", ephemeral=True)
 
 
-async def setup(bot): # ★このsetup関数がファイルの一番左端から始まるようにすること！★
+async def setup(bot): 
     cog = PremiumManagerCog(bot)
     await bot.add_cog(cog)
     logging.info("PremiumManagerCog loaded.")
