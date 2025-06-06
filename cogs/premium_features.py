@@ -40,37 +40,34 @@ if not PATREON_CREATOR_ACCESS_TOKEN:
     logging.critical("PATREON_CREATOR_ACCESS_TOKEN environment variable is not set. Patreon automation will not work.")
 
 # --- Patreon テストモードの設定 ---
-PATREON_TEST_MODE_ENABLED = os.getenv('PATREON_TEST_MODE_ENABLED', 'False').lower() == 'true'
+# PATREON_TEST_MODE_ENABLED = os.getenv('PATREON_TEST_MODE_ENABLED', 'False').lower() == 'true'
 
-# テストモード用のパトロンデータ（メールアドレスは小文字で指定）
-# is_active_patron: True にするとプレミアム付与、False にすると剥奪のテストができます
-# is_on_free_trial: True に設定すると無料トライアル中とみなされます
-TEST_PATRON_DATA = [
-    {
-        "patreon_user_id": "test_patron_id_1",
-        "email": "your.discord.test.email@example.com", 
-        "is_active_patron": True, # このユーザーは現在アクティブな支援者であるとみなす（支払済み）
-        "pledge_amount_cents": int(MIN_PREMIUM_PLEDGE_AMOUNT * 100),
-        "is_on_free_trial": False # 無料トライアルではない
-    },
-    {
-        "patreon_user_id": "test_patron_id_free_trial",
-        "email": "your.discord.trial.email@example.com", # 無料トライアルテスト用のメールアドレス
-        "is_active_patron": True, # このユーザーは現在アクティブな支援者であるとみなす（無料トライアル中）
-        "pledge_amount_cents": 0, # 無料トライアル中は支払額が0セントである可能性が高い
-        "is_on_free_trial": True # 無料トライアル中であると明示的に設定
-    },
-    {
-        "patreon_user_id": "test_patron_id_2",
-        "email": "testuser2@example.com", # 他のテスト用ユーザー
-        "is_active_patron": False, # このユーザーは現在非アクティブな支援者であるとみなす
-        "pledge_amount_cents": 0,
-        "is_on_free_trial": False
-    },
-]
-logging.info(f"Patreon Test Mode Enabled: {PATREON_TEST_MODE_ENABLED}")
-if PATREON_TEST_MODE_ENABLED:
-    logging.warning("Patreon Test Mode is ENABLED. Actual Patreon API calls are bypassed.")
+# TEST_PATRON_DATA (削除またはコメントアウト)
+# TEST_PATRON_DATA = [
+#     {
+#         "patreon_user_id": "test_patron_id_1",
+#         "email": "your.discord.test.email@example.com", 
+#         "is_active_patron": True, 
+#         "pledge_amount_cents": int(MIN_PREMIUM_PLEDGE_AMOUNT * 100) 
+#     },
+#     {
+#         "patreon_user_id": "test_patron_id_free_trial",
+#         "email": "your.discord.trial.email@example.com", 
+#         "is_active_patron": True, 
+#         "pledge_amount_cents": 0, 
+#         "is_on_free_trial": True 
+#     },
+#     {
+#         "patreon_user_id": "test_patron_id_2",
+#         "email": "testuser2@example.com", 
+#         "is_active_patron": False, 
+#         "pledge_amount_cents": 0,
+#         "is_on_free_trial": False
+#     },
+# ]
+# logging.info(f"Patreon Test Mode Enabled: {PATREON_TEST_MODE_ENABLED}")
+# if PATREON_TEST_MODE_ENABLED:
+#     logging.warning("Patreon Test Mode is ENABLED. Actual Patreon API calls are bypassed.")
 
 
 def _get_patreon_client():
@@ -88,11 +85,8 @@ def _get_patreon_client():
 async def _fetch_patrons_from_patreon():
     """
     Patreon APIからキャンペーンの全パトロン情報を取得します。
-    テストモードが有効な場合は、TEST_PATRON_DATAを返します。
     """
-    if PATREON_TEST_MODE_ENABLED:
-        logging.info("Returning TEST_PATRON_DATA as Patreon Test Mode is enabled.")
-        return TEST_PATRON_DATA
+    # ★テストモード関連の分岐は、テストモード無効化時に削除済みであると仮定★
 
     api_client = _get_patreon_client()
     if not api_client:
@@ -107,14 +101,18 @@ async def _fetch_patrons_from_patreon():
         user_response = await loop.run_in_executor(
             None, lambda: api_client.fetch_user()
         )
-        for campaign in user_response.data():
-            if campaign.type == 'campaign':
-                campaign_id = campaign.id
-                logging.info(f"Found campaign ID: {campaign_id}")
-                break
+        # user_response.data() は単一のユーザーリソースを返す
+        user_resource = user_response.data() 
         
-        if not campaign_id:
-            logging.error("No campaign found for the provided Patreon Creator Access Token.")
+        # ユーザーに紐づくキャンペーンを取得 (relationships経由)
+        campaigns_relationships = user_resource.relationships('campaigns').data()
+        
+        if campaigns_relationships:
+            # ユーザーが所有する最初のキャンペーンIDを取得 (通常は1つのみ)
+            campaign_id = campaigns_relationships[0].id
+            logging.info(f"Found campaign ID: {campaign_id}")
+        else:
+            logging.error("No campaigns found related to the provided Patreon Creator Access Token's user. Please ensure your Patreon account has an active campaign.")
             return []
 
         cursor = None
@@ -129,15 +127,13 @@ async def _fetch_patrons_from_patreon():
                     patreon_user_id = patreon_user.id
                     patreon_user_email = patreon_user.attribute('email')
                     
-                    is_premium_eligible = False # 新しいフラグ：プレミアム資格があるかどうか
+                    is_premium_eligible = False 
                     current_pledge_cents = 0
                     
-                    # 関連するメンバー属性を取得
-                    is_on_free_trial = member.attribute('is_free_trial') # 'is_free_trial' 属性を取得
+                    is_on_free_trial = member.attribute('is_free_trial') 
                     last_charge_status = member.attribute('last_charge_status')
                     is_delinquent = member.attribute('is_delinquent')
                     
-                    # 特典ティアを取得
                     entitled_tiers = member.relationships('currently_entitled_tiers').data()
 
                     # 1. 通常の支払い済みパトロンの条件
@@ -154,19 +150,18 @@ async def _fetch_patrons_from_patreon():
                             logging.debug(f"Patreon User {patreon_user_email} (ID: {patreon_user_id}) is a paying patron but not meeting pledge/tier criteria (pledge: {current_pledge_cents/100:.2f} USD, entitled_tiers: {bool(entitled_tiers)}).")
                     
                     # 2. 無料トライアル中のパトロンの条件
-                    # 無料トライアル中で、かつ何らかのティアに属している場合にプレミアムとみなす
                     elif is_on_free_trial and entitled_tiers:
                         is_premium_eligible = True
                         logging.debug(f"Patreon User {patreon_user_email} (ID: {patreon_user_id}) is an active FREE TRIAL patron.")
                     else:
-                        logging.debug(f"Patreon User {patreon_user_email} (ID: {patreon_user_id}) not active (last_charge_status: {last_charge_status}, is_delinquent: {is_delinquent}, is_free_trial: {is_on_free_trial}, entitled_tiers: {bool(entitled_tiers)}).")
+                        logging.debug(f"Patreon User {patreon_user_email} (ID: {patron_user_id}) not active (last_charge_status: {last_charge_status}, is_delinquent: {is_delinquent}, is_free_trial: {is_on_free_trial}, entitled_tiers: {bool(entitled_tiers)}).")
 
                     patrons_data.append({
                         "patreon_user_id": patreon_user_id,
                         "email": patreon_user_email.lower(), 
-                        "is_active_patron": is_premium_eligible, # これが全体のプレミアム資格を反映
+                        "is_active_patron": is_premium_eligible, 
                         "pledge_amount_cents": current_pledge_cents,
-                        "is_on_free_trial": is_on_free_trial # 参考情報として含める
+                        "is_on_free_trial": is_on_free_trial 
                     })
             
             cursor = api_client.get_next_cursor(pledges_response)
@@ -176,10 +171,12 @@ async def _fetch_patrons_from_patreon():
         logging.info(f"Fetched {len(patrons_data)} patrons from Patreon API.")
         return patrons_data
 
-    except patreon.exceptions.PatreonAPIException as e:
+    except patreon.PatreonAPIException as e: # ★ここを修正★
         logging.error(f"Patreon API Error during patron fetch: {e}", exc_info=True)
-        if e.status_code == 401:
+        if hasattr(e, 'status_code') and e.status_code == 401: # status_codeが存在するかチェック
             logging.error("Patreon Creator Access Token is invalid. Please check your PATREON_CREATOR_ACCESS_TOKEN.")
+        elif hasattr(e, 'status_code') and e.status_code == 403: # 403 Forbidden も追加
+            logging.error("Patreon API Forbidden (403). Check PATREON_CREATOR_ACCESS_TOKEN permissions or if your campaign is active.")
         return []
     except Exception as e:
         logging.error(f"An unexpected error occurred during Patreon patron fetch: {e}", exc_info=True)
@@ -456,7 +453,6 @@ class PremiumManagerCog(commands.Cog):
             should_be_premium_by_patreon = False
             if patreon_email:
                 patron_in_patreon = patreon_email_map.get(patreon_email.lower())
-                # Patreonから取得したパトロンデータが存在し、かつis_active_patronがTrueであればプレミアム対象
                 if patron_in_patreon and patron_in_patreon['is_active_patron']:
                     should_be_premium_by_patreon = True
             
@@ -559,7 +555,7 @@ class PremiumManagerCog(commands.Cog):
 
         embed.add_field(
             name="プレミアムプランのご案内", 
-            value=f"より多くの機能を利用するには、Patreonで私たちを支援してください。\n[Patreonはこちら](https://www.patreon.com/azune_u)\n\nPatreonとDiscordアカウントを連携するには、`/link_patreon <Patreon登録メールアドレス>` コマンドを使用してください。\n**自動同期は `{sync_interval_display}` 時間ごとに行われます。**", 
+            value=f"より多くの機能を利用するには、Patreonで私たちを支援してください。\n[Patreonはこちら](https://www.patreon.com/your_bot_name_here)\n\nPatreonとDiscordアカウントを連携するには、`/link_patreon <Patreon登録メールアドレス>` コマンドを使用してください。\n**自動同期は `{sync_interval_display}` 時間ごとに行われます。**", 
             inline=False
         )
 
