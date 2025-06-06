@@ -204,25 +204,26 @@ class MyBot(commands.Bot):
         else:
             logging.warning("Could not link ProsekaRankMatchCommands and PjskApFcRateCommands cog.")
             
-        # ここから下の `self.tree.add_command(self.sync_commands, ...)` の行は削除済み
-        
         # コマンドの同期
         logging.info("Attempting to sync commands...")
         try:
-            # まずグローバルコマンドを同期
-            # setup_hookで一度グローバル同期を試みることで、"/sync" コマンド自体も登録されることを期待する
+            # グローバルコマンドを同期 (MyBotクラスに直接定義されたコマンドも含む)
             synced_global = await self.tree.sync()
             logging.info(f"Synced {len(synced_global)} global commands.")
 
             if self.GUILD_ID != 0:
                 support_guild = discord.Object(id=self.GUILD_ID)
-                # グローバルコマンドをギルドにコピーしてから同期（重要）
-                # これにより、ギルドコマンドとして登録されたものも更新される
+                
+                # ギルドのコマンドを一度クリアし、Discordのキャッシュを強制的に更新
+                self.tree.clear_commands(guild=support_guild)
+                await self.tree.sync(guild=support_guild) # 空のリストを同期してクリアを確定
+                
+                # グローバルコマンドをギルドにコピーし、ギルド固有のコマンドも一緒に同期
                 self.tree.copy_global_to(guild=support_guild)
                 synced_guild_commands = await self.tree.sync(guild=support_guild)
-                logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID}.")
+                logging.info(f"Cleared and re-synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID}.")
             else:
-                logging.warning("GUILD_ID is not set or invalid (0). Skipping guild command sync.")
+                logging.warning("GUILD_ID is not set or invalid (0). Skipping guild command clear/sync during setup_hook.")
 
         except Exception as e:
             logging.error(f"Failed to sync commands: {e}", exc_info=True)
@@ -309,12 +310,12 @@ class MyBot(commands.Bot):
                 await interaction.response.send_message(f"このコマンドを実行できませんでした（権限エラーなど）。", ephemeral=True)
             return
             
-        logging.error(f"An unexpected error occurred during app command '{interaction.command.name}' by {interaction.user.id}: {error}", exc_info=True)
+        logging.error(f"An unexpected error occurred during app command '{interaction.command.name}' by {interaction.user.id}: {e}", exc_info=True)
         try:
             if interaction.is_acknowledged():
-                await interaction.followup.send(f"コマンドの実行中に予期せぬエラーが発生しました: `{error}`", ephemeral=True)
+                await interaction.followup.send(f"コマンドの実行中に予期せぬエラーが発生しました: `{e}`", ephemeral=True)
             else:
-                await interaction.response.send_message(f"コマンドの実行中に予期せぬエラーが発生しました: `{error}`", ephemeral=True)
+                await interaction.response.send_message(f"コマンドの実行中に予期せぬエラーが発生しました: `{e}`", ephemeral=True)
         except discord.errors.InteractionResponded:
             pass
         except Exception as e:
@@ -330,9 +331,9 @@ class MyBot(commands.Bot):
         return app_commands.check(predicate)
 
     # デバッグ用の同期コマンド
+    # このコマンドはグローバルに登録されます
     @app_commands.command(name="sync", description="スラッシュコマンドをDiscordと同期します (オーナー限定)。")
     @is_bot_owner()
-    @app_commands.guilds(discord.Object(id=GUILD_ID)) # GUILD_ID は MyBot の属性としてアクセス
     async def sync_commands(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
@@ -349,11 +350,15 @@ class MyBot(commands.Bot):
         if self.GUILD_ID != 0:
             try:
                 guild_obj = discord.Object(id=self.GUILD_ID)
-                # グローバルコマンドをギルドにコピーしてから同期
+                # ギルドのコマンドを一度クリアし、Discordのキャッシュを強制的に更新
+                self.tree.clear_commands(guild=guild_obj) # 特定ギルドのコマンドをクリア
+                await self.tree.sync(guild=guild_obj) # クリアを反映させるために同期
+                
+                # グローバルコマンドをギルドにコピーし、ギルド固有のコマンドも一緒に同期
                 self.tree.copy_global_to(guild=guild_obj)
                 synced_guild_commands = await self.tree.sync(guild=guild_obj)
-                sync_status_message += f"このギルド ({self.GUILD_ID}) のコマンドを同期しました: {len(synced_guild_commands)}個"
-                logging.info(f"Guild ({self.GUILD_ID}) synced {len(synced_guild_commands)} commands via /sync.")
+                sync_status_message += f"このギルド ({self.GUILD_ID}) のコマンドを再同期しました: {len(synced_guild_commands)}個"
+                logging.info(f"Cleared and re-synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID} via /sync.")
             except Exception as e:
                 sync_status_message += f"ギルドコマンドの同期に失敗しました: {e}"
                 logging.error(f"Failed to guild sync commands via /sync: {e}", exc_info=True)
