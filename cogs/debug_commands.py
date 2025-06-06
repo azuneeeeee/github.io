@@ -17,13 +17,8 @@ class DebugCommands(commands.Cog):
     @commands.command(name="sync", description="スラッシュコマンドをDiscordと同期します (オーナー限定)。")
     @commands.is_owner() # ここで組み込みのオーナーチェックを使用
     async def sync_commands(self, ctx: commands.Context): # interaction ではなく ctx を受け取る
-        # 応答がタイムアウトしないように、最初にメッセージを送信
-        try:
-            await ctx.send("スラッシュコマンドの同期を開始します...")
-        except Exception as e:
-            logging.error(f"Failed to send initial message for !sync: {e}", exc_info=True)
-            
-        sync_status_message = ""
+        sync_status_message = "スラッシュコマンドの同期を開始します...\n" # 開始メッセージをここに含める
+        
         target_guild_id = self.bot.GUILD_ID # ボットインスタンスからGUILD_IDを取得
 
         if target_guild_id != 0:
@@ -51,7 +46,7 @@ class DebugCommands(commands.Cog):
             sync_status_message += "GUILD_ID が設定されていないため、ギルドコマンドの同期はできません。グローバル同期はできません。"
             logging.warning("GUILD_ID not set, skipping guild command sync via !sync command.")
         
-        # 処理結果を送信
+        # 処理結果を一度だけ送信
         try:
             await ctx.send(sync_status_message)
         except Exception as e:
