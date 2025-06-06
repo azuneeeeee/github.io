@@ -93,7 +93,7 @@ class DebugCommands(commands.Cog):
     @commands.command(name="check_local_commands", description="ボットが内部で認識しているスラッシュコマンドを表示します (オーナー限定)。")
     @commands.is_owner()
     async def check_local_commands(self, ctx: commands.Context):
-        await ctx.defer(ephemeral=True) # 即座に応答してタイムアウトを防ぐ
+        # プレフィックスコマンドには defer や followup はありません。直接 send を使います。
         
         global_commands = self.bot.tree.get_commands(guild=None)
         guild_commands = []
@@ -101,31 +101,36 @@ class DebugCommands(commands.Cog):
         if target_guild_id != 0:
             guild_commands = self.bot.tree.get_commands(guild=discord.Object(id=target_guild_id))
 
-        message = "### ボットが内部で認識しているスラッシュコマンド:\n\n"
+        message_parts = []
+        message_parts.append("### ボットが内部で認識しているスラッシュコマンド:\n\n")
         
-        message += "#### グローバルコマンド:\n"
+        message_parts.append("#### グローバルコマンド:\n")
         if global_commands:
             for cmd in global_commands:
-                message += f"- `/{cmd.name}` (グローバル)\n"
+                message_parts.append(f"- `/{cmd.name}` (グローバル)\n")
         else:
-            message += "認識しているグローバルコマンドはありません。\n"
+            message_parts.append("認識しているグローバルコマンドはありません。\n")
 
         if target_guild_id != 0:
-            message += f"\n#### ギルド({target_guild_id})コマンド:\n"
+            message_parts.append(f"\n#### ギルド({target_guild_id})コマンド:\n")
             if guild_commands:
                 for cmd in guild_commands:
-                    message += f"- `/{cmd.name}` (ギルド)\n"
+                    message_parts.append(f"- `/{cmd.name}` (ギルド)\n")
             else:
-                message += f"認識しているギルド({target_guild_id})コマンドはありません。\n"
+                message_parts.append(f"認識しているギルド({target_guild_id})コマンドはありません。\n")
         else:
-            message += "\nGUILD_IDが設定されていないため、ギルド固有コマンドは認識されません。\n"
+            message_parts.append("\nGUILD_IDが設定されていないため、ギルド固有コマンドは認識されません。\n")
 
-        if len(message) > 2000:
-            # メッセージが長すぎる場合は分割して送信
-            await ctx.followup.send(message[:1990] + "...", ephemeral=True)
-            # 必要に応じてさらに分割送信するロジックを追加可能
+        full_message = "".join(message_parts)
+
+        # メッセージが長すぎる場合は分割して送信
+        if len(full_message) > 2000:
+            # メッセージを2000文字以下に分割
+            chunks = [full_message[i:i+1990] for i in range(0, len(full_message), 1990)]
+            for chunk in chunks:
+                await ctx.send(chunk)
         else:
-            await ctx.followup.send(message, ephemeral=True)
+            await ctx.send(full_message)
 
 async def setup(bot):
     cog = DebugCommands(bot)
