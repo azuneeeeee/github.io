@@ -299,9 +299,9 @@ class MyBot(commands.Bot):
     # on_app_command event handler
     async def on_app_command(self, interaction: discord.Interaction):
         """Handles slash command invocations, checking bot status for admin mode."""
-        # コマンドが呼び出された際の詳細なログ出力
-        logging.info(f"on_app_command triggered: Command=/{interaction.command.name}, User={interaction.user.name} (ID: {interaction.user.id}).")
-        logging.info(f"Bot's internal admin mode flag: {self.is_admin_mode_active}, Bot's configured OWNER_ID: {self.OWNER_ID}.")
+        # ★追加: 最も早い段階でのprintとログ出力★
+        print(f"DEBUG: on_app_command event received. User ID: {interaction.user.id}, Command: /{interaction.command.name}. Admin mode active: {self.is_admin_mode_active}, Bot OWNER_ID: {self.OWNER_ID}")
+        logging.info(f"on_app_command triggered: Command=/{interaction.command.name}, User={interaction.user.name} (ID: {interaction.user.id}). Bot's internal admin mode flag: {self.is_admin_mode_active}, Bot's configured OWNER_ID: {self.OWNER_ID}.")
 
         # 管理者モードが有効になっているか、およびコマンド実行者がオーナーではないかチェック
         if self.is_admin_mode_active and interaction.user.id != self.OWNER_ID:
