@@ -21,55 +21,45 @@ class DebugCommands(commands.Cog):
         target_guild_id = self.bot.GUILD_ID
 
         try:
-            # 1. グローバルコマンドのクリア
-            sync_status_message += "- グローバルコマンドをクリア中...\n"
-            await status_message_obj.edit(content=sync_status_message)
-            logging.info("Clearing ALL global commands...")
-            self.bot.tree.clear_commands(guild=None) # グローバルコマンドをクリア
-            await self.bot.tree.sync(guild=None) # グローバル同期を適用し、クリアを確定
-            logging.info("Global commands cleared and synced.")
-            await asyncio.sleep(1)
+            # 同期前にボットが内部で認識しているコマンド数を報告
+            global_commands_before_sync = self.bot.tree.get_commands(guild=None)
+            guild_commands_before_sync = self.bot.tree.get_commands(guild=discord.Object(id=target_guild_id)) if target_guild_id != 0 else []
 
-            # 2. ギルド固有のコマンドのクリアと同期
+            sync_status_message += f"- ボット内部で認識されているグローバルコマンド: {len(global_commands_before_sync)}個\n"
+            sync_status_message += f"- ボット内部で認識されているギルド({target_guild_id})コマンド: {len(guild_commands_before_sync)}個\n"
+            await status_message_obj.edit(content=sync_status_message)
+            
+            synced_count = 0
             if target_guild_id != 0:
                 guild_obj = discord.Object(id=target_guild_id)
-                sync_status_message += f"- ギルド({target_guild_id})のコマンドをクリア中...\n"
+                sync_status_message += f"- ギルド({target_guild_id})にコマンドを同期中...\n"
                 await status_message_obj.edit(content=sync_status_message)
-                logging.info(f"Clearing ALL commands for guild {target_guild_id}...")
-                self.bot.tree.clear_commands(guild=guild_obj) # 指定ギルドのコマンドをクリア
-                await self.bot.tree.sync(guild=guild_obj) # ギルド同期を適用し、クリアを確定
-                logging.info(f"Guild commands for {target_guild_id} cleared and synced.")
-                await asyncio.sleep(1)
-
-                # 3. ボットの内部ツリーにある全てのコマンドを対象ギルドにコピーし、最終同期
-                sync_status_message += f"- ギルド({target_guild_id})にコマンドをコピーして最終同期中...\n"
-                await status_message_obj.edit(content=sync_status_message)
-                logging.info(f"Copying ALL internal commands to guild {target_guild_id} for final sync...")
                 
-                # ボットのtreeに登録されている全コマンドを対象ギルドにコピー
-                # これは、app_commands.command(guilds=[...]) で登録されたコマンドも、
-                # グローバルとして定義されたがguildにコピーしたいコマンドも含む
-                self.bot.tree.copy_global_to(guild=guild_obj) 
+                # グローバルコマンドをギルドにコピー (ギルド固有のコマンドも維持される)
+                self.bot.tree.copy_global_to(guild=guild_obj)
+                
+                # その後、このギルドのすべてのコマンドを同期（コピーされたグローバルコマンドと既存のギルドコマンドを含む）
                 synced_commands = await self.bot.tree.sync(guild=guild_obj)
+                synced_count = len(synced_commands)
                 
-                sync_status_message += f"✅ このギルド ({target_guild_id}) に {len(synced_commands)} 個のコマンドを同期しました。\n"
-                logging.info(f"Final sync completed for guild {target_guild_id} with {len(synced_commands)} commands.")
+                sync_status_message += f"✅ このギルド ({target_guild_id}) に {synced_count} 個のコマンドを同期しました。\n"
+                logging.info(f"Synced {synced_count} commands to guild {target_guild_id}.")
             else:
                 # GUILD_ID が設定されていない場合は、グローバル同期のみを行う
-                sync_status_message += "- GUILD_ID が設定されていないため、グローバルコマンドを最終同期中...\n"
+                sync_status_message += "- GUILD_ID が設定されていないため、グローバルコマンドを同期中...\n"
                 await status_message_obj.edit(content=sync_status_message)
-                logging.info("Performing final global sync (GUILD_ID not set)...")
                 synced_commands = await self.bot.tree.sync() # グローバル同期
-                sync_status_message += f"✅ {len(synced_commands)} 個のグローバルコマンドを同期しました。\n"
-                logging.info(f"Final global sync completed with {len(synced_commands)} commands.")
-            
-            # ボットの内部に存在するコマンド数も表示
-            global_commands_internal = self.bot.tree.get_commands(guild=None)
-            guild_commands_internal = self.bot.tree.get_commands(guild=discord.Object(id=target_guild_id)) if target_guild_id != 0 else []
-            
-            sync_status_message += f"\n--- ボット内部認識コマンド ---"
-            sync_status_message += f"\nグローバル: {len(global_commands_internal)} 個"
-            sync_status_message += f"\nギルド({target_guild_id}): {len(guild_commands_internal)} 個"
+                synced_count = len(synced_commands)
+                sync_status_message += f"✅ {synced_count} 個のグローバルコマンドを同期しました。\n"
+                logging.info(f"Synced {synced_count} global commands.")
+
+            # 同期後、ボット内部のツリーは変更されないはずなので、再度確認して表示
+            global_commands_after_sync = self.bot.tree.get_commands(guild=None)
+            guild_commands_after_sync = self.bot.tree.get_commands(guild=discord.Object(id=target_guild_id)) if target_guild_id != 0 else []
+
+            sync_status_message += f"\n--- ボット内部認識コマンド (同期後も同じはず) ---"
+            sync_status_message += f"\nグローバル: {len(global_commands_after_sync)} 個"
+            sync_status_message += f"\nギルド({target_guild_id}): {len(guild_commands_after_sync)} 個"
             
             sync_status_message += "\n\n--- 重要: Discordクライアントのキャッシュをクリアしてください ---"
             sync_status_message += "\n1. **ボットをサーバーからキック（削除）**し、再度招待してください。"
@@ -80,7 +70,6 @@ class DebugCommands(commands.Cog):
             sync_status_message += f"\n❌ コマンド同期中にエラーが発生しました: {e}\n"
             logging.error(f"!sync コマンドの実行中にエラーが発生しました: {e}", exc_info=True)
         
-        # 最終結果を送信または更新
         try:
             await status_message_obj.edit(content=sync_status_message)
         except Exception as e:
@@ -93,8 +82,6 @@ class DebugCommands(commands.Cog):
     @commands.command(name="check_local_commands", description="ボットが内部で認識しているスラッシュコマンドを表示します (オーナー限定)。")
     @commands.is_owner()
     async def check_local_commands(self, ctx: commands.Context):
-        # プレフィックスコマンドには defer や followup はありません。直接 send を使います。
-        
         global_commands = self.bot.tree.get_commands(guild=None)
         guild_commands = []
         target_guild_id = self.bot.GUILD_ID
@@ -123,9 +110,7 @@ class DebugCommands(commands.Cog):
 
         full_message = "".join(message_parts)
 
-        # メッセージが長すぎる場合は分割して送信
         if len(full_message) > 2000:
-            # メッセージを2000文字以下に分割
             chunks = [full_message[i:i+1990] for i in range(0, len(full_message), 1990)]
             for chunk in chunks:
                 await ctx.send(chunk)
