@@ -279,8 +279,12 @@ class MyBot(commands.Bot):
         for song in self.proseka_songs_data:
             total_charts += sum(1 for diff in self.valid_difficulties_data if diff.lower() in song and song[diff.lower()] is not None)
         
+        # ボットのステータスをカスタムアクティビティで設定
         activity_message = f"{total_songs}曲/{total_charts}譜面が登録済み"
-        await self.change_presence(activity=discord.Game(name=activity_message))
+        # カスタムアクティビティを使用
+        activity = discord.CustomActivity(name=activity_message) 
+        await self.change_presence(activity=activity, status=discord.Status.online) # デフォルトはオンライン
+        
         logging.info(f"Status set to: {activity_message}")
         logging.info("Bot is fully ready and accepting commands.")
 
