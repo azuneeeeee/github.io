@@ -20,6 +20,8 @@ class StatusCommands(commands.Cog):
     @app_commands.command(name="set_status", description="ボットのステータスを設定します (オーナー限定)。")
     @app_commands.default_permissions(administrator=True) # 管理者権限が必要なことを示唆
     @is_bot_owner() # オーナー限定
+    # @app_commands.guilds(discord.Object(id=0)) # この行を削除することで、コマンドはグローバルとして登録される
+                                               # setup関数でadd_cog時にguilds引数も渡さない
     @app_commands.choices(
         status=[
             app_commands.Choice(name="オンライン", value="online"), # オンラインを選択肢として追加
@@ -91,6 +93,8 @@ class StatusCommands(commands.Cog):
 async def setup(bot):
     logging.info("Entering StatusCommands setup function.")
     cog = StatusCommands(bot)
+    # add_cogのguildsパラメータを削除し、常にグローバルとして追加
+    # これにより、bot.tree.copy_global_toがこのコマンドを正しくコピーできるようになる
     await bot.add_cog(cog)
     logging.info("StatusCommands Cog added to bot.")
 
