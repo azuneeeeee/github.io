@@ -8,7 +8,8 @@ import re
 import traceback
 import logging
 
-# ロギング設定は main.py で一元的に行われるため、ここでは追加設定は不要
+# main.pyからis_not_admin_mode_for_non_ownerをインポート
+from main import is_not_admin_mode_for_non_owner 
 
 # songs.py のデータを SONGS_DATA_MAP に変換する関数
 # この関数をコグクラスの外に移動し、グローバル関数として定義
@@ -272,7 +273,7 @@ class UpdateRecordModal(Modal, title="記録を更新"):
         updated_embed = self.create_display_embed(interaction.user, self.song_name, self.difficulty, current_record, self.song_data_map)
         updated_embed.description = "記録が更新されました！"
 
-        view = RecordAccuracyView(self.bot, int(self.user_id), song_name_input, difficulty_input, self.song_data_map)
+        view = RecordAccuracyView(self.bot, int(self.user_id), self.song_name, self.difficulty, self.song_data_map) # song_name と difficulty を渡す
         view.set_button_states(has_record=True)
 
         await interaction.response.send_message(embed=updated_embed, view=view)
@@ -555,6 +556,7 @@ class PjskRecordResult(commands.Cog):
 
     @app_commands.command(name="pjsk_record_result", description="プロセカの精度記録を管理します。")
     @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
+    @is_not_admin_mode_for_non_owner() # ★追加: 管理者モードチェックを適用★
     async def pjsk_record_result(
         self,
         interaction: discord.Interaction
@@ -630,12 +632,16 @@ class PjskRecordResult(commands.Cog):
 
     @pjsk_record_result.error
     async def pjsk_record_result_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        # is_not_admin_mode_for_non_owner からの CheckFailure は main.py で捕捉されるため、ここでは主に guild check を処理
         if isinstance(error, app_commands.CheckFailure):
-            logging.warning(f"CheckFailure for /pjsk_record_result by user {interaction.user.name}.")
-            await interaction.response.send_message(
-                "このコマンドは、特定のサポートサーバーでのみ利用可能です。",
-                ephemeral=True
-            )
+            logging.warning(f"CheckFailure for /pjsk_record_result by user {interaction.user.name}. Error: {error}")
+            # もしメインのon_app_command_errorで処理されなかった場合、ここでも応答を試みる
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "このコマンドは、特定のサポートサーバーでのみ利用可能です。", # GUILD_ID制限によるCheckFailureの場合
+                    ephemeral=True
+                )
+            return
         else:
             logging.error(f"Error in pjsk_record_result command for user {interaction.user.name}: {error}", exc_info=True)
             if not interaction.response.is_done():
