@@ -42,23 +42,19 @@ if not PATREON_CREATOR_ACCESS_TOKEN:
 # --- Patreon テストモードの設定 ---
 PATREON_TEST_MODE_ENABLED = os.getenv('PATREON_TEST_MODE_ENABLED', 'False').lower() == 'true'
 
-# テストモード用のパトロンデータ（メールアドレスは小文字で指定）
-# 支払いせずにテストする場合、ここにテストしたいユーザーのPatreon登録メールアドレス（またはそれに紐付けるメールアドレス）を設定
-# is_active_patron: True にするとプレミアム付与、False にすると剥奪のテストができます
 TEST_PATRON_DATA = [
     {
         "patreon_user_id": "test_patron_id_1",
-        "email": "your.discord.test.email@example.com", # ★ユーザーが指定したメールアドレスに修正★
-        "is_active_patron": True, # このユーザーは現在アクティブな支援者であるとみなす
-        "pledge_amount_cents": int(MIN_PREMIUM_PLEDGE_AMOUNT * 100) # 最低額以上の支援
+        "email": "your.discord.test.email@example.com", 
+        "is_active_patron": True, 
+        "pledge_amount_cents": int(MIN_PREMIUM_PLEDGE_AMOUNT * 100) 
     },
     {
         "patreon_user_id": "test_patron_id_2",
-        "email": "testuser2@example.com", # 他のテスト用ユーザー
-        "is_active_patron": False, # このユーザーは現在非アクティブな支援者であるとみなす
-        "pledge_amount_cents": 0 # 支援なし
+        "email": "testuser2@example.com", 
+        "is_active_patron": False, 
+        "pledge_amount_cents": 0 
     },
-    # 必要に応じて、さらにテストユーザーを追加できます
 ]
 logging.info(f"Patreon Test Mode Enabled: {PATREON_TEST_MODE_ENABLED}")
 if PATREON_TEST_MODE_ENABLED:
@@ -78,10 +74,6 @@ def _get_patreon_client():
         return None
 
 async def _fetch_patrons_from_patreon():
-    """
-    Patreon APIからキャンペーンの全パトロン情報を取得します。
-    テストモードが有効な場合は、TEST_PATRON_DATAを返します。
-    """
     if PATREON_TEST_MODE_ENABLED:
         logging.info("Returning TEST_PATRON_DATA as Patreon Test Mode is enabled.")
         return TEST_PATRON_DATA
@@ -362,6 +354,9 @@ def is_bot_owner():
 
 
 class PremiumManagerCog(commands.Cog):
+    # クラス変数として同期間隔のデフォルト値を定義
+    DEFAULT_PATREON_SYNC_INTERVAL_HOURS = 12 
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.premium_users = {} 
@@ -369,7 +364,8 @@ class PremiumManagerCog(commands.Cog):
         
         self.patreon_sync_task.add_exception_type(Exception)
         
-    @tasks.loop(hours=12) 
+    # tasks.loop デコレータでクラス変数を使用
+    @tasks.loop(hours=DEFAULT_PATREON_SYNC_INTERVAL_HOURS) 
     async def patreon_sync_task(self):
         logging.info("Starting scheduled Patreon sync task...")
         await self.bot.wait_until_ready()
@@ -528,10 +524,13 @@ class PremiumManagerCog(commands.Cog):
         else:
             embed.description = "あなたは現在プレミアムユーザーではありません。"
             embed.color = discord.Color.red()
+        
+        # safely retrieve interval for display
+        sync_interval_display = getattr(self.patreon_sync_task, 'interval', self.DEFAULT_PATREON_SYNC_INTERVAL_HOURS)
 
         embed.add_field(
             name="プレミアムプランのご案内", 
-            value=f"より多くの機能を利用するには、Patreonで私たちを支援してください。\n[Patreonはこちら](https://www.patreon.com/your_bot_name_here)\n\nPatreonとDiscordアカウントを連携するには、`/link_patreon <Patreon登録メールアドレス>` コマンドを使用してください。\n**自動同期は `{self.patreon_sync_task.interval}` 時間ごとに行われます。**", 
+            value=f"より多くの機能を利用するには、Patreonで私たちを支援してください。\n[Patreonはこちら](https://www.patreon.com/your_bot_name_here)\n\nPatreonとDiscordアカウントを連携するには、`/link_patreon <Patreon登録メールアドレス>` コマンドを使用してください。\n**自動同期は `{sync_interval_display}` 時間ごとに行われます。**", 
             inline=False
         )
 
@@ -582,9 +581,12 @@ class PremiumManagerCog(commands.Cog):
         self.premium_users[user_id] = user_info
         await save_premium_data_to_gist(self.premium_users)
 
+        # safely retrieve interval for display
+        sync_interval_display = getattr(self.patreon_sync_task, 'interval', self.DEFAULT_PATREON_SYNC_INTERVAL_HOURS)
+
         embed = discord.Embed(
             title="✅ アカウント連携完了！",
-            description=f"DiscordアカウントとPatreonメールアドレス `{patreon_email}` を連携しました。\n自動同期は `{self.patreon_sync_task.interval}` 時間ごとに行われます。次回同期時にプレミアムステータスが更新されます。",
+            description=f"DiscordアカウントとPatreonメールアドレス `{patreon_email}` を連携しました。\n自動同期は `{sync_interval_display}` 時間ごとに行われます。次回同期時にプレミアムステータスが更新されます。",
             color=discord.Color.blue()
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
