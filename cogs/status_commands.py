@@ -25,16 +25,15 @@ class StatusCommands(commands.Cog):
 
     @app_commands.command(name="set_status", description="ボットのステータスを設定します (オーナーのみ)")
     @app_commands.describe(
-        status="設定するステータス",
+        status="設定するステータス (オンラインまたは応答不可)",
         activity_type="アクティビティタイプ",
         activity_name="アクティビティ名 (例: プレイ中)"
     )
     @app_commands.choices(
+        # ★修正点: 選択可能なステータスを「オンライン」と「応答不可」のみに制限★
         status=[
             app_commands.Choice(name="オンライン", value="online"),
-            app_commands.Choice(name="退席中", value="idle"),
-            app_commands.Choice(name="応答不可", value="dnd"),
-            app_commands.Choice(name="オフライン/ステルス", value="invisible")
+            app_commands.Choice(name="応答不可", value="dnd")
         ],
         activity_type=[
             app_commands.Choice(name="プレイ中", value="playing"),
@@ -76,13 +75,10 @@ class StatusCommands(commands.Cog):
 
             await self.bot.change_presence(status=discord_status, activity=activity)
             
-            # ★追加: ボットの管理者モードフラグを更新
-            if status == "dnd":
-                self.bot.is_admin_mode_active = True
-                logging.info(f"Bot's internal admin mode flag set to TRUE by {interaction.user.name}.")
-            else:
-                self.bot.is_admin_mode_active = False
-                logging.info(f"Bot's internal admin mode flag set to FALSE by {interaction.user.name}.")
+            # ★修正点: ボットの管理者モードフラグを更新
+            # dndの場合のみTrue、それ以外はFalse
+            self.bot.is_admin_mode_active = (status == "dnd")
+            logging.info(f"Bot's internal admin mode flag set to {self.bot.is_admin_mode_active} by {interaction.user.name} (status: {status}).")
 
             status_display = status.capitalize()
             activity_display = f"({activity_type.capitalize()}: {activity_name})" if activity_type and activity_name else ""
