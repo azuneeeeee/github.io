@@ -296,48 +296,61 @@ class MyBot(commands.Bot):
 
         logging.info("setup_hook completed.")
 
-    # ★最終修正: on_interaction イベントハンドラを実装★
+    # ★最終修正: on_interaction イベントハンドラを実装 - ここで全てをチェック・ブロック★
     async def on_interaction(self, interaction: discord.Interaction):
         """
         Handles all interactions, performing a global check for admin mode
-        before any app command is processed.
+        before any command (slash, button, etc.) is processed.
         """
-        # 最も早い段階でのデバッグログ
-        print(f"DEBUG: on_interaction event received. Type: {interaction.type}, User ID: {interaction.user.id}, Is App Command: {isinstance(interaction, discord.Interaction) and interaction.type == discord.InteractionType.application_command}. Admin mode active: {self.is_admin_mode_active}, Bot OWNER_ID: {self.OWNER_ID}")
+        # 最も早い段階でのデバッグログ (print も使用して確実に表示)
+        print(f"DEBUG: on_interaction event received. Type: {interaction.type}, User ID: {interaction.user.id}, Admin mode active: {self.is_admin_mode_active}, Bot OWNER_ID: {self.OWNER_ID}")
         logging.debug(f"ON_INTERACTION: Interaction received. Type: {interaction.type}, User ID: {interaction.user.id}. Admin mode active: {self.is_admin_mode_active}, Bot OWNER_ID: {self.OWNER_ID}")
 
-        # スラッシュコマンド（ApplicationCommand）の場合のみチェック
+        # スラッシュコマンド（ApplicationCommand）の場合のみ管理者モードチェックを適用
+        # ボタンクリックなども on_interaction で捕まるが、それらはここではブロックしない
         if interaction.type == discord.InteractionType.application_command:
             # 管理者モードが有効 (is_admin_mode_active == True) かつ、
             # コマンド実行者がオーナーではない場合 (interaction.user.id != self.OWNER_ID)
             if self.is_admin_mode_active and interaction.user.id != self.OWNER_ID:
-                logging.info(f"ON_INTERACTION: Blocking app command /{interaction.command.name} for non-owner user {interaction.user.name} (ID: {interaction.user.id}) due to admin mode.")
-                
-                # 既にレスポンス済みの場合、追加のレスポンスはできないためログのみ
+                # ブロックメッセージの送信を試みる
                 if not interaction.response.is_done():
                     try:
                         await interaction.response.send_message(
                             "現在、ボットは管理者モードです。全てのコマンドは製作者のみが利用できます。",
                             ephemeral=True # メッセージはコマンド実行者のみに見える
                         )
+                        logging.info(f"ON_INTERACTION: Successfully sent block message for /{interaction.command.name} to non-owner user {interaction.user.name} (ID: {interaction.user.id}).")
                     except discord.errors.InteractionResponded:
-                        logging.warning(f"ON_INTERACTION: InteractionResponded error when sending block message for /{interaction.command.name}. This indicates a quick response was needed.")
+                        logging.warning(f"ON_INTERACTION: InteractionResponded error when sending block message for /{interaction.command.name}. This indicates a quick response was needed (already acknowledged).")
                     except discord.errors.NotFound:
                         logging.warning(f"ON_INTERACTION: NotFound error when sending block message for /{interaction.command.name}. Interaction likely timed out before message could be sent.")
                     except Exception as e:
                         logging.error(f"ON_INTERACTION: Unexpected error sending block message for /{interaction.command.name}: {e}", exc_info=True)
-                
-                # コマンドの処理をここで完全に停止
-                return 
+                else:
+                    logging.warning(f"ON_INTERACTION: Interaction for /{interaction.command.name} was already responded to or timed out. Could not send block message.")
 
+                # ★重要: ここで raise Exception を使用して、コマンドの処理を強制的に停止させる★
+                # on_app_command_error でこの例外を捕捉し、適切に処理する
+                raise commands.CheckFailure("Bot is in admin mode.")
+            
+            logging.debug(f"ON_INTERACTION: Allowing app command /{interaction.command.name} for user {interaction.user.name} (ID: {interaction.user.id}).")
+        
         # スラッシュコマンドでない場合、または管理者モードでない場合、
         # あるいはオーナーである場合は、通常のdiscord.pyのイベント処理に制御を戻す。
-        # ここで `await self.tree.process_commands(interaction)` や `await self.process_commands(message)`
-        # のようなものを呼び出すと、discord.py の内部処理が重複する可能性があるため、
-        # 明示的に呼び出さず、元の動作に任せる。
-        # on_interaction は基本的に他のイベントハンドラやコマンド処理の前に実行されるため、
-        # 処理を停止しない限り、自動的に次の適切なハンドラに流れる。
-        pass # 何もせず、discord.pyの内部処理に任せる
+        # process_commands を明示的に呼び出すことで、discord.py がスラッシュコマンドを処理するようにする。
+        # これがないと、on_interaction が全てを消費してしまい、コマンドが実行されなくなる。
+        if interaction.type == discord.InteractionType.application_command:
+            try:
+                await self.tree.process_commands(interaction)
+            except commands.CheckFailure:
+                # admin mode check の場合は、on_app_command_error で処理されるのでここで再raiseはしない
+                # 他の app_commands.check による CheckFailure はここで捕捉される可能性がある
+                pass # on_app_command_error がこれを処理する
+            except Exception as e:
+                # その他の例外は on_app_command_error に流れる
+                logging.error(f"Error processing command {interaction.command.name} in on_interaction: {e}", exc_info=True)
+                pass # on_app_command_error がこれを処理する
+        # その他のインタラクションタイプ (例: MessageComponent) はこのままパスさせる
 
 
     async def on_ready(self):
@@ -382,11 +395,18 @@ class MyBot(commands.Bot):
         await ctx.send(f"エラーが発生しました: {error}")
 
     async def on_app_command_error(self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
-        """Handles slash command errors."""
-        # Check if the interaction was already responded to (e.g., by our on_interaction block)
-        # In the on_interaction, if a command is blocked, it sends a message and returns.
-        # So, the command itself won't be dispatched, and thus on_app_command_error won't be hit
-        # for our admin mode blocking.
+        """
+        Handles slash command errors.
+        This will catch CheckFailure raised by our on_interaction admin mode block.
+        """
+        # ★最終修正: admin mode check からの CheckFailure を明示的に捕捉してログのみ★
+        if isinstance(error, app_commands.CheckFailure) and str(error) == "Bot is in admin mode.":
+            # The on_interaction handler has already sent the ephemeral message.
+            # Just log and return.
+            logging.info(f"on_app_command_error: Caught CheckFailure for admin mode on command '{interaction.command.name}' by user {interaction.user.id}. Command was blocked and message sent by on_interaction.")
+            return
+
+        # If interaction already responded (e.g., by another command's defer/response or timeout), ignore error
         if interaction.response.is_done():
             logging.error(f"App command error (interaction already responded or timed out): {error}", exc_info=True)
             return
@@ -395,15 +415,14 @@ class MyBot(commands.Bot):
         if isinstance(error, discord.errors.NotFound) and error.code == 10062:
             logging.error(f"Unknown interaction (404 Not Found) for command '{interaction.command.name}' by user {interaction.user.id}. Interaction might have timed out before defer/response.", exc_info=True)
             try:
-                # Only try to respond if not already responded
                 if not interaction.response.is_done():
                     await interaction.followup.send("申し訳ありません、操作がタイムアウトしたか、無効になりました。もう一度お試しください。", ephemeral=True)
             except Exception as e:
-                logging.error(f"Failed to send follow-up for Unknown interaction error: {e}", exc_info=True)
+                logging.error(f"Failed to send follow-up for Unknown interaction error in on_app_command_error: {e}", exc_info=True)
             return
             
-        # Other app_commands.CheckFailure errors (missing role, cooldown, etc.)
-        if isinstance(error, app_commands.CheckFailure):
+        # Other app_commands.CheckFailure errors (not related to admin mode)
+        if isinstance(error, app_commands.CheckFailure): 
             if isinstance(error, app_commands.MissingRole):
                 logging.warning(f"Missing role for user {interaction.user.id} on command '{interaction.command.name}'. Role ID: {error.missing_role}")
                 await interaction.response.send_message(f"このコマンドを実行するには、必要なロールがありません。", ephemeral=True)
@@ -431,7 +450,7 @@ class MyBot(commands.Bot):
         except discord.errors.InteractionResponded:
             pass # Already responded, so ignore
         except Exception as e:
-            logging.error(f"Failed to send error message to user: {e}", exc_info=True)
+            logging.error(f"Failed to send error message to user in on_app_command_error: {e}", exc_info=True)
 
 # Import _create_song_data_map from cogs.pjsk_record_result
 # This is used in setup_hook to initialize song data for the cog.
