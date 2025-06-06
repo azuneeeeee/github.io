@@ -21,6 +21,7 @@ class StatusCommands(commands.Cog):
     @app_commands.default_permissions(administrator=True) # 管理者権限が必要なことを示唆
     @is_bot_owner() # オーナー限定
     # @app_commands.guilds(discord.Object(id=0)) # この行を削除することで、コマンドはグローバルとして登録される
+                                               # setup関数でadd_cog時にguilds引数も渡さない
     @app_commands.choices(
         status=[
             app_commands.Choice(name="オンライン", value="online"), # オンラインを選択肢として追加
