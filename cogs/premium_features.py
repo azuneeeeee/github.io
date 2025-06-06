@@ -1,456 +1,456 @@
-    import discord
-    from discord.ext import commands, tasks 
-    from discord import app_commands
-    import json
-    import os
-    import logging
-    from datetime import datetime, timedelta, timezone
-    from typing import Optional
+import discord
+from discord.ext import commands, tasks 
+from discord import app_commands
+import json
+import os
+import logging
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 
-    import requests 
-    import asyncio 
+import requests 
+import asyncio 
 
-    import patreon 
+import patreon 
 
-    logging.basicConfig(level=logging.INFO,
-                        format='%(asctime)s [%(levelname)s] %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s [%(levelname)s] %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 
-    JST = timezone(timedelta(hours=9))
+JST = timezone(timedelta(hours=9))
 
-    PREMIUM_ROLE_ID = 1380155806485315604 
+PREMIUM_ROLE_ID = 1380155806485315604 
+
+try:
+    from cogs.pjsk_record_result import SUPPORT_GUILD_ID
+except ImportError:
+    logging.error("Failed to import SUPPORT_GUILD_ID from cogs.pjsk_record_result. Please ensure pjsk_record_result.py is correctly set up and defines SUPPORT_GUILD_ID.")
+    SUPPORT_GUILD_ID = 0
+
+GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
+GIST_ID = os.getenv('GIST_ID')
+GITHUB_API_BASE_URL = "https://api.github.com/gists"
+
+if not GITHUB_TOKEN or not GIST_ID:
+    logging.critical("GITHUB_TOKEN or GIST_ID environment variables are not set. Data will not be persistent. Please configure GitHub Gist.")
+
+PATREON_CREATOR_ACCESS_TOKEN = os.getenv('PATREON_CREATOR_ACCESS_TOKEN')
+MIN_PREMIUM_PLEDGE_AMOUNT = 1.0 
+
+if not PATREON_CREATOR_ACCESS_TOKEN:
+    logging.critical("PATREON_CREATOR_ACCESS_TOKEN environment variable is not set. Patreon automation will not work.")
+
+
+def _get_patreon_client():
+    if not PATREON_CREATOR_ACCESS_TOKEN:
+        logging.error("Patreon Creator Access Token is not set.")
+        return None
+    try:
+        api_client = patreon.API(PATREON_CREATOR_ACCESS_TOKEN)
+        logging.debug("Patreon API client created.")
+        return api_client
+    except Exception as e:
+        logging.error(f"Failed to create Patreon API client: {e}", exc_info=True)
+        return None
+
+async def _fetch_patrons_from_patreon():
+    """
+    Patreon APIからキャンペーンの全パトロン情報を取得します。
+    """
+    api_client = _get_patreon_client()
+    if not api_client:
+        return []
+
+    campaign_id = None
+    patrons_data = []
 
     try:
-        from cogs.pjsk_record_result import SUPPORT_GUILD_ID
-    except ImportError:
-        logging.error("Failed to import SUPPORT_GUILD_ID from cogs.pjsk_record_result. Please ensure pjsk_record_result.py is correctly set up and defines SUPPORT_GUILD_ID.")
-        SUPPORT_GUILD_ID = 0
+        loop = asyncio.get_running_loop()
 
-    GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
-    GIST_ID = os.getenv('GIST_ID')
-    GITHUB_API_BASE_URL = "https://api.github.com/gists"
-
-    if not GITHUB_TOKEN or not GIST_ID:
-        logging.critical("GITHUB_TOKEN or GIST_ID environment variables are not set. Data will not be persistent. Please configure GitHub Gist.")
-
-    PATREON_CREATOR_ACCESS_TOKEN = os.getenv('PATREON_CREATOR_ACCESS_TOKEN')
-    MIN_PREMIUM_PLEDGE_AMOUNT = 1.0 
-
-    if not PATREON_CREATOR_ACCESS_TOKEN:
-        logging.critical("PATREON_CREATOR_ACCESS_TOKEN environment variable is not set. Patreon automation will not work.")
-
-
-    def _get_patreon_client():
-        if not PATREON_CREATOR_ACCESS_TOKEN:
-            logging.error("Patreon Creator Access Token is not set.")
-            return None
-        try:
-            api_client = patreon.API(PATREON_CREATOR_ACCESS_TOKEN)
-            logging.debug("Patreon API client created.")
-            return api_client
-        except Exception as e:
-            logging.error(f"Failed to create Patreon API client: {e}", exc_info=True)
-            return None
-
-    async def _fetch_patrons_from_patreon():
-        """
-        Patreon APIからキャンペーンの全パトロン情報を取得します。
-        """
-        api_client = _get_patreon_client()
-        if not api_client:
+        user_response = await loop.run_in_executor(
+            None, lambda: api_client.fetch_user()
+        )
+        user_resource = user_response.data() 
+        
+        campaigns_relationships = user_resource.relationships('campaigns').data()
+        
+        if campaigns_relationships:
+            campaign_id = campaigns_relationships[0].id
+            logging.info(f"Found campaign ID: {campaign_id}")
+        else:
+            logging.error("No campaigns found related to the provided Patreon Creator Access Token's user. Please ensure your Patreon account has an active campaign.")
             return []
 
-        campaign_id = None
-        patrons_data = []
-
-        try:
-            loop = asyncio.get_running_loop()
-
-            user_response = await loop.run_in_executor(
-                None, lambda: api_client.fetch_user()
+        cursor = None
+        while True:
+            pledges_response = await loop.run_in_executor(
+                None, lambda c=cursor: api_client.fetch_campaign_members(campaign_id, page_size=25, includes=['user', 'currently_entitled_tiers'])
             )
-            user_resource = user_response.data() 
             
-            campaigns_relationships = user_resource.relationships('campaigns').data()
-            
-            if campaigns_relationships:
-                campaign_id = campaigns_relationships[0].id
-                logging.info(f"Found campaign ID: {campaign_id}")
-            else:
-                logging.error("No campaigns found related to the provided Patreon Creator Access Token's user. Please ensure your Patreon account has an active campaign.")
-                return []
+            for member in pledges_response.data():
+                if member.type == 'member':
+                    patreon_user = member.relationships('user').get() 
+                    patreon_user_id = patreon_user.id
+                    patreon_user_email = patreon_user.attribute('email')
+                    
+                    is_premium_eligible = False 
+                    current_pledge_cents = 0
+                    
+                    is_on_free_trial = member.attribute('is_free_trial') 
+                    last_charge_status = member.attribute('last_charge_status')
+                    is_delinquent = member.attribute('is_delinquent')
+                    
+                    entitled_tiers = member.relationships('currently_entitled_tiers').data()
 
-            cursor = None
-            while True:
-                pledges_response = await loop.run_in_executor(
-                    None, lambda c=cursor: api_client.fetch_campaign_members(campaign_id, page_size=25, cursor=c, includes=['user', 'currently_entitled_tiers'])
-                )
-                
-                for member in pledges_response.data():
-                    if member.type == 'member':
-                        patreon_user = member.relationships('user').get() 
-                        patreon_user_id = patreon_user.id
-                        patreon_user_email = patreon_user.attribute('email')
+                    if last_charge_status == 'Paid' and not is_delinquent:
+                        if member.attribute('current_entitled_amount_cents') is not None:
+                            current_pledge_cents = member.attribute('current_entitled_amount_cents')
+                        elif member.attribute('will_pay_cents') is not None: 
+                            current_pledge_cents = member.attribute('will_pay_cents')
                         
-                        is_premium_eligible = False 
-                        current_pledge_cents = 0
-                        
-                        is_on_free_trial = member.attribute('is_free_trial') 
-                        last_charge_status = member.attribute('last_charge_status')
-                        is_delinquent = member.attribute('is_delinquent')
-                        
-                        entitled_tiers = member.relationships('currently_entitled_tiers').data()
-
-                        if last_charge_status == 'Paid' and not is_delinquent:
-                            if member.attribute('current_entitled_amount_cents') is not None:
-                                current_pledge_cents = member.attribute('current_entitled_amount_cents')
-                            elif member.attribute('will_pay_cents') is not None: 
-                                current_pledge_cents = member.attribute('will_pay_cents')
-                            
-                            if current_pledge_cents >= MIN_PREMIUM_PLEDGE_AMOUNT * 100 and entitled_tiers:
-                                is_premium_eligible = True
-                                logging.debug(f"Patreon User {patreon_user_email} (ID: {patreon_user_id}) is an active PAYING patron with pledge {current_pledge_cents/100:.2f} USD.")
-                            else:
-                                logging.debug(f"Patreon User {patreon_user_email} (ID: {patreon_user_id}) is a paying patron but not meeting pledge/tier criteria (pledge: {current_pledge_cents/100:.2f} USD, entitled_tiers: {bool(entitled_tiers)}).")
-                        
-                        elif is_on_free_trial and entitled_tiers:
+                        if current_pledge_cents >= MIN_PREMIUM_PLEDGE_AMOUNT * 100 and entitled_tiers:
                             is_premium_eligible = True
-                            logging.debug(f"Patreon User {patreon_user_email} (ID: {patreon_user_id}) is an active FREE TRIAL patron.")
+                            logging.debug(f"Patreon User {patreon_user_email} (ID: {patreon_user_id}) is an active PAYING patron with pledge {current_pledge_cents/100:.2f} USD.")
                         else:
-                            logging.debug(f"Patreon User {patreon_user_email} (ID: {patron_user_id}) not active (last_charge_status: {last_charge_status}, is_delinquent: {is_delinquent}, is_free_trial: {is_on_free_trial}, entitled_tiers: {bool(entitled_tiers)}).")
+                            logging.debug(f"Patreon User {patreon_user_email} (ID: {patreon_user_id}) is a paying patron but not meeting pledge/tier criteria (pledge: {current_pledge_cents/100:.2f} USD, entitled_tiers: {bool(entitled_tiers)}).")
+                    
+                    elif is_on_free_trial and entitled_tiers:
+                        is_premium_eligible = True
+                        logging.debug(f"Patreon User {patreon_user_email} (ID: {patreon_user_id}) is an active FREE TRIAL patron.")
+                    else:
+                        logging.debug(f"Patreon User {patreon_user_email} (ID: {patron_user_id}) not active (last_charge_status: {last_charge_status}, is_delinquent: {is_delinquent}, is_free_trial: {is_on_free_trial}, entitled_tiers: {bool(entitled_tiers)}).")
 
-                        patrons_data.append({
-                            "patreon_user_id": patreon_user_id,
-                            "email": patreon_user_email.lower(), 
-                            "is_active_patron": is_premium_eligible, 
-                            "pledge_amount_cents": current_pledge_cents,
-                            "is_on_free_trial": is_on_free_trial 
-                        })
-                
-                cursor = api_client.get_next_cursor(pledges_response)
-                if not cursor:
-                    break
+                    patrons_data.append({
+                        "patreon_user_id": patreon_user_id,
+                        "email": patreon_user_email.lower(), 
+                        "is_active_patron": is_premium_eligible, 
+                        "pledge_amount_cents": current_pledge_cents,
+                        "is_on_free_trial": is_on_free_trial 
+                    })
             
-            logging.info(f"Fetched {len(patrons_data)} patrons from Patreon API.")
-            return patrons_data
+            cursor = api_client.get_next_cursor(pledges_response)
+            if not cursor:
+                break
+        
+        logging.info(f"Fetched {len(patrons_data)} patrons from Patreon API.")
+        return patrons_data
 
-        except patreon.PatreonAPIException as e: 
-            logging.error(f"Patreon API Error during patron fetch: {e}", exc_info=True)
-            if hasattr(e, 'status_code') and e.status_code == 401: 
-                logging.error("Patreon Creator Access Token is invalid. Please check your PATREON_CREATOR_ACCESS_TOKEN.")
-            elif hasattr(e, 'status_code') and e.status_code == 403: 
-                logging.error("Patreon API Forbidden (403). Check PATREON_CREATOR_ACCESS_TOKEN permissions or if your campaign is active.")
-            return []
-        except Exception as e:
-            logging.error(f"An unexpected error occurred during Patreon patron fetch: {e}", exc_info=True)
-            return []
+    except patreon.PatreonAPIException as e: 
+        logging.error(f"Patreon API Error during patron fetch: {e}", exc_info=True)
+        if hasattr(e, 'status_code') and e.status_code == 401: 
+            logging.error("Patreon Creator Access Token is invalid. Please check your PATREON_CREATOR_ACCESS_TOKEN.")
+        elif hasattr(e, 'status_code') and e.status_code == 403: 
+            logging.error("Patreon API Forbidden (403). Check PATREON_CREATOR_ACCESS_TOKEN permissions or if your campaign is active.")
+        return []
+    except Exception as e:
+        logging.error(f"An unexpected error occurred during Patreon patron fetch: {e}", exc_info=True)
+        return []
 
 
-    async def load_premium_data_from_gist():
-        if not GITHUB_TOKEN or not GIST_ID:
-            logging.error("GitHub Token or Gist ID not set. Cannot load data from Gist.")
+async def load_premium_data_from_gist():
+    if not GITHUB_TOKEN or not GIST_ID:
+        logging.error("GitHub Token or Gist ID not set. Cannot load data from Gist.")
+        return {}
+
+    headers = {
+        'Authorization': f'token {GITHUB_TOKEN}',
+        'Accept': 'application/vnd.github.v3+json'
+    }
+    url = f"{GITHUB_API_BASE_URL}/{GIST_ID}"
+
+    try:
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(None, lambda: requests.get(url, headers=headers))
+        response.raise_for_status() 
+        
+        gist_data = response.json()
+        
+        raw_json_content = gist_data['files'].get('premium_users.json', {}).get('content')
+        
+        if not raw_json_content:
+            logging.warning("No 'premium_users.json' found or content is empty in the specified Gist. Starting with empty data.")
             return {}
 
-        headers = {
-            'Authorization': f'token {GITHUB_TOKEN}',
-            'Accept': 'application/vnd.github.v3+json'
-        }
-        url = f"{GITHUB_API_BASE_URL}/{GIST_ID}"
-
-        try:
-            loop = asyncio.get_running_loop()
-            response = await loop.run_in_executor(None, lambda: requests.get(url, headers=headers))
-            response.raise_for_status() 
-            
-            gist_data = response.json()
-            
-            raw_json_content = gist_data['files'].get('premium_users.json', {}).get('content')
-            
-            if not raw_json_content:
-                logging.warning("No 'premium_users.json' found or content is empty in the specified Gist. Starting with empty data.")
-                return {}
-
-            data = json.loads(raw_json_content)
-            premium_users = {}
-            for user_id, user_info in data.items():
-                if 'expiration_date' in user_info and user_info['expiration_date']:
-                    try:
-                        user_info['expiration_date'] = datetime.fromisoformat(user_info['expiration_date']).astimezone(timezone.utc)
-                    except ValueError:
-                        logging.warning(f"Invalid datetime format for user {user_id} in Gist: {user_info['expiration_date']}")
-                        user_info['expiration_date'] = None
-                premium_users[user_id] = user_info
-                
-            logging.info(f"Loaded {len(premium_users)} premium users from GitHub Gist.")
-            return premium_users
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Error loading premium data from GitHub Gist: {e}", exc_info=True)
-            if hasattr(response, 'status_code'):
-                if response.status_code == 404: 
-                    logging.warning("GitHub Gist not found or incorrect ID/permissions. Starting with empty data.")
-                elif response.status_code == 401 or response.status_code == 403: 
-                    logging.error("GitHub PAT is unauthorized or has insufficient permissions. Check your GITHUB_TOKEN and its 'gist' scope.")
-            return {}
-        except json.JSONDecodeError as e:
-            logging.error(f"Failed to decode JSON from GitHub Gist content: {e}", exc_info=True)
-            return {}
-        except Exception as e:
-            logging.error(f"An unexpected error occurred during GitHub Gist data loading: {e}", exc_info=True)
-            return {}
-
-    async def save_premium_data_to_gist(data: dict):
-        if not GITHUB_TOKEN or not GIST_ID:
-            logging.error("GitHub Token or Gist ID not set. Cannot save data to Gist.")
-            return
-
-        headers = {
-            'Authorization': f'token {GITHUB_TOKEN}',
-            'Accept': 'application/vnd.github.v3+json',
-            'Content-Type': 'application/json' 
-        }
-        url = f"{GITHUB_API_BASE_URL}/{GIST_ID}"
-
-        serializable_data = {}
+        data = json.loads(raw_json_content)
+        premium_users = {}
         for user_id, user_info in data.items():
-            serializable_info = user_info.copy()
-            if 'expiration_date' in serializable_info and serializable_info['expiration_date']:
-                serializable_info['expiration_date'] = serializable_info['expiration_date'].isoformat()
-            serializable_data[user_id] = serializable_info
+            if 'expiration_date' in user_info and user_info['expiration_date']:
+                try:
+                    user_info['expiration_date'] = datetime.fromisoformat(user_info['expiration_date']).astimezone(timezone.utc)
+                except ValueError:
+                    logging.warning(f"Invalid datetime format for user {user_id} in Gist: {user_info['expiration_date']}")
+                    user_info['expiration_date'] = None
+            premium_users[user_id] = user_info
+            
+        logging.info(f"Loaded {len(premium_users)} premium users from GitHub Gist.")
+        return premium_users
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error loading premium data from GitHub Gist: {e}", exc_info=True)
+        if hasattr(response, 'status_code'):
+            if response.status_code == 404: 
+                logging.warning("GitHub Gist not found or incorrect ID/permissions. Starting with empty data.")
+            elif response.status_code == 401 or response.status_code == 403: 
+                logging.error("GitHub PAT is unauthorized or has insufficient permissions. Check your GITHUB_TOKEN and its 'gist' scope.")
+        return {}
+    except json.JSONDecodeError as e:
+        logging.error(f"Failed to decode JSON from GitHub Gist content: {e}", exc_info=True)
+        return {}
+    except Exception as e:
+        logging.error(f"An unexpected error occurred during GitHub Gist data loading: {e}", exc_info=True)
+        return {}
 
-        payload = {
-            "files": {
-                "premium_users.json": {
-                    "content": json.dumps(serializable_data, ensure_ascii=False, indent=4)
-                }
+async def save_premium_data_to_gist(data: dict):
+    if not GITHUB_TOKEN or not GIST_ID:
+        logging.error("GitHub Token or Gist ID not set. Cannot save data to Gist.")
+        return
+
+    headers = {
+        'Authorization': f'token {GITHUB_TOKEN}',
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json' 
+    }
+    url = f"{GITHUB_API_BASE_URL}/{GIST_ID}"
+
+    serializable_data = {}
+    for user_id, user_info in data.items():
+        serializable_info = user_info.copy()
+        if 'expiration_date' in serializable_info and serializable_info['expiration_date']:
+            serializable_info['expiration_date'] = serializable_info['expiration_date'].isoformat()
+        serializable_data[user_id] = serializable_info
+
+    payload = {
+        "files": {
+            "premium_users.json": {
+                "content": json.dumps(serializable_data, ensure_ascii=False, indent=4)
             }
         }
+    }
 
+    try:
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(None, lambda: requests.patch(url, headers=headers, json=payload))
+        response.raise_for_status() 
+        logging.info(f"Premium data saved/updated in GitHub Gist. Status: {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error saving premium data to GitHub Gist: {e}", exc_info=True)
+        if hasattr(response, 'status_code'):
+            if response.status_code == 401 or response.status_code == 403:
+                logging.error("GitHub PAT is unauthorized or has insufficient permissions for PATCH. Check your GITHUB_TOKEN and its 'gist' scope.")
+        return 
+    except Exception as e:
+        logging.error(f"An unexpected error occurred during GitHub Gist data saving: {e}", exc_info=True)
+        return 
+
+async def _update_discord_role(bot_instance: commands.Bot, guild_id: int, member_id: int, should_have_role: bool):
+    if not bot_instance or not bot_instance.is_ready():
+        logging.warning("Bot instance not ready. Skipping role update.")
+        return False
+
+    guild = bot_instance.get_guild(guild_id)
+    if not guild:
+        logging.error(f"Guild with ID {guild_id} not found for role update.")
+        return False
+
+    member = guild.get_member(member_id)
+    if not member:
         try:
-            loop = asyncio.get_running_loop()
-            response = await loop.run_in_executor(None, lambda: requests.patch(url, headers=headers, json=payload))
-            response.raise_for_status() 
-            logging.info(f"Premium data saved/updated in GitHub Gist. Status: {response.status_code}")
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Error saving premium data to GitHub Gist: {e}", exc_info=True)
-            if hasattr(response, 'status_code'):
-                if response.status_code == 401 or response.status_code == 403:
-                    logging.error("GitHub PAT is unauthorized or has insufficient permissions for PATCH. Check your GITHUB_TOKEN and its 'gist' scope.")
-            return 
-        except Exception as e:
-            logging.error(f"An unexpected error occurred during GitHub Gist data saving: {e}", exc_info=True)
-            return 
-
-    async def _update_discord_role(bot_instance: commands.Bot, guild_id: int, member_id: int, should_have_role: bool):
-        if not bot_instance or not bot_instance.is_ready():
-            logging.warning("Bot instance not ready. Skipping role update.")
+            member = await guild.fetch_member(member_id)
+        except discord.NotFound:
+            logging.info(f"Member with ID {member_id} not found in guild {guild_id}. Skipping role update.")
+            return False
+        except discord.HTTPException as e:
+            logging.error(f"Failed to fetch member {member_id} in guild {guild_id}: {e}", exc_info=True)
             return False
 
-        guild = bot_instance.get_guild(guild_id)
-        if not guild:
-            logging.error(f"Guild with ID {guild_id} not found for role update.")
+    premium_role = guild.get_role(PREMIUM_ROLE_ID)
+    if not premium_role:
+        logging.error(f"Premium role with ID {PREMIUM_ROLE_ID} not found in guild {guild_id}.")
+        return False
+
+    if not guild.me.guild_permissions.manage_roles:
+        logging.error("Bot lacks 'manage_roles' permission in the guild for role update.")
+        return False
+
+    try:
+        if should_have_role and premium_role not in member.roles:
+            await member.add_roles(premium_role)
+            logging.info(f"Granted premium role to {member.name} (ID: {member_id}) in guild {guild_id}.")
+            return True
+        elif not should_have_role and premium_role in member.roles:
+            await member.remove_roles(premium_role)
+            logging.info(f"Revoked premium role from {member.name} (ID: {member_id}) in guild {guild_id}.")
+            return True
+        logging.debug(f"No role change needed for {member.name} (ID: {member_id}).")
+        return False
+    except discord.Forbidden:
+        logging.error(f"Bot lacks permissions to modify role {premium_role.name} for {member.name} (Forbidden).", exc_info=True)
+        return False
+    except Exception as e:
+        logging.error(f"Error updating role for {member.name} (ID: {member_id}): {e}", exc_info=True)
+        return False
+
+
+def is_premium_check():
+    async def predicate(interaction: discord.Interaction):
+        user_id = str(interaction.user.id)
+        premium_users = await load_premium_data_from_gist() 
+        
+        user_info = premium_users.get(user_id)
+        if not user_info:
+            logging.info(f"User {interaction.user.name} (ID: {user_id}) is not premium.")
+            await interaction.response.send_message(
+                "この機能はプレミアムユーザー限定です。詳細については `/premium_info` コマンドを使用してください。",
+                ephemeral=True
+            )
             return False
 
-        member = guild.get_member(member_id)
-        if not member:
-            try:
-                member = await guild.fetch_member(member_id)
-            except discord.NotFound:
-                logging.info(f"Member with ID {member_id} not found in guild {guild_id}. Skipping role update.")
-                return False
-            except discord.HTTPException as e:
-                logging.error(f"Failed to fetch member {member_id} in guild {guild_id}: {e}", exc_info=True)
-                return False
+        expiration_date = user_info.get('expiration_date')
+        patreon_email = user_info.get('patreon_email')
 
-        premium_role = guild.get_role(PREMIUM_ROLE_ID)
-        if not premium_role:
-            logging.error(f"Premium role with ID {PREMIUM_ROLE_ID} not found in guild {guild_id}.")
-            return False
-
-        if not guild.me.guild_permissions.manage_roles:
-            logging.error("Bot lacks 'manage_roles' permission in the guild for role update.")
-            return False
-
-        try:
-            if should_have_role and premium_role not in member.roles:
-                await member.add_roles(premium_role)
-                logging.info(f"Granted premium role to {member.name} (ID: {member_id}) in guild {guild_id}.")
-                return True
-            elif not should_have_role and premium_role in member.roles:
-                await member.remove_roles(premium_role)
-                logging.info(f"Revoked premium role from {member.name} (ID: {member_id}) in guild {guild_id}.")
-                return True
-            logging.debug(f"No role change needed for {member.name} (ID: {member_id}).")
-            return False
-        except discord.Forbidden:
-            logging.error(f"Bot lacks permissions to modify role {premium_role.name} for {member.name} (Forbidden).", exc_info=True)
-            return False
-        except Exception as e:
-            logging.error(f"Error updating role for {member.name} (ID: {member_id}): {e}", exc_info=True)
-            return False
-
-
-    def is_premium_check():
-        async def predicate(interaction: discord.Interaction):
-            user_id = str(interaction.user.id)
-            premium_users = await load_premium_data_from_gist() 
-            
-            user_info = premium_users.get(user_id)
-            if not user_info:
-                logging.info(f"User {interaction.user.name} (ID: {user_id}) is not premium.")
-                await interaction.response.send_message(
-                    "この機能はプレミアムユーザー限定です。詳細については `/premium_info` コマンドを使用してください。",
-                    ephemeral=True
-                )
-                return False
-
-            expiration_date = user_info.get('expiration_date')
-            patreon_email = user_info.get('patreon_email')
-
-            if patreon_email:
-                logging.info(f"User {interaction.user.name} (ID: {user_id}) is premium via Patreon linkage.")
-                return True
-
-            if not expiration_date: 
-                logging.info(f"User {interaction.user.name} (ID: {user_id}) is premium (indefinite).")
-                return True 
-
-            if expiration_date < datetime.now(JST): 
-                logging.info(f"Premium status for user {user_id} expired on {expiration_date.astimezone(JST).strftime('%Y-%m-%d %H:%M:%S JST')}. Revoking automatically.")
-                premium_users.pop(user_id, None) 
-                await save_premium_data_to_gist(premium_users) 
-                
-                guild = interaction.guild
-                if guild:
-                    member_id = interaction.user.id
-                    await _update_discord_role(interaction.client, guild.id, member_id, False)
-
-                await interaction.response.send_message(
-                    f"あなたのプレミアムステータスは {expiration_date.astimezone(JST).strftime('%Y年%m月%d日 %H時%M分')} に期限切れとなりました。再度購読してください。",
-                    ephemeral=True
-                )
-                return False
-            
-            logging.info(f"User {interaction.user.name} (ID: {user_id}) is premium, expires on {expiration_date.astimezone(JST).strftime('%Y-%m-%d %H:%M:%S JST')}.")
+        if patreon_email:
+            logging.info(f"User {interaction.user.name} (ID: {user_id}) is premium via Patreon linkage.")
             return True
 
-        return app_commands.check(predicate)
+        if not expiration_date: 
+            logging.info(f"User {interaction.user.name} (ID: {user_id}) is premium (indefinite).")
+            return True 
 
-    def is_bot_owner():
-        async def predicate(interaction: discord.Interaction):
-            if hasattr(interaction.client, 'OWNER_ID') and interaction.user.id == interaction.client.OWNER_ID:
-                return True
-            await interaction.response.send_message("このコマンドはボットのオーナーのみが実行できます。", ephemeral=True)
+        if expiration_date < datetime.now(JST): 
+            logging.info(f"Premium status for user {user_id} expired on {expiration_date.astimezone(JST).strftime('%Y-%m-%d %H:%M:%S JST')}. Revoking automatically.")
+            premium_users.pop(user_id, None) 
+            await save_premium_data_to_gist(premium_users) 
+            
+            guild = interaction.guild
+            if guild:
+                member_id = interaction.user.id
+                await _update_discord_role(interaction.client, guild.id, member_id, False)
+
+            await interaction.response.send_message(
+                f"あなたのプレミアムステータスは {expiration_date.astimezone(JST).strftime('%Y年%m月%d日 %H時%M分')} に期限切れとなりました。再度購読してください。",
+                ephemeral=True
+            )
             return False
-        return app_commands.check(predicate)
+        
+        logging.info(f"User {interaction.user.name} (ID: {user_id}) is premium, expires on {expiration_date.astimezone(JST).strftime('%Y-%m-%d %H:%M:%S JST')}.")
+        return True
+
+    return app_commands.check(predicate)
+
+def is_bot_owner():
+    async def predicate(interaction: discord.Interaction):
+        if hasattr(interaction.client, 'OWNER_ID') and interaction.user.id == interaction.client.OWNER_ID:
+            return True
+        await interaction.response.send_message("このコマンドはボットのオーナーのみが実行できます。", ephemeral=True)
+        return False
+    return app_commands.check(predicate)
 
 
-    class PremiumManagerCog(commands.Cog):
-        DEFAULT_PATREON_SYNC_INTERVAL_HOURS = 12 
+class PremiumManagerCog(commands.Cog):
+    DEFAULT_PATREON_SYNC_INTERVAL_HOURS = 12 
 
-        def __init__(self, bot: commands.Bot):
-            self.bot = bot
-            self.premium_users = {} 
-            logging.info("PremiumManagerCog initialized.")
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+        self.premium_users = {} 
+        logging.info("PremiumManagerCog initialized.")
+        
+        if hasattr(self, 'patreon_sync_task') and isinstance(self.patreon_sync_task, tasks.Loop): 
+             self.patreon_sync_task.add_exception_type(Exception)
+        else:
+            logging.warning("patreon_sync_task not found or not a Loop instance during cog initialization.")
+
+    @tasks.loop(hours=DEFAULT_PATREON_SYNC_INTERVAL_HOURS) 
+    async def patreon_sync_task(self):
+        logging.info("Starting scheduled Patreon sync task...")
+        await self.bot.wait_until_ready()
+        await self._perform_patreon_sync_job()
+        logging.info("Scheduled Patreon sync task completed.")
+
+    @patreon_sync_task.before_loop
+    async def before_patreon_sync_task(self):
+        logging.info("Waiting for bot to be ready before starting Patreon sync task loop...")
+        await self.bot.wait_until_ready()
+        logging.info("Bot ready, starting Patreon sync task loop.")
+
+    async def _perform_patreon_sync_job(self, interaction: Optional['discord.Interaction'] = None):
+        sync_start_time = datetime.now(JST)
+        success_count = 0
+        removed_count = 0
+        
+        guild_id_to_use = self.bot.GUILD_ID if hasattr(self.bot, 'GUILD_ID') else SUPPORT_GUILD_ID 
+        if guild_id_to_use == 0:
+            logging.error("GUILD_ID is not set. Cannot perform Patreon sync. Please set the GUILD_ID environment variable.")
+            if interaction:
+                await interaction.followup.send("エラー: GUILD_ID が設定されていません。ボットの設定を確認してください。", ephemeral=True)
+            return
+
+        guild = self.bot.get_guild(guild_id_to_use)
+        if not guild:
+            logging.error(f"Guild with ID {guild_id_to_use} not found for Patreon sync.")
+            if interaction:
+                await interaction.followup.send(f"エラー: 設定されたギルド (ID: `{guild_id_to_use}`) が見つかりません。", ephemeral=True)
+            return
+        
+        if not guild.me.guild_permissions.manage_roles:
+            logging.error("Bot lacks 'manage_roles' permission in the guild for Patreon sync.")
+            if interaction:
+                await interaction.followup.send("ボットにロールを管理する権限がありません。ボットのロールをプレミアムロールより上位に配置し、'ロールの管理'権限を付与してください。", ephemeral=True)
+            return
+
+        if interaction: 
+            await interaction.followup.send("Patreonとプレミアムステータスの同期を開始します...", ephemeral=True)
+        logging.info("Starting Patreon and premium status synchronization.")
+
+        patreon_patrons = await _fetch_patrons_from_patreon() 
+        if not patreon_patrons:
+            logging.error("Failed to fetch patrons from Patreon. Skipping sync.")
+            if interaction:
+                await interaction.followup.send("Patreonからパトロンデータを取得できませんでした。PATREON_CREATOR_ACCESS_TOKENが正しいか、キャンペーンにパトロンがいるか確認してください。", ephemeral=True)
+            return
+        
+        patreon_email_map = {p['email'].lower(): p for p in patreon_patrons if p['email']}
+
+        self.premium_users = await load_premium_data_from_gist()
+        
+        users_to_update_in_gist = self.premium_users.copy() 
+        
+        for discord_user_id, user_info in self.premium_users.items():
+            patreon_email = user_info.get('patreon_email')
+            discord_member_id = int(discord_user_id)
+
+            should_be_premium_by_patreon = False
+            if patreon_email:
+                patron_in_patreon = patreon_email_map.get(patreon_email.lower())
+                if patron_in_patron and patron_in_patron['is_active_patron']:
+                    should_be_premium_by_patreon = True
             
-            if hasattr(self, 'patreon_sync_task') and isinstance(self.patreon_sync_task, tasks.Loop): 
-                 self.patreon_sync_task.add_exception_type(Exception)
-            else:
-                logging.warning("patreon_sync_task not found or not a Loop instance during cog initialization.")
-
-        @tasks.loop(hours=DEFAULT_PATREON_SYNC_INTERVAL_HOURS) 
-        async def patreon_sync_task(self):
-            logging.info("Starting scheduled Patreon sync task...")
-            await self.bot.wait_until_ready()
-            await self._perform_patreon_sync_job()
-            logging.info("Scheduled Patreon sync task completed.")
-
-        @patreon_sync_task.before_loop
-        async def before_patreon_sync_task(self):
-            logging.info("Waiting for bot to be ready before starting Patreon sync task loop...")
-            await self.bot.wait_until_ready()
-            logging.info("Bot ready, starting Patreon sync task loop.")
-
-        async def _perform_patreon_sync_job(self, interaction: Optional['discord.Interaction'] = None):
-            sync_start_time = datetime.now(JST)
-            success_count = 0
-            removed_count = 0
-            
-            guild_id_to_use = self.bot.GUILD_ID if hasattr(self.bot, 'GUILD_ID') else SUPPORT_GUILD_ID 
-            if guild_id_to_use == 0:
-                logging.error("GUILD_ID is not set. Cannot perform Patreon sync. Please set the GUILD_ID environment variable.")
-                if interaction:
-                    await interaction.followup.send("エラー: GUILD_ID が設定されていません。ボットの設定を確認してください。", ephemeral=True)
-                return
-
-            guild = self.bot.get_guild(guild_id_to_use)
-            if not guild:
-                logging.error(f"Guild with ID {guild_id_to_use} not found for Patreon sync.")
-                if interaction:
-                    await interaction.followup.send(f"エラー: 設定されたギルド (ID: `{guild_id_to_use}`) が見つかりません。", ephemeral=True)
-                return
-            
-            if not guild.me.guild_permissions.manage_roles:
-                logging.error("Bot lacks 'manage_roles' permission in the guild for Patreon sync.")
-                if interaction:
-                    await interaction.followup.send("ボットにロールを管理する権限がありません。ボットのロールをプレミアムロールより上位に配置し、'ロールの管理'権限を付与してください。", ephemeral=True)
-                return
-
-            if interaction: 
-                await interaction.followup.send("Patreonとプレミアムステータスの同期を開始します...", ephemeral=True)
-            logging.info("Starting Patreon and premium status synchronization.")
-
-            patreon_patrons = await _fetch_patrons_from_patreon() 
-            if not patreon_patrons:
-                logging.error("Failed to fetch patrons from Patreon. Skipping sync.")
-                if interaction:
-                    await interaction.followup.send("Patreonからパトロンデータを取得できませんでした。PATREON_CREATOR_ACCESS_TOKENが正しいか、キャンペーンにパトロンがいるか確認してください。", ephemeral=True)
-                return
-            
-            patreon_email_map = {p['email'].lower(): p for p in patreon_patrons if p['email']}
-
-            self.premium_users = await load_premium_data_from_gist()
-            
-            users_to_update_in_gist = self.premium_users.copy() 
-            
-            for discord_user_id, user_info in self.premium_users.items():
-                patreon_email = user_info.get('patreon_email')
-                discord_member_id = int(discord_user_id)
-
-                should_be_premium_by_patreon = False
-                if patreon_email:
-                    patron_in_patreon = patreon_email_map.get(patreon_email.lower())
-                    if patron_in_patreon and patron_in_patron['is_active_patron']:
-                        should_be_premium_by_patreon = True
-                
-                current_is_premium = False
-                if patreon_email: 
-                    current_is_premium = should_be_premium_by_patreon
-                    if current_is_premium: 
-                        if user_info.get('expiration_date') is not None: 
-                            user_info['expiration_date'] = None
-                            users_to_update_in_gist[discord_user_id] = user_info 
-                            logging.info(f"Set expiration_date to None for Patreon user {discord_user_id}.")
-                    else: 
-                        if discord_user_id in users_to_update_in_gist:
-                            users_to_update_in_gist.pop(discord_user_id)
-                            logging.info(f"Removed user {discord_user_id} from Gist due to inactive Patreon pledge.")
-                elif user_info.get('expiration_date'): 
-                    if user_info['expiration_date'] < datetime.now(JST):
-                        current_is_premium = False 
-                        if discord_user_id in users_to_update_in_gist:
-                            users_to_update_in_gist.pop(discord_user_id)
-                            logging.info(f"Removed expired manual premium user {discord_user_id} from Gist.")
-                    else:
-                        current_is_premium = True 
+            current_is_premium = False
+            if patreon_email: 
+                current_is_premium = should_be_premium_by_patreon
+                if current_is_premium: 
+                    if user_info.get('expiration_date') is not None: 
+                        user_info['expiration_date'] = None
+                        users_to_update_in_gist[discord_user_id] = user_info 
+                        logging.info(f"Set expiration_date to None for Patreon user {discord_user_id}.")
                 else: 
-                    current_is_premium = True
+                    if discord_user_id in users_to_update_in_gist:
+                        users_to_update_in_gist.pop(discord_user_id)
+                        logging.info(f"Removed user {discord_user_id} from Gist due to inactive Patreon pledge.")
+            elif user_info.get('expiration_date'): 
+                if user_info['expiration_date'] < datetime.now(JST):
+                    current_is_premium = False 
+                    if discord_user_id in users_to_update_in_gist:
+                        users_to_update_in_gist.pop(discord_user_id)
+                        logging.info(f"Removed expired manual premium user {discord_user_id} from Gist.")
+                else:
+                    current_is_premium = True 
+            else: 
+                current_is_premium = True
 
-                role_changed = await _update_discord_role(self.bot, guild.id, discord_member_id, current_is_premium)
-                if role_changed:
-                    if current_is_premium:
-                        success_count += 1
-                    else:
-                        removed_count += 1
+            role_changed = await _update_discord_role(self.bot, guild.id, discord_member_id, current_is_premium)
+            if role_changed:
+                if current_is_premium:
+                    success_count += 1
+                else:
+                    removed_count += 1
             
             await save_premium_data_to_gist(users_to_update_in_gist)
             self.premium_users = users_to_update_in_gist 
@@ -728,7 +728,7 @@
                     status_message += f"\nDiscordロールを剥奪しました。"
                 else: 
                     status_message += f"\nこのコマンドはDMでは実行できません。ロール操作はサーバー内でのみ可能です。"
-                    logging.warning("revoke_premium command invoked in DM. Voice operation skipped.") # Voice -> Role に変更
+                    logging.warning("revoke_premium command invoked in DM. Role operation skipped.") 
             else:
                 display_name = f"不明なユーザー (ID: `{user_id}`)" 
                 status_message = f"{display_name} はプレミアムユーザーではありません。"
