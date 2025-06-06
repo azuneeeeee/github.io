@@ -1,5 +1,5 @@
-#import discord
-from discord.ext import commands, tasks # tasks をインポート ★変更★
+import discord
+from discord.ext import commands, tasks
 from discord import app_commands
 import json
 import os
@@ -7,33 +7,25 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-# HTTPリクエストを行うためのライブラリをインポート
 import requests 
-# 非同期処理のためのライブラリをインポート
 import asyncio 
 
-# Patreon APIとの連携用ライブラリをインポート
 import patreon 
 
-# ロギング設定
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s [%(levelname)s] %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
 
-# UTC+9 (日本標準時) のタイムゾーンオフセット
 JST = timezone(timedelta(hours=9))
 
-# ★ユーザーが提供したプレミアムロールIDをここに設定
 PREMIUM_ROLE_ID = 1380155806485315604 
 
-# pjsk_record_result.py から SUPPORT_GUILD_ID をインポート
 try:
     from cogs.pjsk_record_result import SUPPORT_GUILD_ID
 except ImportError:
     logging.error("Failed to import SUPPORT_GUILD_ID from cogs.pjsk_record_result. Please ensure pjsk_record_result.py is correctly set up and defines SUPPORT_GUILD_ID.")
     SUPPORT_GUILD_ID = 0
 
-# --- GitHub Gist 関連の設定とヘルパー関数 ---
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 GIST_ID = os.getenv('GIST_ID')
 GITHUB_API_BASE_URL = "https://api.github.com/gists"
@@ -41,17 +33,14 @@ GITHUB_API_BASE_URL = "https://api.github.com/gists"
 if not GITHUB_TOKEN or not GIST_ID:
     logging.critical("GITHUB_TOKEN or GIST_ID environment variables are not set. Data will not be persistent. Please configure GitHub Gist.")
 
-# --- Patreon 関連の設定とヘルパー関数 ---
 PATREON_CREATOR_ACCESS_TOKEN = os.getenv('PATREON_CREATOR_ACCESS_TOKEN')
-# PATREON_WEBHOOK_SECRET は不要になるため削除 ★変更★
-MIN_PREMIUM_PLEDGE_AMOUNT = 3.0 # プレミアムとみなす最低月額支援額（ドル）
+MIN_PREMIUM_PLEDGE_AMOUNT = 1.0 
 
 if not PATREON_CREATOR_ACCESS_TOKEN:
     logging.critical("PATREON_CREATOR_ACCESS_TOKEN environment variable is not set. Patreon automation will not work.")
 
 
 def _get_patreon_client():
-    """Patreon APIクライアントを返します。"""
     if not PATREON_CREATOR_ACCESS_TOKEN:
         logging.error("Patreon Creator Access Token is not set.")
         return None
@@ -64,10 +53,6 @@ def _get_patreon_client():
         return None
 
 async def _fetch_patrons_from_patreon():
-    """
-    Patreon APIからキャンペーンの全パトロン情報を取得します。
-    非同期コンテキスト内で同期的に呼び出します。
-    """
     api_client = _get_patreon_client()
     if not api_client:
         return []
@@ -78,7 +63,6 @@ async def _fetch_patrons_from_patreon():
     try:
         loop = asyncio.get_running_loop()
 
-        # 自身のキャンペーン情報を取得
         user_response = await loop.run_in_executor(
             None, lambda: api_client.fetch_user()
         )
@@ -92,10 +76,8 @@ async def _fetch_patrons_from_patreon():
             logging.error("No campaign found for the provided Patreon Creator Access Token.")
             return []
 
-        # キャンペーンの全パトロンを取得
         cursor = None
         while True:
-            # `includes` を使用して、パトロン情報と関連するユーザー、メンバーシップ情報（pledge_sumなど）を取得
             pledges_response = await loop.run_in_executor(
                 None, lambda c=cursor: api_client.fetch_campaign_members(campaign_id, page_size=25, cursor=c, includes=['user', 'currently_entitled_tiers'])
             )
@@ -109,7 +91,6 @@ async def _fetch_patrons_from_patreon():
                     is_active_patron = False
                     current_pledge_cents = 0
 
-                    # 支援状況の確認 (last_charge_status と is_delinquent)
                     if member.attribute('last_charge_status') == 'Paid' and member.attribute('is_delinquent') == False:
                         if member.attribute('current_entitled_amount_cents') is not None:
                             current_pledge_cents = member.attribute('current_entitled_amount_cents')
@@ -150,7 +131,6 @@ async def _fetch_patrons_from_patreon():
 
 
 async def load_premium_data_from_gist():
-    """GitHub Gist からプレミアムユーザーデータをロードします。"""
     if not GITHUB_TOKEN or not GIST_ID:
         logging.error("GitHub Token or Gist ID not set. Cannot load data from Gist.")
         return {}
@@ -203,7 +183,6 @@ async def load_premium_data_from_gist():
         return {}
 
 async def save_premium_data_to_gist(data: dict):
-    """GitHub Gist にプレミアムユーザーデータを保存（更新）します。"""
     if not GITHUB_TOKEN or not GIST_ID:
         logging.error("GitHub Token or Gist ID not set. Cannot save data to Gist.")
         return
@@ -215,7 +194,6 @@ async def save_premium_data_to_gist(data: dict):
     }
     url = f"{GITHUB_API_BASE_URL}/{GIST_ID}"
 
-    # datetimeオブジェクトをISOフォーマットの文字列に変換して保存
     serializable_data = {}
     for user_id, user_info in data.items():
         serializable_info = user_info.copy()
@@ -247,9 +225,6 @@ async def save_premium_data_to_gist(data: dict):
         return 
 
 async def _update_discord_role(bot_instance: commands.Bot, guild_id: int, member_id: int, should_have_role: bool):
-    """
-    指定されたメンバーのプレミアムロールを付与または剥奪します。
-    """
     if not bot_instance or not bot_instance.is_ready():
         logging.warning("Bot instance not ready. Skipping role update.")
         return False
@@ -298,15 +273,7 @@ async def _update_discord_role(bot_instance: commands.Bot, guild_id: int, member
         return False
 
 
-# --- is_premium_check, is_bot_owner 関数 ---
 def is_premium_check():
-    """
-    ユーザーがプレミアムステータスを持っているかをチェックするカスタムデコレータ。
-    このチェックは、有効期限が切れていないかも確認します。
-    Patreon連携ユーザーは、is_active_patronはGistに保存されないため、
-    patreon_emailが存在すれば「Patreon連携ユーザー」とみなし、
-    実際のステータスは sync_patrons タスクによる同期に依存します。
-    """
     async def predicate(interaction: discord.Interaction):
         user_id = str(interaction.user.id)
         premium_users = await load_premium_data_from_gist() 
@@ -323,24 +290,19 @@ def is_premium_check():
         expiration_date = user_info.get('expiration_date')
         patreon_email = user_info.get('patreon_email')
 
-        # Patreon連携ユーザーはPatreon同期でステータスが管理されることを期待
-        # ここではpatreon_emailがあれば、基本的にはプレミアムとみなす
         if patreon_email:
             logging.info(f"User {interaction.user.name} (ID: {user_id}) is premium via Patreon linkage.")
             return True
 
-        if not expiration_date: # 手動付与の無期限ユーザー
+        if not expiration_date: 
             logging.info(f"User {interaction.user.name} (ID: {user_id}) is premium (indefinite).")
             return True 
 
-        # 手動付与の期限付きユーザーの期限切れチェック
         if expiration_date < datetime.now(JST): 
             logging.info(f"Premium status for user {user_id} expired on {expiration_date.astimezone(JST).strftime('%Y-%m-%d %H:%M:%S JST')}. Revoking automatically.")
-            # 期限切れの場合は自動的にプレミアムステータスをGistからも削除
             premium_users.pop(user_id, None) 
             await save_premium_data_to_gist(premium_users) 
             
-            # ロールを剥奪する
             guild = interaction.guild
             if guild:
                 member_id = interaction.user.id
@@ -358,7 +320,6 @@ def is_premium_check():
     return app_commands.check(predicate)
 
 def is_bot_owner():
-    """ボットのオーナーをチェックするカスタムデコレータ。"""
     async def predicate(interaction: discord.Interaction):
         if hasattr(interaction.client, 'OWNER_ID') and interaction.user.id == interaction.client.OWNER_ID:
             return True
@@ -368,22 +329,17 @@ def is_bot_owner():
 
 
 class PremiumManagerCog(commands.Cog):
-    def __init__(self, bot: commands.Bot): # Flaskアプリの引数は不要に ★変更★
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.premium_users = {} 
         logging.info("PremiumManagerCog initialized.")
         
-        # Patreon同期タスクを定義 ★追加★
-        self.patreon_sync_task.add_exception_type(Exception) # 例外発生時もタスクが停止しないように
+        self.patreon_sync_task.add_exception_type(Exception)
         
-    # Patreon同期タスクの定義 ★追加★
-    @tasks.loop(hours=12) # 例: 12時間ごとに同期。頻度は必要に応じて調整してください。
+    @tasks.loop(hours=12) 
     async def patreon_sync_task(self):
         logging.info("Starting scheduled Patreon sync task...")
-        # タスク開始時、ボットが準備完了しているか確認
         await self.bot.wait_until_ready()
-        
-        # 実際のリフレッシュ処理を呼び出す
         await self._perform_patreon_sync_job()
         logging.info("Scheduled Patreon sync task completed.")
 
@@ -393,23 +349,11 @@ class PremiumManagerCog(commands.Cog):
         await self.bot.wait_until_ready()
         logging.info("Bot ready, starting Patreon sync task loop.")
 
-    # on_ready は main.py の setup_hook でタスクを起動するので不要に
-    # @commands.Cog.listener()
-    # async def on_ready(self):
-    #     self.premium_users = await load_premium_data_from_gist()
-    #     logging.info(f"Loaded {len(self.premium_users)} premium users from GitHub Gist during on_ready.")
-
-    async def _perform_patreon_sync_job(self, interaction: Optional[discord.Interaction] = None):
-        """
-        Patreon同期のコアロジックをカプセル化します。
-        手動コマンドまたは定期タスクから呼び出されます。
-        """
+    async def _perform_patreon_sync_job(self, interaction: Optional['discord.Interaction'] = None): # ★変更★
         sync_start_time = datetime.now(JST)
         success_count = 0
         removed_count = 0
         
-        # ギルドの取得は、オーナーコマンド（interactionあり）か、タスク（interactionなし）かで変わる
-        # タスクからの呼び出しの場合、SUPPORT_GUILD_ID を直接使用
         guild_id_to_use = SUPPORT_GUILD_ID 
         if guild_id_to_use == 0:
             logging.error("SUPPORT_GUILD_ID is not set. Cannot perform Patreon sync. Please set the GUILD_ID environment variable.")
@@ -430,11 +374,10 @@ class PremiumManagerCog(commands.Cog):
                 await interaction.followup.send("ボットにロールを管理する権限がありません。ボットのロールをプレミアムロールより上位に配置し、'ロールの管理'権限を付与してください。", ephemeral=True)
             return
 
-        if interaction: # 手動同期コマンドの場合のみメッセージを送信
+        if interaction: 
             await interaction.followup.send("Patreonとプレミアムステータスの同期を開始します...", ephemeral=True)
         logging.info("Starting Patreon and premium status synchronization.")
 
-        # 1. Patreonから最新のパトロンリストを取得
         patreon_patrons = await _fetch_patrons_from_patreon()
         if not patreon_patrons:
             logging.error("Failed to fetch patrons from Patreon. Skipping sync.")
@@ -444,10 +387,8 @@ class PremiumManagerCog(commands.Cog):
         
         patreon_email_map = {p['email'].lower(): p for p in patreon_patrons if p['email']}
 
-        # 2. Gistからプレミアムユーザーデータをロード
         self.premium_users = await load_premium_data_from_gist()
         
-        # 3. プレミアムステータスの更新ロジック
         users_to_update_in_gist = self.premium_users.copy() 
         
         for discord_user_id, user_info in self.premium_users.items():
@@ -457,34 +398,32 @@ class PremiumManagerCog(commands.Cog):
             should_be_premium_by_patreon = False
             if patreon_email:
                 patron_in_patreon = patreon_email_map.get(patreon_email.lower())
-                if patron_in_patreon and patron_in_patreon['is_active_patron']:
+                if patron_in_patron and patron_in_patron['is_active_patron']:
                     should_be_premium_by_patreon = True
             
-            # ロール付与/剥奪の最終決定
             current_is_premium = False
-            if patreon_email: # Patreon連携ユーザーの場合、Patreonの状況が優先
+            if patreon_email: 
                 current_is_premium = should_be_premium_by_patreon
-                if current_is_premium: # PatreonでアクティブならGistのexpiration_dateをNoneにする
-                    if user_info.get('expiration_date') is not None: # 既にNoneなら更新不要
+                if current_is_premium: 
+                    if user_info.get('expiration_date') is not None: 
                         user_info['expiration_date'] = None
-                        users_to_update_in_gist[discord_user_id] = user_info # 更新をマーク
+                        users_to_update_in_gist[discord_user_id] = user_info 
                         logging.info(f"Set expiration_date to None for Patreon user {discord_user_id}.")
-                else: # Patreonで非アクティブならGistから削除
+                else: 
                     if discord_user_id in users_to_update_in_gist:
                         users_to_update_in_gist.pop(discord_user_id)
                         logging.info(f"Removed user {discord_user_id} from Gist due to inactive Patreon pledge.")
-            elif user_info.get('expiration_date'): # Patreon連携なしの期限付きユーザーの場合
+            elif user_info.get('expiration_date'): 
                 if user_info['expiration_date'] < datetime.now(JST):
-                    current_is_premium = False # 期限切れ
+                    current_is_premium = False 
                     if discord_user_id in users_to_update_in_gist:
-                        users_to_update_in_gist.pop(discord_user_id) # Gistから削除
+                        users_to_update_in_gist.pop(discord_user_id)
                         logging.info(f"Removed expired manual premium user {discord_user_id} from Gist.")
                 else:
-                    current_is_premium = True # 期限内
-            else: # Patreon連携なしの無期限ユーザーの場合
+                    current_is_premium = True 
+            else: 
                 current_is_premium = True
 
-            # Discordロールの更新
             role_changed = await _update_discord_role(self.bot, guild.id, discord_member_id, current_is_premium)
             if role_changed:
                 if current_is_premium:
@@ -492,14 +431,13 @@ class PremiumManagerCog(commands.Cog):
                 else:
                     removed_count += 1
         
-        # 4. Gistのデータを更新
         await save_premium_data_to_gist(users_to_update_in_gist)
-        self.premium_users = users_to_update_in_gist # 内部状態も更新
+        self.premium_users = users_to_update_in_gist 
         
         sync_end_time = datetime.now(JST)
         duration = (sync_end_time - sync_start_time).total_seconds()
 
-        if interaction: # 手動同期コマンドの場合のみメッセージを送信
+        if interaction: 
             embed = discord.Embed(
                 title="✅ Patreon同期完了",
                 description=f"PatreonとDiscordのプレミアムステータスを同期しました。\n\n"
@@ -516,7 +454,6 @@ class PremiumManagerCog(commands.Cog):
 
     @app_commands.command(name="premium_info", description="あなたのプレミアムステータスを表示します。")
     async def premium_info(self, interaction: discord.Interaction):
-        """ユーザーのプレミアムステータスを表示するコマンド"""
         logging.info(f"Command '/premium_info' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
         await interaction.response.defer(ephemeral=True)
 
@@ -534,7 +471,7 @@ class PremiumManagerCog(commands.Cog):
                 embed.description = f"あなたは現在プレミアムユーザーです！\nPatreonアカウント: `{patreon_email}` と連携済み。"
                 embed.color = discord.Color.green()
             
-                if expiration_date: # Patreon連携ユーザーでも手動で期限を付けられた場合 (基本的にはNoneに上書きされる想定)
+                if expiration_date: 
                     expires_at_jst = expiration_date.astimezone(JST)
                     if expires_at_jst > datetime.now(JST):
                         embed.description += f"\n(手動付与の期限: <t:{int(expires_at_jst.timestamp())}:F>)"
@@ -552,7 +489,7 @@ class PremiumManagerCog(commands.Cog):
                     if user_id in self.premium_users:
                         self.premium_users.pop(user_id)
                         await save_premium_data_to_gist(self.premium_users)
-            else: # Patreon連携なしの無期限ユーザーの場合
+            else: 
                 embed.description = "あなたは現在プレミアムユーザーです！ (期限なし)"
                 embed.color = discord.Color.green()
         else:
@@ -561,7 +498,7 @@ class PremiumManagerCog(commands.Cog):
 
         embed.add_field(
             name="プレミアムプランのご案内", 
-            value=f"より多くの機能を利用するには、Patreonで私たちを支援してください。\n[Patreonはこちら](https://www.patreon.com/azune_u)\n\nPatreonとDiscordアカウントを連携するには、`/link_patreon <Patreon登録メールアドレス>` コマンドを使用してください。\n**自動同期は `{self.patreon_sync_task.interval}` 時間ごとに行われます。**", # 自動同期の頻度を追加
+            value=f"より多くの機能を利用するには、Patreonで私たちを支援してください。\n[Patreonはこちら](https://www.patreon.com/your_bot_name_here)\n\nPatreonとDiscordアカウントを連携するには、`/link_patreon <Patreon登録メールアドレス>` コマンドを使用してください。\n**自動同期は `{self.patreon_sync_task.interval}` 時間ごとに行われます。**", 
             inline=False
         )
 
@@ -569,9 +506,9 @@ class PremiumManagerCog(commands.Cog):
         logging.info(f"Premium info sent to {interaction.user.name}.")
 
     @app_commands.command(name="premium_exclusive_command", description="プレミアムユーザー限定のすごい機能！")
-    @is_bot_owner() # 開発中はオーナー限定 (本番運用時は @is_premium_check() に戻す)
+    @is_bot_owner() 
+    @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
     async def premium_exclusive_command(self, interaction: discord.Interaction):
-        """プレミアムユーザーのみが利用できるコマンドの例"""
         logging.info(f"Command '/premium_exclusive_command' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
         await interaction.response.defer(ephemeral=False)
         
@@ -586,7 +523,6 @@ class PremiumManagerCog(commands.Cog):
 
     @app_commands.command(name="link_patreon", description="PatreonアカウントとDiscordアカウントを連携します。")
     async def link_patreon(self, interaction: discord.Interaction, patreon_email: str):
-        """ユーザーがPatreonアカウントとDiscordアカウントを連携するためのコマンド。"""
         logging.info(f"Command '/link_patreon' invoked by {interaction.user.name} (ID: {interaction.user.id}) with email: {patreon_email}.")
         try:
             await interaction.response.defer(ephemeral=True)
@@ -605,9 +541,8 @@ class PremiumManagerCog(commands.Cog):
             "username": interaction.user.name, 
             "discriminator": interaction.user.discriminator,
             "display_name": interaction.user.display_name,
-            "patreon_email": patreon_email.lower() # メールアドレスは小文字で保存
+            "patreon_email": patreon_email.lower() 
         })
-        # 手動付与の有効期限は維持するが、自動同期時にPatreon側で上書きされる
         if "expiration_date" not in user_info:
              user_info["expiration_date"] = None 
 
@@ -628,7 +563,6 @@ class PremiumManagerCog(commands.Cog):
     @is_bot_owner()
     @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
     async def sync_patrons(self, interaction: discord.Interaction):
-        """Patreonパトロンとプレミアムステータスを同期するコマンド。"""
         logging.info(f"Command '/sync_patrons' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
         
         try:
@@ -641,7 +575,6 @@ class PremiumManagerCog(commands.Cog):
             logging.error(f"Unexpected error during defer for '{interaction.command.name}': {e}", exc_info=True)
             return
 
-        # コア同期処理を呼び出す ★変更★
         await self._perform_patreon_sync_job(interaction) 
 
 
@@ -650,9 +583,8 @@ class PremiumManagerCog(commands.Cog):
     @is_bot_owner() 
     @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
     async def grant_premium(self, interaction: discord.Interaction, 
-                            user_id: str, # ユーザーIDは必須
+                            user_id: str, 
                             days: Optional[app_commands.Range[int, 1, 365]] = None): 
-        """ボットのオーナーがユーザーにプレミアムステータスを付与するためのコマンド"""
         logging.info(f"Command '/grant_premium' invoked by {interaction.user.name} (ID: {interaction.user.id}) for user ID {user_id}. Days: {days}")
         
         try:
@@ -734,7 +666,6 @@ class PremiumManagerCog(commands.Cog):
     @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID))
     async def revoke_premium(self, interaction: discord.Interaction, 
                              user_id: str): 
-        """ボットのオーナーがユーザーからプレミアムステータスを剥奪するためのコマンド"""
         logging.info(f"Command '/revoke_premium' invoked by {interaction.user.name} (ID: {interaction.user.id}) for user ID {user_id}.")
         
         try:
