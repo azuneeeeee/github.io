@@ -1,12 +1,9 @@
 import discord
 from discord.ext import commands
-from discord import app_commands # app_commands.CheckFailure のために必要
 import logging
 import asyncio # asyncio.sleep を追加
 
-# main.py から is_bot_owner ヘルパー関数をインポート
-# GUILD_ID はボットインスタンスからアクセスするため、ここではインポートしない
-from main import is_bot_owner
+# commands.is_owner() を直接使用するため、main からは何もインポートしない
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s [%(levelname)s] %(message)s',
@@ -18,17 +15,13 @@ class DebugCommands(commands.Cog):
         logging.info("DebugCommands Cog initialized.")
 
     @commands.command(name="sync", description="スラッシュコマンドをDiscordと同期します (オーナー限定)。")
-    @is_bot_owner() # グローバルからインポートしたヘルパー関数を使用
-    async def sync_commands(self, ctx: commands.Context): # interaction を ctx に変更
+    @commands.is_owner() # ここで組み込みのオーナーチェックを使用
+    async def sync_commands(self, ctx: commands.Context): # interaction ではなく ctx を受け取る
         # 応答がタイムアウトしないように、最初にメッセージを送信
         try:
-            await ctx.send("スラッシュコマンドの同期を開始します...", ephemeral=True) # ephemeral=True は ctx.send ではサポートされない場合がある
-            # ephemeral はスラッシュコマンドの interaction.response.send_message の引数。
-            # ctx.send には ephemeral はないため、ここでは削除。
-            # また、ephemeral=True はスラッシュコマンドのデバッグ用なので、プレフィックスコマンドでは通常不要。
+            await ctx.send("スラッシュコマンドの同期を開始します...")
         except Exception as e:
             logging.error(f"Failed to send initial message for !sync: {e}", exc_info=True)
-            # このエラーが発生しても、後続の処理は続ける（フォールバック）
             
         sync_status_message = ""
         target_guild_id = self.bot.GUILD_ID # ボットインスタンスからGUILD_IDを取得
