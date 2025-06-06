@@ -329,28 +329,19 @@ class MyBot(commands.Bot):
                 else:
                     logging.warning(f"ON_INTERACTION: Interaction for /{interaction.command.name} was already responded to or timed out. Could not send block message.")
 
-                # ★重要: ここで raise Exception を使用して、コマンドの処理を強制的に停止させる★
+                # ★重要: ここで raise commands.CheckFailure を使用して、コマンドの処理を強制的に停止させる★
                 # on_app_command_error でこの例外を捕捉し、適切に処理する
                 raise commands.CheckFailure("Bot is in admin mode.")
             
-            logging.debug(f"ON_INTERACTION: Allowing app command /{interaction.command.name} for user {interaction.user.name} (ID: {interaction.user.id}).")
-        
-        # スラッシュコマンドでない場合、または管理者モードでない場合、
-        # あるいはオーナーである場合は、通常のdiscord.pyのイベント処理に制御を戻す。
-        # process_commands を明示的に呼び出すことで、discord.py がスラッシュコマンドを処理するようにする。
-        # これがないと、on_interaction が全てを消費してしまい、コマンドが実行されなくなる。
-        if interaction.type == discord.InteractionType.application_command:
-            try:
-                await self.tree.process_commands(interaction)
-            except commands.CheckFailure:
-                # admin mode check の場合は、on_app_command_error で処理されるのでここで再raiseはしない
-                # 他の app_commands.check による CheckFailure はここで捕捉される可能性がある
-                pass # on_app_command_error がこれを処理する
-            except Exception as e:
-                # その他の例外は on_app_command_error に流れる
-                logging.error(f"Error processing command {interaction.command.name} in on_interaction: {e}", exc_info=True)
-                pass # on_app_command_error がこれを処理する
+            logging.debug(f"ON_INTERACTION: Allowing app command /{interaction.command.name} for user {interaction.user.id}.")
+            # ★変更: process_commands() を呼び出さない - Discord.pyが自動でコマンドを処理するはず★
+            # これまでの試行で process_commands() が原因でエラーになるケースが複数発生。
+            # on_interaction でチェックをパスしたら、discord.pyの通常のイベントディスパッチに任せる。
+            # on_interaction は他のイベントハンドラやコマンド処理の前に実行されるため、
+            # 処理を停止しない限り、自動的に次の適切なハンドラ（この場合は tree.process_commands()）に流れるはず。
+
         # その他のインタラクションタイプ (例: MessageComponent) はこのままパスさせる
+        pass # 何もせず、discord.pyの内部処理に任せる
 
 
     async def on_ready(self):
@@ -450,7 +441,7 @@ class MyBot(commands.Bot):
         except discord.errors.InteractionResponded:
             pass # Already responded, so ignore
         except Exception as e:
-            logging.error(f"Failed to send error message to user in on_app_command_error: {e}", exc_info=True)
+            logging.error(f"Failed to send error message to user: {e}", exc_info=True)
 
 # Import _create_song_data_map from cogs.pjsk_record_result
 # This is used in setup_hook to initialize song data for the cog.
