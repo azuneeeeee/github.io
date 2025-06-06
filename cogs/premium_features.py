@@ -39,6 +39,7 @@ MIN_PREMIUM_PLEDGE_AMOUNT = 1.0
 if not PATREON_CREATOR_ACCESS_TOKEN:
     logging.critical("PATREON_CREATOR_ACCESS_TOKEN environment variable is not set. Patreon automation will not work.")
 
+
 def _get_patreon_client():
     if not PATREON_CREATOR_ACCESS_TOKEN:
         logging.error("Patreon Creator Access Token is not set.")
@@ -767,7 +768,9 @@ class PremiumManagerCog(commands.Cog):
                          activity_name: Optional[str] = None):
         
         logging.info(f"Command '/set_status' invoked by {interaction.user.name} (ID: {interaction.user.id}). Status: {status}, Activity Type: {activity_type}, Activity Name: {activity_name}")
-        await interaction.response.defer(ephemeral=True)
+        
+        # 修正: Deferの代わりに即座にメッセージを送信
+        await interaction.response.send_message("ボットのステータスを更新しています...", ephemeral=True)
 
         discord_status = {
             "online": discord.Status.online,
@@ -777,6 +780,7 @@ class PremiumManagerCog(commands.Cog):
         }.get(status)
 
         if not discord_status:
+            # send_message を使ったので followup を使う
             await interaction.followup.send("無効なステータスが指定されました。", ephemeral=True)
             return
 
@@ -808,11 +812,13 @@ class PremiumManagerCog(commands.Cog):
             elif activity_type and not activity_name: 
                 embed.add_field(name="アクティビティ", value=f"タイプ: `{activity_type}` (名前なし)", inline=False)
             
+            # 最終的なメッセージを followup で送信
             await interaction.followup.send(embed=embed, ephemeral=True)
             logging.info(f"Bot presence updated to Status: {status}, Activity: {activity_type} {activity_name}.")
 
         except Exception as e:
             logging.error(f"Failed to change bot presence: {e}", exc_info=True)
+            # エラーメッセージも followup で送信
             await interaction.followup.send(f"ステータスの変更に失敗しました: {e}", ephemeral=True)
 
 
