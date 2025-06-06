@@ -24,51 +24,53 @@ class DebugCommands(commands.Cog):
         target_guild_id = self.bot.GUILD_ID # ボットインスタンスからGUILD_IDを取得
 
         try:
-            # -----------------------------------------------------
-            # 強制的な同期ロジック
-            # 1. まずグローバルコマンドをクリアし、同期 (Discordの古いグローバルキャッシュをリセット)
+            # 1. グローバルコマンドのクリア
             sync_status_message += "- グローバルコマンドをクリア中...\n"
             await status_message_obj.edit(content=sync_status_message) # メッセージを更新
             logging.info("Clearing ALL global commands...")
             self.bot.tree.clear_commands(guild=None) # グローバルコマンドをクリア
-            await self.bot.tree.sync(guild=None) # グローバル同期を適用
+            await self.bot.tree.sync(guild=None) # グローバル同期を適用し、クリアを確定
             logging.info("Global commands cleared and synced.")
             await asyncio.sleep(1) # API負荷軽減のための遅延
 
-            # 2. 指定されたギルドのコマンドをクリアし、同期 (Discordの古いギルドキャッシュをリセット)
+            # 2. ギルド固有のコマンドのクリアと同期
             if target_guild_id != 0:
                 guild_obj = discord.Object(id=target_guild_id)
                 sync_status_message += f"- ギルド({target_guild_id})のコマンドをクリア中...\n"
                 await status_message_obj.edit(content=sync_status_message) # メッセージを更新
                 logging.info(f"Clearing ALL commands for guild {target_guild_id}...")
                 self.bot.tree.clear_commands(guild=guild_obj) # 指定ギルドのコマンドをクリア
-                await self.bot.tree.sync(guild=guild_obj) # 指定ギルドの同期を適用
+                await self.bot.tree.sync(guild=guild_obj) # ギルド同期を適用し、クリアを確定
                 logging.info(f"Guild commands for {target_guild_id} cleared and synced.")
                 await asyncio.sleep(1) # API負荷軽減のための遅延
-            else:
-                sync_status_message += "- GUILD_ID が設定されていないため、ギルドコマンドのクリアはスキップされました。\n"
-                await status_message_obj.edit(content=sync_status_message) # メッセージを更新
 
-            # 3. ボットに登録されている全てのコマンドを対象ギルドにコピーし、最終的な同期
-            # これには、各コグで @app_commands.command として定義されたコマンドも含まれる
-            if target_guild_id != 0:
-                sync_status_message += f"- ギルド({target_guild_id})にコマンドをコピーして再同期中...\n"
+                # 3. ボットの内部ツリーにある全てのコマンドを対象ギルドにコピーし、最終同期
+                # これにより、全ての登録済みコマンドが指定ギルドに反映されることを意図
+                sync_status_message += f"- ギルド({target_guild_id})にコマンドをコピーして最終同期中...\n"
                 await status_message_obj.edit(content=sync_status_message) # メッセージを更新
-                logging.info(f"Copying global commands to guild {target_guild_id} and syncing...")
+                logging.info(f"Copying ALL internal commands to guild {target_guild_id} for final sync...")
+                
+                # ボットのtreeに登録されている全コマンドを対象ギルドにコピー
+                # これは、app_commands.command(guilds=[...]) で登録されたコマンドも、
+                # グローバルとして定義されたがguildにコピーしたいコマンドも含む
                 self.bot.tree.copy_global_to(guild=guild_obj) 
                 synced_commands = await self.bot.tree.sync(guild=guild_obj)
-                sync_status_message += f"✅ このギルド ({target_guild_id}) に {len(synced_commands)} 個のコマンドを再同期しました。\n"
-                logging.info(f"Re-synced {len(synced_commands)} commands to guild {target_guild_id}.")
+                
+                sync_status_message += f"✅ このギルド ({target_guild_id}) に {len(synced_commands)} 個のコマンドを同期しました。\n"
+                logging.info(f"Final sync completed for guild {target_guild_id} with {len(synced_commands)} commands.")
             else:
                 # GUILD_ID が設定されていない場合は、グローバル同期のみを行う
-                sync_status_message += "- GUILD_ID が設定されていないため、グローバルコマンドを同期中...\n"
+                sync_status_message += "- GUILD_ID が設定されていないため、グローバルコマンドを最終同期中...\n"
                 await status_message_obj.edit(content=sync_status_message) # メッセージを更新
-                logging.info("Performing global sync (GUILD_ID not set)...")
+                logging.info("Performing final global sync (GUILD_ID not set)...")
                 synced_commands = await self.bot.tree.sync() # グローバル同期
-                sync_status_message += f"✅ GUILD_ID が設定されていないため、{len(synced_commands)} 個のグローバルコマンドを同期しました。\n"
-                logging.info(f"Synced {len(synced_commands)} global commands.")
+                sync_status_message += f"✅ {len(synced_commands)} 個のグローバルコマンドを同期しました。\n"
+                logging.info(f"Final global sync completed with {len(synced_commands)} commands.")
 
-            sync_status_message += "\nDiscordクライアントを再起動すると、変更が反映されます。"
+            sync_status_message += "\n--- 重要: Discordクライアントのキャッシュをクリアしてください ---"
+            sync_status_message += "\n1. **ボットをサーバーからキック（削除）**し、再度招待してください。"
+            sync_status_message += "\n2. **Discordアプリを完全に終了**し、再起動してください (Ctrl+Rでも可)。"
+            sync_status_message += "\nこれらはDiscordのキャッシュをクリアし、コマンドの表示を正常にするために不可欠です。"
 
         except Exception as e:
             sync_status_message += f"\n❌ コマンド同期中にエラーが発生しました: {e}\n"
