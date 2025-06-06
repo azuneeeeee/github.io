@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 import logging
-import asyncio # asyncio.sleep を追加
+import asyncio # asyncio.sleep をインポート
 
 # commands.is_owner() を直接使用するため、main からは何もインポートしない
 
@@ -18,7 +18,8 @@ class DebugCommands(commands.Cog):
     @commands.is_owner() # ここで組み込みのオーナーチェックを使用
     async def sync_commands(self, ctx: commands.Context): # interaction ではなく ctx を受け取る
         sync_status_message = "スラッシュコマンドの同期を開始します...\n"
-        await ctx.send(sync_status_message) # まず初期メッセージを送信
+        # 送信されたメッセージオブジェクトを保存し、後で編集できるようにする
+        status_message_obj = await ctx.send(sync_status_message)
 
         target_guild_id = self.bot.GUILD_ID # ボットインスタンスからGUILD_IDを取得
 
@@ -27,7 +28,7 @@ class DebugCommands(commands.Cog):
             # 強制的な同期ロジック
             # 1. まずグローバルコマンドをクリアし、同期 (Discordの古いグローバルキャッシュをリセット)
             sync_status_message += "- グローバルコマンドをクリア中...\n"
-            await ctx.edit(content=sync_status_message) # メッセージを更新
+            await status_message_obj.edit(content=sync_status_message) # メッセージを更新
             logging.info("Clearing ALL global commands...")
             self.bot.tree.clear_commands(guild=None) # グローバルコマンドをクリア
             await self.bot.tree.sync(guild=None) # グローバル同期を適用
@@ -38,7 +39,7 @@ class DebugCommands(commands.Cog):
             if target_guild_id != 0:
                 guild_obj = discord.Object(id=target_guild_id)
                 sync_status_message += f"- ギルド({target_guild_id})のコマンドをクリア中...\n"
-                await ctx.edit(content=sync_status_message) # メッセージを更新
+                await status_message_obj.edit(content=sync_status_message) # メッセージを更新
                 logging.info(f"Clearing ALL commands for guild {target_guild_id}...")
                 self.bot.tree.clear_commands(guild=guild_obj) # 指定ギルドのコマンドをクリア
                 await self.bot.tree.sync(guild=guild_obj) # 指定ギルドの同期を適用
@@ -46,13 +47,13 @@ class DebugCommands(commands.Cog):
                 await asyncio.sleep(1) # API負荷軽減のための遅延
             else:
                 sync_status_message += "- GUILD_ID が設定されていないため、ギルドコマンドのクリアはスキップされました。\n"
-                await ctx.edit(content=sync_status_message) # メッセージを更新
+                await status_message_obj.edit(content=sync_status_message) # メッセージを更新
 
             # 3. ボットに登録されている全てのコマンドを対象ギルドにコピーし、最終的な同期
             # これには、各コグで @app_commands.command として定義されたコマンドも含まれる
             if target_guild_id != 0:
                 sync_status_message += f"- ギルド({target_guild_id})にコマンドをコピーして再同期中...\n"
-                await ctx.edit(content=sync_status_message) # メッセージを更新
+                await status_message_obj.edit(content=sync_status_message) # メッセージを更新
                 logging.info(f"Copying global commands to guild {target_guild_id} and syncing...")
                 self.bot.tree.copy_global_to(guild=guild_obj) 
                 synced_commands = await self.bot.tree.sync(guild=guild_obj)
@@ -61,7 +62,7 @@ class DebugCommands(commands.Cog):
             else:
                 # GUILD_ID が設定されていない場合は、グローバル同期のみを行う
                 sync_status_message += "- GUILD_ID が設定されていないため、グローバルコマンドを同期中...\n"
-                await ctx.edit(content=sync_status_message) # メッセージを更新
+                await status_message_obj.edit(content=sync_status_message) # メッセージを更新
                 logging.info("Performing global sync (GUILD_ID not set)...")
                 synced_commands = await self.bot.tree.sync() # グローバル同期
                 sync_status_message += f"✅ GUILD_ID が設定されていないため、{len(synced_commands)} 個のグローバルコマンドを同期しました。\n"
@@ -75,11 +76,12 @@ class DebugCommands(commands.Cog):
         
         # 最終結果を送信または更新
         try:
-            await ctx.edit(content=sync_status_message) # 既存のメッセージを更新
+            await status_message_obj.edit(content=sync_status_message) # 既存のメッセージを更新
         except Exception as e:
             logging.error(f"!sync コマンドの最終メッセージ更新に失敗しました: {e}", exc_info=True)
+            # 既存メッセージの更新に失敗した場合は、新しいメッセージとして送信
             try:
-                await ctx.send(sync_status_message) # 更新できなかった場合は新規送信
+                await ctx.send(sync_status_message) 
             except Exception as e_new:
                 logging.error(f"!sync コマンドの新規メッセージ送信にも失敗しました: {e_new}", exc_info=True)
 
