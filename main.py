@@ -5,6 +5,7 @@ import json
 import asyncio
 import traceback
 import logging
+from datetime import datetime, timedelta, timezone # PremiumManagerCogで使用するため追加
 from discord import app_commands # app_commands.CheckFailure のために必要
 
 # ロギング設定
@@ -54,6 +55,15 @@ else:
 
 SONGS_FILE = 'data/songs.py'
 
+# グローバルなオーナー判定デコレータ関数
+def is_bot_owner():
+    async def predicate(interaction: discord.Interaction):
+        if hasattr(interaction.client, 'OWNER_ID') and interaction.user.id == interaction.client.OWNER_ID:
+            return True
+        await interaction.response.send_message("このコマンドはボットのオーナーのみが実行できます。", ephemeral=True)
+        return False
+    return app_commands.check(predicate)
+
 class MyBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
@@ -73,7 +83,8 @@ class MyBot(commands.Bot):
             'cogs.proseka_rankmatch',
             'cogs.pjsk_rankmatch_result',
             'cogs.pjsk_record_result',
-            'cogs.premium_features'
+            'cogs.premium_features',
+            'cogs.debug_commands' # 新しいデバッグコグを追加
         ]
         self.proseka_songs_data = []
         self.valid_difficulties_data = ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"]
@@ -87,6 +98,7 @@ class MyBot(commands.Bot):
         self.help_command_cog = None
         self.pjsk_rankmatch_result_cog = None
         self.premium_manager_cog = None
+        self.debug_commands_cog = None # DebugCommandsコグの参照
 
         # ボットインスタンスにオーナーIDとギルドIDを保存
         self.OWNER_ID = OWNER_ID
@@ -107,7 +119,7 @@ class MyBot(commands.Bot):
 
             self.proseka_songs_data = _globals.get('proseka_songs', [])
             self.valid_difficulties_data = _globals.get('VALID_DIFFICULTIES', ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER", "APPEND"])
-
+            
             if not isinstance(self.proseka_songs_data, list):
                 logging.error(f"proseka_songs in {SONGS_FILE} is not a list. Type: {type(self.proseka_songs_data)}. Using empty list.")
                 self.proseka_songs_data = []
@@ -158,6 +170,7 @@ class MyBot(commands.Bot):
         self.help_command_cog = self.get_cog("HelpCommand")
         self.pjsk_rankmatch_result_cog = self.get_cog("ProsekaRankmatchResult")
         self.premium_manager_cog = self.get_cog("PremiumManagerCog")
+        self.debug_commands_cog = self.get_cog("DebugCommands") # DebugCommandsコグの参照を設定
 
         if self.proseka_general_cog:
             self.proseka_general_cog.songs_data = self.proseka_songs_data
@@ -190,6 +203,12 @@ class MyBot(commands.Bot):
             logging.info("PremiumManagerCog found and setup complete flag set.")
         else:
             logging.warning("PremiumManagerCog not found after loading.")
+        
+        if self.debug_commands_cog: # 新しいコグの参照を確認
+            logging.info("DebugCommands cog found.")
+        else:
+            logging.warning("DebugCommands cog not found after loading.")
+
 
         # 相互参照の設定 (AP/FCレートの自動更新のため)
         if self.proseka_general_cog and self.pjsk_ap_fc_rate_cog:
@@ -205,28 +224,27 @@ class MyBot(commands.Bot):
             logging.warning("Could not link ProsekaRankMatchCommands and PjskApFcRateCommands cog.")
             
         # コマンドの同期
-        logging.info("Attempting to sync commands...")
+        logging.info("Attempting to sync commands during setup_hook...")
         try:
             if self.GUILD_ID != 0:
                 support_guild = discord.Object(id=self.GUILD_ID)
                 
                 # ボットの内部ツリーにある全コマンドを、そのギルドに同期
-                # これには、コグから追加されたコマンドと、MyBotクラスに直接定義された /sync コマンドも含まれる
+                # これにより、コグから追加されたコマンドと、MyBotクラスに直接定義された /sync コマンドも含まれる
                 synced_guild_commands = await self.tree.sync(guild=support_guild)
-                logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID}.")
+                logging.info(f"Synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID} during setup_hook.")
                 
                 # ボットの内部で登録されているコマンドを確認（デバッグ用）
                 registered_commands_internal = [cmd.name for cmd in self.tree.get_commands(guild=support_guild)]
-                logging.info(f"Commands registered in bot's internal tree for guild {self.GUILD_ID} after sync: {registered_commands_internal}")
+                logging.info(f"Commands registered in bot's internal tree for guild {self.GUILD_ID} after setup_hook sync: {registered_commands_internal}")
             else:
                 logging.warning("GUILD_ID is not set or invalid (0). Skipping guild command sync during setup_hook.")
                 # GUILD_ID が設定されていない場合、グローバル同期を試みる（もしグローバルコマンドがあれば）
                 synced_global = await self.tree.sync()
-                logging.info(f"Synced {len(synced_global)} global commands (GUILD_ID not set).")
-
+                logging.info(f"Synced {len(synced_global)} global commands (GUILD_ID not set) during setup_hook.")
 
         except Exception as e:
-            logging.error(f"Failed to sync commands: {e}", exc_info=True)
+            logging.error(f"Failed to sync commands during setup_hook: {e}", exc_info=True)
 
         logging.info("setup_hook completed.")
 
@@ -320,46 +338,6 @@ class MyBot(commands.Bot):
             pass
         except Exception as e:
             logging.error(f"Failed to send error message to user: {e}", exc_info=True)
-
-    # オーナー判定デコレータ
-    def is_bot_owner():
-        async def predicate(interaction: discord.Interaction):
-            if hasattr(interaction.client, 'OWNER_ID') and interaction.user.id == interaction.client.OWNER_ID:
-                return True
-            await interaction.response.send_message("このコマンドはボットのオーナーのみが実行できます。", ephemeral=True)
-            return False
-        return app_commands.check(predicate)
-
-    # デバッグ用の同期コマンド
-    @app_commands.command(name="sync", description="スラッシュコマンドをDiscordと同期します (オーナー限定)。")
-    @is_bot_owner()
-    @app_commands.guilds(discord.Object(id=GUILD_ID)) # GUILD_ID で指定されたギルド固有に戻す
-    async def sync_commands(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-
-        sync_status_message = ""
-        if self.GUILD_ID != 0:
-            try:
-                guild_obj = discord.Object(id=self.GUILD_ID)
-                
-                # ギルドのコマンドを一度完全にクリア
-                logging.info(f"Clearing ALL commands for guild {self.GUILD_ID} via /sync command...")
-                self.tree.clear_commands(guild=guild_obj)
-                await self.tree.sync(guild=guild_obj) # クリアを反映させるために同期
-                
-                # ボットの内部ツリーにある全コマンドを、そのギルドに同期
-                synced_guild_commands = await self.tree.sync(guild=guild_obj)
-                
-                sync_status_message += f"このギルド ({self.GUILD_ID}) のコマンドを再同期しました: {len(synced_guild_commands)}個"
-                logging.info(f"Re-synced {len(synced_guild_commands)} commands to support guild {self.GUILD_ID} via /sync command.")
-            except Exception as e:
-                sync_status_message += f"ギルドコマンドの同期に失敗しました: {e}"
-                logging.error(f"Failed to guild sync commands via /sync command: {e}", exc_info=True)
-        else:
-            sync_status_message += "GUILD_ID が設定されていないため、ギルドコマンドの同期はできません。グローバル同期はできません。"
-            logging.warning("GUILD_ID not set, skipping guild command sync via /sync command.")
-        
-        await interaction.followup.send(sync_status_message, ephemeral=True)
 
 
 from cogs.pjsk_record_result import _create_song_data_map
