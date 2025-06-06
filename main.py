@@ -270,43 +270,6 @@ class MyBot(commands.Bot):
         else:
             logging.warning("Could not link ProsekaRankMatchCommands and PjskApFcRateCommands cog.")
             
-        # ★追加: スラッシュコマンドに対するグローバルチェックをここで追加★
-        async def admin_mode_global_check(interaction: discord.Interaction) -> bool:
-            """
-            Checks if the bot is in admin mode and the user is not the owner.
-            This function is run for EVERY slash command.
-            """
-            # DEBUGレベルで、より詳細な情報をログに出力 (本番稼働ではINFO以上に設定変更推奨)
-            logging.debug(f"GLOBAL CHECK: Command=/{interaction.command.name}, User={interaction.user.name} (ID: {interaction.user.id}). Admin mode active: {self.is_admin_mode_active}, Bot OWNER_ID: {self.OWNER_ID}")
-
-            # 管理者モードが有効 (is_admin_mode_active == True) かつ、
-            # コマンド実行者がオーナーではない場合 (interaction.user.id != self.OWNER_ID)
-            if self.is_admin_mode_active and interaction.user.id != self.OWNER_ID:
-                logging.info(f"GLOBAL CHECK: Blocking command /{interaction.command.name} for non-owner user {interaction.user.name} (ID: {interaction.user.id}) due to admin mode.")
-                
-                # 既にレスポンス済みの場合、追加のレスポンスはできないためログのみ
-                if not interaction.response.is_done():
-                    try:
-                        await interaction.response.send_message(
-                            "現在、ボットは管理者モードです。全てのコマンドは製作者のみが利用できます。",
-                            ephemeral=True # メッセージはコマンド実行者のみに見える
-                        )
-                    except discord.errors.InteractionResponded:
-                        logging.warning(f"GLOBAL CHECK: InteractionResponded error when sending block message for /{interaction.command.name}. This is usually harmless but indicates a quick response was needed.")
-                    except discord.errors.NotFound:
-                        logging.warning(f"GLOBAL CHECK: NotFound error when sending block message for /{interaction.command.name}. Interaction likely timed out before message could be sent.")
-                    except Exception as e:
-                        logging.error(f"GLOBAL CHECK: Unexpected error sending block message for /{interaction.command.name}: {e}", exc_info=True)
-                return False # コマンドをブロックし、実行を停止
-            
-            logging.debug(f"GLOBAL CHECK: Allowing command /{interaction.command.name} for user {interaction.user.name} (ID: {interaction.user.id}).")
-            return True # コマンドの実行を許可
-
-        # bot.tree.add_check() を使用して、このグローバルチェックを登録
-        # これにより、スラッシュコマンドが呼び出されるたびにこの関数が実行される
-        self.tree.add_check(admin_mode_global_check)
-        logging.info("Global admin mode check successfully added to bot.tree.")
-
         # Synchronize commands
         logging.info("Attempting to sync commands during setup_hook...")
         try:
@@ -323,7 +286,7 @@ class MyBot(commands.Bot):
                 registered_commands_internal = [cmd.name for cmd in self.tree.get_commands(guild=support_guild)]
                 logging.info(f"Commands registered in bot's internal tree for guild {self.GUILD_ID} after setup_hook sync: {registered_commands_internal}")
             else:
-                logging.warning("GUILD_ID is not set or invalid (0). Skipping guild command sync during setup_hook.")
+                logging.warning("GUILD_ID is 0, skipping guild command sync during setup_hook.")
                 # If GUILD_ID is not set, attempt global synchronization.
                 synced_global = await self.tree.sync()
                 logging.info(f"Synced {len(synced_global)} global commands (GUILD_ID not set) during setup_hook.")
@@ -333,10 +296,32 @@ class MyBot(commands.Bot):
 
         logging.info("setup_hook completed.")
 
-    # --- on_app_command メソッドは不要になったため削除 ---
-    # async def on_app_command(self, interaction: discord.Interaction):
-    #     ... (このメソッドは完全に削除されます) ...
+    # on_app_command イベントハンドラを再導入
+    async def on_app_command(self, interaction: discord.Interaction):
+        """Handles slash command invocations, checking bot status for admin mode."""
+        # ★デバッグ強化: 最も早い段階でのprintとログ出力★
+        print(f"DEBUG: on_app_command event received. User ID: {interaction.user.id}, Command: /{interaction.command.name}. Admin mode active: {self.is_admin_mode_active}, Bot OWNER_ID: {self.OWNER_ID}")
+        logging.info(f"on_app_command triggered: Command=/{interaction.command.name}, User={interaction.user.name} (ID: {interaction.user.id}). Bot's internal admin mode flag: {self.is_admin_mode_active}, Bot's configured OWNER_ID: {self.OWNER_ID}.")
 
+        # 管理者モードが有効になっているか、およびコマンド実行者がオーナーではないかチェック
+        if self.is_admin_mode_active and interaction.user.id != self.OWNER_ID:
+            logging.info(f"Blocking command /{interaction.command.name} for non-owner user {interaction.user.name} (ID: {interaction.user.id}) due to admin mode.")
+            
+            # 既にレスポンス済みの場合、追加のレスポンスはできないためログのみ
+            if not interaction.response.is_done():
+                try:
+                    await interaction.response.send_message(
+                        "現在、ボットは管理者モードです。全てのコマンドは製作者のみが利用できます。",
+                        ephemeral=True # メッセージはコマンド実行者のみに見える
+                    )
+                except discord.errors.NotFound:
+                    logging.warning(f"Failed to send ephemeral block message: Unknown interaction. Interaction might have timed out.")
+                except Exception as e:
+                    logging.error(f"Failed to send ephemeral block message for /{interaction.command.name}: {e}", exc_info=True)
+            return # コマンドの実行をここで停止
+        
+        # オーナーである場合、または管理者モードではない場合は、
+        # 通常のコマンド処理（discord.py の内部ディスパッチャーが処理）を続行します。
 
     async def on_ready(self):
         """Called when the bot connects to Discord and is ready."""
@@ -381,39 +366,43 @@ class MyBot(commands.Bot):
 
     async def on_app_command_error(self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
         """Handles slash command errors."""
-        # Check if the error is a CheckFailure from our global check
-        # This will be raised if our admin_mode_global_check returns False
-        if isinstance(error, app_commands.CheckFailure):
-            # If the interaction was already responded to by our global check,
-            # do not attempt to respond again. Just log.
-            if interaction.response.is_done():
-                logging.info(f"on_app_command_error: Global check already responded for command '{interaction.command.name}' by user {interaction.user.id}. Skipping further error response.")
-                return
-            
-            # If not responded, this is likely an unhandled CheckFailure.
-            # (e.g., from a specific command's check, not our global admin mode check)
-            logging.warning(f"on_app_command_error: Unhandled CheckFailure for command '{interaction.command.name}' by user {interaction.user.id}: {error}")
-            try:
-                await interaction.response.send_message(f"このコマンドを実行できませんでした（権限エラーなど）。", ephemeral=True)
-            except discord.errors.InteractionResponded:
-                pass # Already responded by something else, ignore
-            except Exception as e:
-                logging.error(f"Failed to send error message for unhandled check failure in on_app_command_error: {e}", exc_info=True)
+        # If interaction already responded, ignore error
+        if interaction.response.is_done():
+            logging.error(f"App command error (interaction already responded): {error}", exc_info=True)
             return
 
         # Discord API timeout error (Unknown interaction)
         if isinstance(error, discord.errors.NotFound) and error.code == 10062:
-            logging.error(f"on_app_command_error: Unknown interaction (404 Not Found) for command '{interaction.command.name}' by user {interaction.user.id}. Interaction might have timed out before defer/response.", exc_info=True)
+            logging.error(f"Unknown interaction (404 Not Found) for command '{interaction.command.name}' by user {interaction.user.id}. Interaction might have timed out before defer/response.", exc_info=True)
             try:
                 # Only try to respond if not already responded
                 if not interaction.response.is_done():
                     await interaction.followup.send("申し訳ありません、操作がタイムアウトしたか、無効になりました。もう一度お試しください。", ephemeral=True)
             except Exception as e:
-                logging.error(f"Failed to send follow-up for Unknown interaction error in on_app_command_error: {e}", exc_info=True)
+                logging.error(f"Failed to send follow-up for Unknown interaction error: {e}", exc_info=True)
             return
             
-        # Other unexpected errors
-        logging.error(f"on_app_command_error: An unexpected error occurred during app command '{interaction.command.name}' by {interaction.user.id}: {error}", exc_info=True)
+        # Other app_commands.CheckFailure errors (missing role, cooldown, etc.)
+        if isinstance(error, app_commands.CheckFailure):
+            if isinstance(error, app_commands.MissingRole):
+                logging.warning(f"Missing role for user {interaction.user.id} on command '{interaction.command.name}'. Role ID: {error.missing_role}")
+                await interaction.response.send_message(f"このコマンドを実行するには、必要なロールがありません。", ephemeral=True)
+            elif isinstance(error, app_commands.NoPrivateMessage):
+                logging.warning(f"Private message usage for command '{interaction.command.name}' by user {interaction.user.id}.")
+                await interaction.response.send_message("このコマンドはDMでは実行できません。", ephemeral=True)
+            elif isinstance(error, app_commands.CommandOnCooldown):
+                logging.warning(f"Command '{interaction.command.name}' on cooldown for user {interaction.user.id}. Retry after {error.retry_after:.2f}s.")
+                await interaction.response.send_message(f"このコマンドはクールダウン中です。{error.retry_after:.2f}秒後に再試行してください。", ephemeral=True)
+            elif isinstance(error, app_commands.MissingPermissions):
+                logging.warning(f"Missing permissions for user {interaction.user.id} on command '{interaction.command.name}'. Permissions: {error.missing_permissions}")
+                await interaction.response.send_message(f"このコマンドを実行するための権限がありません。", ephemeral=True)
+            else:
+                logging.warning(f"Generic CheckFailure for command '{interaction.command.name}' by user {interaction.user.id}: {error}")
+                await interaction.response.send_message(f"このコマンドを実行できませんでした（権限エラーなど）。", ephemeral=True)
+            return
+            
+        # Unexpected errors
+        logging.error(f"An unexpected error occurred during app command '{interaction.command.name}' by {interaction.user.id}: {error}", exc_info=True)
         try:
             if interaction.is_acknowledged():
                 await interaction.followup.send(f"コマンドの実行中に予期せぬエラーが発生しました: `{error}`", ephemeral=True)
@@ -422,7 +411,7 @@ class MyBot(commands.Bot):
         except discord.errors.InteractionResponded:
             pass # Already responded, so ignore
         except Exception as e:
-            logging.error(f"Failed to send error message to user in on_app_command_error: {e}", exc_info=True)
+            logging.error(f"Failed to send error message to user: {e}", exc_info=True)
 
 # Import _create_song_data_map from cogs.pjsk_record_result
 # This is used in setup_hook to initialize song data for the cog.
