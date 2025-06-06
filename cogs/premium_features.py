@@ -39,26 +39,27 @@ MIN_PREMIUM_PLEDGE_AMOUNT = 1.0
 if not PATREON_CREATOR_ACCESS_TOKEN:
     logging.critical("PATREON_CREATOR_ACCESS_TOKEN environment variable is not set. Patreon automation will not work.")
 
-# --- Patreon テストモードの設定 ---
-PATREON_TEST_MODE_ENABLED = os.getenv('PATREON_TEST_MODE_ENABLED', 'False').lower() == 'true'
+# --- Patreon テストモードの設定 (削除またはコメントアウト) ---
+# PATREON_TEST_MODE_ENABLED = os.getenv('PATREON_TEST_MODE_ENABLED', 'False').lower() == 'true'
 
-TEST_PATRON_DATA = [
-    {
-        "patreon_user_id": "test_patron_id_1",
-        "email": "your.discord.test.email@example.com", 
-        "is_active_patron": True, 
-        "pledge_amount_cents": int(MIN_PREMIUM_PLEDGE_AMOUNT * 100) 
-    },
-    {
-        "patreon_user_id": "test_patron_id_2",
-        "email": "testuser2@example.com", 
-        "is_active_patron": False, 
-        "pledge_amount_cents": 0 
-    },
-]
-logging.info(f"Patreon Test Mode Enabled: {PATREON_TEST_MODE_ENABLED}")
-if PATREON_TEST_MODE_ENABLED:
-    logging.warning("Patreon Test Mode is ENABLED. Actual Patreon API calls are bypassed.")
+# TEST_PATRON_DATA (削除またはコメントアウト)
+# TEST_PATRON_DATA = [
+#     {
+#         "patreon_user_id": "test_patron_id_1",
+#         "email": "your.discord.test.email@example.com", 
+#         "is_active_patron": True, 
+#         "pledge_amount_cents": int(MIN_PREMIUM_PLEDGE_AMOUNT * 100) 
+#     },
+#     {
+#         "patreon_user_id": "test_patron_id_2",
+#         "email": "testuser2@example.com", 
+#         "is_active_patron": False, 
+#         "pledge_amount_cents": 0 
+#     },
+# ]
+# logging.info(f"Patreon Test Mode Enabled: {PATREON_TEST_MODE_ENABLED}")
+# if PATREON_TEST_MODE_ENABLED:
+#     logging.warning("Patreon Test Mode is ENABLED. Actual Patreon API calls are bypassed.")
 
 
 def _get_patreon_client():
@@ -74,9 +75,13 @@ def _get_patreon_client():
         return None
 
 async def _fetch_patrons_from_patreon():
-    if PATREON_TEST_MODE_ENABLED:
-        logging.info("Returning TEST_PATRON_DATA as Patreon Test Mode is enabled.")
-        return TEST_PATRON_DATA
+    """
+    Patreon APIからキャンペーンの全パトロン情報を取得します。
+    """
+    # ★テストモード関連の分岐を削除★
+    # if PATREON_TEST_MODE_ENABLED: 
+    #     logging.info("Returning TEST_PATRON_DATA as Patreon Test Mode is enabled.")
+    #     return TEST_PATRON_DATA
 
     api_client = _get_patreon_client()
     if not api_client:
@@ -354,7 +359,6 @@ def is_bot_owner():
 
 
 class PremiumManagerCog(commands.Cog):
-    # クラス変数として同期間隔のデフォルト値を定義
     DEFAULT_PATREON_SYNC_INTERVAL_HOURS = 12 
 
     def __init__(self, bot: commands.Bot):
@@ -364,7 +368,6 @@ class PremiumManagerCog(commands.Cog):
         
         self.patreon_sync_task.add_exception_type(Exception)
         
-    # tasks.loop デコレータでクラス変数を使用
     @tasks.loop(hours=DEFAULT_PATREON_SYNC_INTERVAL_HOURS) 
     async def patreon_sync_task(self):
         logging.info("Starting scheduled Patreon sync task...")
@@ -525,7 +528,6 @@ class PremiumManagerCog(commands.Cog):
             embed.description = "あなたは現在プレミアムユーザーではありません。"
             embed.color = discord.Color.red()
         
-        # safely retrieve interval for display
         sync_interval_display = getattr(self.patreon_sync_task, 'interval', self.DEFAULT_PATREON_SYNC_INTERVAL_HOURS)
 
         embed.add_field(
@@ -581,7 +583,6 @@ class PremiumManagerCog(commands.Cog):
         self.premium_users[user_id] = user_info
         await save_premium_data_to_gist(self.premium_users)
 
-        # safely retrieve interval for display
         sync_interval_display = getattr(self.patreon_sync_task, 'interval', self.DEFAULT_PATREON_SYNC_INTERVAL_HOURS)
 
         embed = discord.Embed(
