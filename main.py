@@ -94,19 +94,9 @@ class MyBot(commands.Bot):
 
         logging.info("Bot instance created.")
 
-    # グローバルチェック関数として MyBot クラスのメソッドとして定義
-    async def global_owner_check_on_dnd(self, interaction: discord.Interaction) -> bool:
-        # ボットの現在のステータスが「取り込み中 (Do Not Disturb)」であるか確認
-        if interaction.client.user.status == discord.Status.dnd:
-            # もしボットが「取り込み中」で、かつコマンド実行者がオーナーではない場合
-            if interaction.user.id != self.OWNER_ID: # self.OWNER_ID を参照
-                await interaction.response.send_message(
-                    "現在、ボットは管理者モードです。全てのコマンドは製作者のみが利用できます。",
-                    ephemeral=True # 他のユーザーには見えないメッセージ
-                )
-                return False # コマンドの実行を停止
-        return True # ボットが「取り込み中」でない、または実行者がオーナーであればコマンドを許可
-
+    # global_owner_check_on_dnd 関数は、on_app_command で直接呼び出すため、
+    # ここでの定義は不要となります。
+    # on_app_command_error の前に on_app_command を定義します。
 
     async def _load_songs_data_async(self):
         """data/songs.py から楽曲データを非同期で読み込む"""
@@ -217,17 +207,11 @@ class MyBot(commands.Bot):
         else:
             logging.warning("Could not link ProsekaRankMatchCommands and PjskApFcRateCommands cog.")
             
-        # グローバルチェックをコマンドツリーに追加
-        logging.info("Adding global owner check for DND status...")
-        # self.tree.add_check() は discord.py のバージョンによっては存在しない可能性があるため、
-        # より互換性のある方法で全体にチェックを適用します。
-        # 最も確実なのは個々のコマンドにデコレータを付けることですが、
-        # グローバルに適用したい場合は on_app_command をオーバーライドしてチェックを行う方法があります。
-        # ただし、現在のコードでは tree.add_check が推奨される方法なので、
-        # requirements.txt で discord.py のバージョンを上げるのが最善です。
-        # コードはそのままにして、requirements.txt の修正に集中します。
-        self.tree.add_check(self.global_owner_check_on_dnd) 
-        logging.info("Global owner check added.")
+        # グローバルチェックは on_app_command イベントで直接処理するため、
+        # ここでの self.tree.add_check は削除します。
+        # logging.info("Adding global owner check for DND status...")
+        # self.tree.add_check(self.global_owner_check_on_dnd) 
+        # logging.info("Global owner check added.")
 
         # コマンドの同期
         logging.info("Attempting to sync commands...")
@@ -247,6 +231,24 @@ class MyBot(commands.Bot):
 
         logging.info("setup_hook completed.")
 
+    # on_app_command イベントハンドラを追加
+    async def on_app_command(self, interaction: discord.Interaction):
+        # ボットの現在のステータスが「取り込み中 (Do Not Disturb)」であるか確認
+        if interaction.client.user.status == discord.Status.dnd:
+            # もしボットが「取り込み中」で、かつコマンド実行者がオーナーではない場合
+            if interaction.user.id != self.OWNER_ID: # self.OWNER_ID を参照
+                # コマンドを処理せずに、ユーザーにメッセージを送信し、ここで処理を終了
+                await interaction.response.send_message(
+                    "現在、ボットは管理者モードです。全てのコマンドは製作者のみが利用できます。",
+                    ephemeral=True # 他のユーザーには見えないメッセージ
+                )
+                return # コマンドの実行を停止
+
+        # オーナーであるか、ボットが「取り込み中」でない場合は、通常のコマンド処理を続行
+        # ここでは super().on_app_command を直接呼び出すのではなく、
+        # discord.py の内部処理に任せるか、必要に応じて手動でディスパッチを実装します。
+        # 通常は何も書かずに return すると、discord.py の内部が処理を続行します。
+        # これにより、`on_app_command_error` よりも先にチェックが行われます。
 
     async def on_ready(self):
         logging.info(f"Logged in as {self.user.name} (ID: {self.user.id})")
@@ -280,6 +282,14 @@ class MyBot(commands.Bot):
         await ctx.send(f"エラーが発生しました: {error}")
 
     async def on_app_command_error(self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
+        # global_owner_check_on_dnd は on_app_command で処理されるため、
+        # ここでは CheckFailure のエラーハンドリングから、
+        # global_owner_check_on_dnd が送信するメッセージに関する特別な処理は不要になります。
+        # もし `global_owner_check_on_dnd` が False を返してもメッセージを送信しない設計の場合、
+        # ここで AppCommandError (CheckFailure) を捕捉し、メッセージを送る必要があります。
+        # 現在の設計では、`global_owner_check_on_dnd` がメッセージを送信して return するので、
+        # その場合はこの `on_app_command_error` には到達しません。
+
         if interaction.response.is_done():
             logging.error(f"App command error (interaction already responded): {error}", exc_info=True)
             return
@@ -306,7 +316,7 @@ class MyBot(commands.Bot):
                 logging.warning(f"Missing permissions for user {interaction.user.id} on command '{interaction.command.name}'. Permissions: {error.missing_permissions}")
                 await interaction.response.send_message(f"このコマンドを実行するための権限がありません。", ephemeral=True)
             elif isinstance(error, app_commands.AppCommandError): 
-                pass
+                pass # CheckFailure の汎用的な場合はここで吸収（メッセージは個別のチェックで送信済み）
             else:
                 logging.warning(f"Generic CheckFailure for command '{interaction.command.name}' by user {interaction.user.id}: {error}")
                 await interaction.response.send_message(f"このコマンドを実行できませんでした（権限エラーなど）。", ephemeral=True)
