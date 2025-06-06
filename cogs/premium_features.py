@@ -34,7 +34,7 @@ GIST_ID = os.getenv('GIST_ID')
 GITHUB_API_BASE_URL = "https://api.github.com/gists"
 
 if not GITHUB_TOKEN or not GIST_ID:
-    logging.critical("GITHUB_TOKEN or GIST_ID environment variables are not set. Data will not be persistent. Please configure GitHub Gist.")
+    logging.critical("GITHUB_TOKEN or Gist ID environment variables are not set. Data will not be persistent. Please configure GitHub Gist.")
 
 PATREON_CREATOR_ACCESS_TOKEN = os.getenv('PATREON_CREATOR_ACCESS_TOKEN')
 MIN_PREMIUM_PLEDGE_AMOUNT = 1.0 
@@ -414,7 +414,7 @@ class PremiumManagerCog(commands.Cog):
             should_be_premium_by_patreon = False
             if patreon_email:
                 patron_in_patreon = patreon_email_map.get(patreon_email.lower())
-                if patron_in_patron and patron_in_patron['is_active_patron']:
+                if patron_in_patreon and patron_in_patron['is_active_patron']:
                     should_be_premium_by_patreon = True
             
             current_is_premium = False
@@ -755,53 +755,39 @@ class PremiumManagerCog(commands.Cog):
     @app_commands.guilds(discord.Object(id=SUPPORT_GUILD_ID)) 
     @app_commands.choices(
         status=[
-            app_commands.Choice(name="オンライン", value="online"),
-            app_commands.Choice(name="離席中", value="idle"),
-            app_commands.Choice(name="取り込み中", value="dnd"),
-            app_commands.Choice(name="オフライン/表示なし", value="invisible")
-        ],
-        activity_type=[
-            app_commands.Choice(name="プレイ中", value="playing"),
-            app_commands.Choice(name="視聴中", value="watching"),
-            app_commands.Choice(name="聴取中", value="listening"),
-            app_commands.Choice(name="競技中", value="competing"),
-            app_commands.Choice(name="なし", value="none") 
+            app_commands.Choice(name="オンライン", value="online"), # オンラインを選択肢として追加
+            app_commands.Choice(name="取り込み中", value="dnd") # 取り込み中を選択肢として追加
         ]
     )
     async def set_status(self, 
                          interaction: discord.Interaction, 
-                         status: str, 
-                         activity_type: Optional[str] = None, 
-                         activity_name: Optional[str] = None):
+                         status: str): # activity_typeとactivity_nameは削除
         
-        logging.info(f"Command '/set_status' invoked by {interaction.user.name} (ID: {interaction.user.id}). Status: {status}, Activity Type: {activity_type}, Activity Name: {activity_name}")
+        logging.info(f"Command '/set_status' invoked by {interaction.user.name} (ID: {interaction.user.id}). Status: {status}")
         
         await interaction.response.send_message("ボットのステータスを更新しています...", ephemeral=True)
 
         discord_status = {
             "online": discord.Status.online,
-            "idle": discord.Status.idle,
-            "dnd": discord.Status.dnd,
-            "invisible": discord.Status.invisible
+            "dnd": discord.Status.dnd
         }.get(status)
 
         if not discord_status:
             await interaction.followup.send("無効なステータスが指定されました。", ephemeral=True)
             return
 
-        discord_activity_type = {
-            "playing": discord.ActivityType.playing,
-            "watching": discord.ActivityType.watching,
-            "listening": discord.ActivityType.listening,
-            "competing": discord.ActivityType.competing,
-            "none": None 
-        }.get(activity_type)
-
         activity = None
-        if discord_activity_type and activity_name:
-            activity = discord.Activity(type=discord_activity_type, name=activity_name)
-        elif activity_type == "none" or (activity_type and not activity_name):
-            activity = None 
+        if discord_status == discord.Status.dnd:
+            # 取り込み中の場合は固定のカスタムステータス
+            activity = discord.CustomActivity(name="現在は使用できません。")
+        else:
+            # オンラインの場合は on_ready で設定されるカスタムステータスを再設定
+            total_songs = len(self.bot.proseka_songs_data) # botインスタンスからデータにアクセス
+            total_charts = 0
+            for song in self.bot.proseka_songs_data:
+                total_charts += sum(1 for diff in self.bot.valid_difficulties_data if diff.lower() in song and song[diff.lower()] is not None)
+            activity_message = f"{total_songs}曲/{total_charts}譜面が登録済み"
+            activity = discord.CustomActivity(name=activity_message)
 
         try:
             await self.bot.change_presence(status=discord_status, activity=activity)
@@ -811,14 +797,10 @@ class PremiumManagerCog(commands.Cog):
                 color=discord.Color.green()
             )
             if activity:
-                embed.add_field(name="アクティビティ", value=f"タイプ: `{activity_type}`\n名前: `{activity_name}`", inline=False)
-            elif activity_type == "none":
-                embed.add_field(name="アクティビティ", value="なし", inline=False)
-            elif activity_type and not activity_name: 
-                embed.add_field(name="アクティビティ", value=f"タイプ: `{activity_type}` (名前なし)", inline=False)
+                embed.add_field(name="アクティビティ", value=f"カスタムステータス: `{activity.name}`", inline=False)
             
             await interaction.followup.send(embed=embed, ephemeral=True)
-            logging.info(f"Bot presence updated to Status: {status}, Activity: {activity_type} {activity_name}.")
+            logging.info(f"Bot presence updated to Status: {status}, Activity: {activity.name if activity else 'None'}.")
 
         except Exception as e:
             logging.error(f"Failed to change bot presence: {e}", exc_info=True)
