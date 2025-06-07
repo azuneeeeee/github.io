@@ -13,7 +13,6 @@ import json
 load_dotenv()
 
 # ロギング設定
-# 既に存在する場合は重複を避ける
 if not logging.root.handlers:
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s [%(levelname)s] %(message)s',
@@ -44,7 +43,6 @@ else:
         GUILD_ID = 0
 
 # ランクマッチ結果を投稿するためのDiscordチャンネルID
-# 環境変数から読み込む
 _rankmatch_channel_id_str = os.getenv('RANKMATCH_RESULT_CHANNEL_ID')
 if _rankmatch_channel_id_str is None:
     logging.warning("RANKMATCH_RESULT_CHANNEL_ID environment variable is not set. Rankmatch results will not be posted to a dedicated channel.")
@@ -56,11 +54,10 @@ else:
         logging.critical(f"RANKMATCH_RESULT_CHANNEL_ID environment variable '{_rankmatch_channel_id_str}' is not a valid integer.")
         RANKMATCH_RESULT_CHANNEL_ID = 0
 
-
 # songs.json のパス
 SONGS_FILE = "data/songs.json"
 
-# グローバル変数としてJSTを設定 (PremiumManagerCogでも使用)
+# グローバル変数としてJSTを設定
 JST = timezone(timedelta(hours=9))
 
 # 管理者モードのフラグ（初期値）
@@ -81,12 +78,9 @@ def is_bot_owner():
 def is_not_admin_mode_for_non_owner():
     async def predicate(interaction: discord.Interaction) -> bool:
         if interaction.user.id == OWNER_ID:
-            # オーナーは常にコマンドを実行できる
             return True
         
-        # グローバルなADMIN_MODEフラグをチェック
         if ADMIN_MODE:
-            # 管理者モードがONで、かつオーナーではない場合
             await interaction.response.send_message(
                 "現在、ボットはメンテナンスのための**管理者モード**です。一時的にコマンドの使用が制限されています。",
                 ephemeral=True
@@ -94,7 +88,6 @@ def is_not_admin_mode_for_non_owner():
             logging.info(f"Command blocked for non-owner {interaction.user.name} (ID: {interaction.user.id}) due to admin mode.")
             return False
         
-        # 管理者モードがOFFの場合、コマンド実行を許可
         return True
     return app_commands.check(predicate)
 
@@ -129,36 +122,29 @@ def _create_song_data_map(songs_list):
 
 class MyBot(commands.Bot):
     def __init__(self):
-        # Intentsを設定
         intents = discord.Intents.default()
-        intents.message_content = True  # メッセージ内容を読み取る権限
-        intents.members = True          # メンバー情報を取得する権限 (ギルドメンバーの取得に必要)
-        intents.guilds = True           # ギルド情報を取得する権限
+        intents.message_content = True 
+        intents.members = True          
+        intents.guilds = True           
         
         super().__init__(command_prefix='!', intents=intents)
         
         self.owner_id = OWNER_ID
         self.GUILD_ID = GUILD_ID
         self.RANKMATCH_RESULT_CHANNEL_ID = RANKMATCH_RESULT_CHANNEL_ID
-        self.is_bot_ready = False # ボットの準備完了フラグ
+        self.is_bot_ready = False 
         
-        self.proseka_songs_data = [] # 楽曲データ全体
-        self.SONG_DATA_MAP = {} # 楽曲データをタイトルで検索するためのマップ
+        self.proseka_songs_data = [] 
+        self.SONG_DATA_MAP = {} 
 
         logging.info("Bot initialized.")
 
     async def setup_hook(self):
-        """
-        ボットがDiscordに接続する前に実行されるセットアップ処理。
-        コグのロードやスラッシュコマンドの同期を行います。
-        """
         logging.info("Running setup_hook...")
         
-        # 楽曲データを読み込む
         self.proseka_songs_data = await load_songs_data()
         self.SONG_DATA_MAP = _create_song_data_map(self.proseka_songs_data) 
 
-        # コグをロード
         cogs_to_load = [
             "cogs.proseka_general",
             "cogs.help_command",
@@ -166,18 +152,13 @@ class MyBot(commands.Bot):
             "cogs.pjsk_record_result", 
             "cogs.premium_features",
             "cogs.debug_commands",
-            # "cogs.ap_fc_rate", # ★一時的にコメントアウト (ファイル未提供のため)★
+            # "cogs.ap_fc_rate", # ファイル未提供のため、引き続きコメントアウト
         ]
         
         for cog_name in cogs_to_load:
             try:
-                # load_extension に引数を直接渡すように修正
-                if cog_name == "cogs.pjsk_record_result":
-                    await self.load_extension(cog_name, songs_data_map=self.SONG_DATA_MAP) 
-                elif cog_name == "cogs.proseka_general":
-                    await self.load_extension(cog_name, songs_data=self.proseka_songs_data)
-                else:
-                    await self.load_extension(cog_name)
+                # load_extension には cog_kwargs や songs_data を直接渡さない
+                await self.load_extension(cog_name) 
                 logging.info(f"Successfully loaded {cog_name}.")
             except Exception as e:
                 logging.error(f"Failed to load cog {cog_name}: {e}", exc_info=True)
@@ -189,6 +170,7 @@ class MyBot(commands.Bot):
         premium_cog = self.get_cog('PremiumManagerCog')
         ap_fc_rate_cog = self.get_cog('ApFcRate') # コメントアウトされていればNoneになる
 
+        # 各コグが存在することを確認してから参照を設定
         if general_cog and ap_fc_rate_cog:
             general_cog.ap_fc_rate_cog = ap_fc_rate_cog
             logging.info("Set general_cog.ap_fc_rate_cog.")
@@ -200,39 +182,39 @@ class MyBot(commands.Bot):
         if ap_fc_rate_cog and record_cog:
             ap_fc_rate_cog.record_cog = record_cog
             logging.info("Set ap_fc_rate_cog.record_cog.")
+        
+        # すべてのコグが存在する場合のみクロス参照設定完了と判断
+        if general_cog and record_cog and rankmatch_cog and premium_cog and ap_fc_rate_cog:
+             logging.info("All essential cross-cog references set.")
         else:
-            logging.warning("AP/FC Rate cog or Record cog not found for cross-reference setup. Skipping.")
+            logging.warning("Some cogs or their references are missing. Cross-cog functionality might be limited.")
 
-        # スラッシュコマンドの同期 (開発中は特定のギルドに同期するのが速い)
+
         if self.GUILD_ID != 0:
             guild_obj = discord.Object(id=self.GUILD_ID)
             self.tree.copy_global_to(guild=guild_obj)
             synced = await self.tree.sync(guild=guild_obj)
             logging.info(f"Synced {len(synced)} commands to guild {self.GUILD_ID}.")
         else:
-            synced = await self.tree.sync() # グローバル同期
+            synced = await self.tree.sync()
             logging.info(f"Synced {len(synced)} global commands.")
 
-        # プレミアム同期タスクを開始 (PremiumManagerCogが存在する場合)
         if premium_cog and not premium_cog.patreon_sync_task.is_running():
             premium_cog.patreon_sync_task.start()
             logging.info("Patreon sync task started.")
         else:
             logging.warning("PremiumManagerCog not found or Patreon sync task already running. Skipping task start.")
 
-        self.is_bot_ready = True # ボットの準備完了
+        self.is_bot_ready = True 
         logging.info("setup_hook completed. Bot is ready!")
 
     async def on_ready(self):
-        """ボットがDiscordに接続し、準備ができたときに実行されます。"""
         logging.info(f'Logged in as {self.user} (ID: {self.user.id})')
         logging.info(f'Bot is ready: {self.is_bot_ready}')
         print(f'Logged in as {self.user} (ID: {self.user.id})')
-        print(f'Bot is ready: {self.is_bot_ready}')
+        print(f'Bot is ready: {self.user.id}')
         
-        # 起動時にオーナーに管理者モードの通知を送信 (任意)
         owner = self.get_user(self.owner_id)
-        # グローバルなADMIN_MODEフラグを使用
         if owner and ADMIN_MODE: 
             try:
                 await owner.send("ボットが起動しました。現在、**管理者モード**が有効になっています。")
@@ -242,12 +224,9 @@ class MyBot(commands.Bot):
             except Exception as e:
                 logging.error(f"Error sending DM to owner: {e}", exc_info=True)
 
-
-    # エラーハンドリング
     async def on_command_error(self, ctx: commands.Context, error: commands.CommandError):
         if isinstance(error, commands.CommandNotFound):
             logging.warning(f"Command not found: {ctx.message.content} by {ctx.author.name}")
-            # await ctx.send("そのコマンドは見つかりませんでした。") # 必要であれば有効化
         elif isinstance(error, commands.MissingRequiredArgument):
             logging.warning(f"Missing arguments for {ctx.command}: {error} by {ctx.author.name}")
             await ctx.send(f"コマンドの引数が不足しています: {error}")
@@ -257,7 +236,6 @@ class MyBot(commands.Bot):
         elif isinstance(error, commands.CommandInvokeError):
             logging.error(f"Error invoking command {ctx.command}: {error.original}", exc_info=True)
             await ctx.send(f"コマンドの実行中にエラーが発生しました: `{error.original}`")
-            # オーナーにエラーをDMで通知
             owner = self.get_user(self.owner_id)
             if owner:
                 error_msg = f"コマンドエラー: `{ctx.command.name}`\n" \
@@ -273,7 +251,6 @@ class MyBot(commands.Bot):
             logging.error(f"Unhandled command error: {error}", exc_info=True)
             await ctx.send(f"予期せぬエラーが発生しました: `{error}`")
 
-    # アプリコマンド（スラッシュコマンド）のエラーハンドリング
     async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CommandOnCooldown):
             remaining = error.retry_after
@@ -284,8 +261,6 @@ class MyBot(commands.Bot):
             await interaction.response.send_message(f"このコマンドを実行するには、以下の権限が必要です: `{missing_perms}`", ephemeral=True)
             logging.warning(f"MissingPermissions for {interaction.command.name} by {interaction.user.name}: {missing_perms}")
         elif isinstance(error, app_commands.CheckFailure):
-            # is_bot_owner() や is_not_admin_mode_for_non_owner() によるブロックはここで捕捉
-            # これらのチェック関数内で既にメッセージを送信している場合があるため、ここでは追加で送らない
             logging.warning(f"AppCommand CheckFailure for {interaction.command.name} by {interaction.user.name}. Error: {error}")
             if not interaction.response.is_done():
                 await interaction.response.send_message(
@@ -296,7 +271,6 @@ class MyBot(commands.Bot):
             logging.error(f"Error invoking app command {interaction.command.name}: {error.original}", exc_info=True)
             if not interaction.response.is_done():
                 await interaction.response.send_message(f"コマンドの実行中にエラーが発生しました: `{error.original}`", ephemeral=True)
-            # オーナーにエラーをDMで通知
             owner = self.get_user(self.owner_id)
             if owner:
                 error_msg = f"スラッシュコマンドエラー: `{interaction.command.name}`\n" \
@@ -366,11 +340,11 @@ class MyBot(commands.Bot):
 
         if bot_mode:
             if bot_mode.lower() == "admin":
-                ADMIN_MODE = True # グローバル変数を更新
+                ADMIN_MODE = True 
                 logging.warning("Bot entered ADMIN MODE.")
                 await interaction.followup.send("ボットは**管理者モード**になりました。オーナー以外のユーザーからのほとんどのコマンドはブロックされます。", ephemeral=True)
             elif bot_mode.lower() == "normal":
-                ADMIN_MODE = False # グローバル変数を更新
+                ADMIN_MODE = False 
                 logging.info("Bot entered NORMAL MODE.")
                 await interaction.followup.send("ボットは**通常モード**になりました。", ephemeral=True)
             else:
@@ -382,7 +356,7 @@ class MyBot(commands.Bot):
         else:
             current_status = status if status else self.status.name
             current_activity = f"{activity_type}: {activity_name}" if activity_type and activity_name else "なし"
-            current_mode = "管理者モード" if ADMIN_MODE else "通常モード" # グローバル変数を使用
+            current_mode = "管理者モード" if ADMIN_MODE else "通常モード" 
             
             await interaction.followup.send(
                 f"ボットの設定を更新しました。\n"
@@ -404,10 +378,9 @@ class MyBot(commands.Bot):
         embed.add_field(name="オーナーID", value=f"`{self.owner_id}`", inline=False)
         embed.add_field(name="GUILD_ID", value=f"`{self.GUILD_ID}`", inline=False)
         embed.add_field(name="RANKMATCH_RESULT_CHANNEL_ID", value=f"`{self.RANKMATCH_RESULT_CHANNEL_ID}`", inline=False)
-        embed.add_field(name="管理者モード", value=f"`{'有効' if ADMIN_MODE else '無効'}`", inline=False) # グローバル変数を使用
+        embed.add_field(name="管理者モード", value=f"`{'有効' if ADMIN_MODE else '無効'}`", inline=False) 
         embed.add_field(name="ボット準備完了", value=f"`{'はい' if self.is_bot_ready else 'いいえ'}`", inline=False)
         
-        # ロード済みのコグと認識しているコマンドの数を表示
         loaded_cogs = ", ".join([cog_name for cog_name in self.cogs]) if self.cogs else "なし"
         embed.add_field(name="ロード済みのコグ", value=loaded_cogs, inline=False)
 
@@ -419,11 +392,8 @@ class MyBot(commands.Bot):
         await interaction.response.send_message(embed=embed, ephemeral=True)
         logging.info(f"Debug status sent to {interaction.user.name}.")
 
-
-# ボットの起動
 if __name__ == "__main__":
     bot = MyBot()
-    # Discordボットトークンを取得
     DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
     if DISCORD_BOT_TOKEN is None:
         logging.critical("DISCORD_BOT_TOKEN environment variable is not set. Please set it to run the bot.")
