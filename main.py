@@ -45,8 +45,7 @@ else:
 # ランクマッチ結果を投稿するためのDiscordチャンネルID
 _rankmatch_channel_id_str = os.getenv('RANKMATCH_RESULT_CHANNEL_ID')
 if _rankmatch_channel_id_str is None:
-    # ★修正: RANKMATCH_RESULT_CHANNEL_IDに関する警告メッセージを削除★
-    # logging.warning("RANKMATCH_RESULT_CHANNEL_ID environment variable is not set. Rankmatch results will not be posted to a dedicated channel.")
+    # RANKMATCH_RESULT_CHANNEL_IDに関する警告メッセージを削除済み
     RANKMATCH_RESULT_CHANNEL_ID = 0
 else:
     try:
@@ -175,12 +174,15 @@ class MyBot(commands.Bot):
             general_cog.ap_fc_rate_cog = ap_fc_rate_cog
             logging.info("Set general_cog.ap_fc_rate_cog.")
         
+        # ★修正: ProsekaRankMatchCommands と PjskApFcRateCommands 間の参照を明示的に設定★
         if rankmatch_cog and ap_fc_rate_cog:
-            logging.info("Checked rankmatch_cog and ap_fc_rate_cog for potential reference setting.")
+            rankmatch_cog.ap_fc_rate_cog = ap_fc_rate_cog
+            logging.info("Set rankmatch_cog.ap_fc_rate_cog.")
 
-
+        # ★修正: PjskRecordResult と PjskApFcRateCommands 間の参照を明示的に設定★
         if ap_fc_rate_cog and record_cog:
-            logging.info("Checked ap_fc_rate_cog and record_cog for potential reference setting.")
+            record_cog.ap_fc_rate_cog = ap_fc_rate_cog # PjskRecordResult の ap_fc_rate_cog を設定
+            logging.info("Set record_cog.ap_fc_rate_cog.")
         
         # すべての必須コグが存在する場合のみクロス参照設定完了と判断
         if general_cog and record_cog and rankmatch_cog and premium_cog: 
