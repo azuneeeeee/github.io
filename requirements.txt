@@ -1,2 +1,5 @@
 discord.py==2.3.2
-python-dotenv
+python-dotenv==1.0.0  # または最新の安定版 (例: 1.0.0 または 1.0.1)
+aiohttp==3.9.5        # discord.pyの主要な依存関係
+async-timeout==4.0.3  # aiohttpの依存関係
+PyNaCl==1.5.0         # 音声機能の警告を消したい場合。不要なら削除可
