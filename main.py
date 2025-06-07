@@ -54,8 +54,8 @@ else:
         logging.critical(f"RANKMATCH_RESULT_CHANNEL_ID environment variable '{_rankmatch_channel_id_str}' is not a valid integer.")
         RANKMATCH_RESULT_CHANNEL_ID = 0
 
-# SONGS_FILE を Python モジュールとして指定
-SONGS_FILE = "data.songs" # data/songs.py をモジュールとしてインポート
+# SONGS_FILE を Python モジュールとして指定 (data/songs.py)
+SONGS_FILE = "data.songs"
 
 # グローバル変数としてJSTを設定
 JST = timezone(timedelta(hours=9))
@@ -94,10 +94,8 @@ def is_not_admin_mode_for_non_owner():
 # 楽曲データをPythonファイルから読み込む関数
 async def load_songs_data():
     try:
-        # SONGS_FILE (data.songs) をモジュールとしてインポート
-        # fromlist=['proseka_songs'] は proseka_songs という名前のオブジェクトをインポートすることを示す
         songs_module = __import__(SONGS_FILE, fromlist=['proseka_songs'])
-        songs = getattr(songs_module, 'proseka_songs', []) # ★修正: 'proseka_songs' 変数を取得★
+        songs = getattr(songs_module, 'proseka_songs', [])
         logging.info(f"Loaded {len(songs)} songs from {SONGS_FILE}.")
         return songs
     except ImportError as e:
@@ -154,7 +152,7 @@ class MyBot(commands.Bot):
             "cogs.pjsk_record_result", 
             "cogs.premium_features",
             "cogs.debug_commands",
-            # "cogs.ap_fc_rate", # ファイル未提供のため、引き続きコメントアウト
+            "cogs.pjsk_ap_fc_rate", # ★追加: pjsk_ap_fc_rate コグをロード★
         ]
         
         for cog_name in cogs_to_load:
@@ -169,7 +167,7 @@ class MyBot(commands.Bot):
         record_cog = self.get_cog('PjskRecordResult')
         rankmatch_cog = self.get_cog('ProsekaRankMatchCommands')
         premium_cog = self.get_cog('PremiumManagerCog')
-        ap_fc_rate_cog = self.get_cog('ApFcRate') # コメントアウトされていればNoneになる
+        ap_fc_rate_cog = self.get_cog('PjskApFcRateCommands') # ApFcRateCommandsの正確なコグ名を取得
 
         # 各コグが存在することを確認してから参照を設定
         if general_cog and ap_fc_rate_cog:
@@ -177,15 +175,22 @@ class MyBot(commands.Bot):
             logging.info("Set general_cog.ap_fc_rate_cog.")
         
         if rankmatch_cog and ap_fc_rate_cog:
-            rankmatch_cog.ap_fc_rate_cog = ap_fc_rate_cog
-            logging.info("Set rankmatch_cog.ap_fc_rate_cog.")
+            # pjsk_rankmatch_settings/pjsk_clear_rankmatch_historyを削除したので、
+            # should_update_ap_fc_rate_display の自動更新ロジックは無くなっているはず。
+            # ただし、ap_fc_rate_cog への参照自体は残す
+            # rankmatch_cog.ap_fc_rate_cog = ap_fc_rate_cog # ユーザーの提供コードではここに参照設定はないため削除
+            logging.info("Checked rankmatch_cog and ap_fc_rate_cog for potential reference setting.")
+
 
         if ap_fc_rate_cog and record_cog:
-            ap_fc_rate_cog.record_cog = record_cog
-            logging.info("Set ap_fc_rate_cog.record_cog.")
+            # record_cogはPjskRecordResultのインスタンスであり、ap_fc_rate_cogへの参照を持つ
+            # しかし、record_cog側からap_fc_rate_cogを参照しているため、ap_fc_rate_cog側からrecord_cogへの参照は不要
+            # ap_fc_rate_cog.record_cog = record_cog # AP/FCレートコグにレコードコグを設定 (もし必要なら)
+            logging.info("Checked ap_fc_rate_cog and record_cog for potential reference setting.")
         
         # すべての必須コグが存在する場合のみクロス参照設定完了と判断
-        if general_cog and record_cog and rankmatch_cog and premium_cog: # ap_fc_rate_cog はオプションのため除外
+        # ap_fc_rate_cog はオプション扱い
+        if general_cog and record_cog and rankmatch_cog and premium_cog: 
              logging.info("All essential cross-cog references set.")
         else:
             logging.warning("Some cogs or their references are missing. Cross-cog functionality might be limited.")
@@ -200,7 +205,7 @@ class MyBot(commands.Bot):
             synced = await self.tree.sync()
             logging.info(f"Synced {len(synced)} global commands.")
 
-        if premium_cog and not premium_cog.patreon_sync_task.is_running():
+        if premium_cog and hasattr(premium_cog, 'patreon_sync_task') and not premium_cog.patreon_sync_task.is_running():
             premium_cog.patreon_sync_task.start()
             logging.info("Patreon sync task started.")
         else:
@@ -319,7 +324,7 @@ class MyBot(commands.Bot):
                 await self.change_presence(status=new_status)
                 logging.info(f"Bot status changed to {status}.")
             else:
-                await interaction.followup.send("無効なステータスです。`online`, `idle`, `dnd`, `dnd`, `invisible` から選択してください。", ephemeral=True) # 修正：dndが重複
+                await interaction.followup.send("無効なステータスです。`online`, `idle`, `dnd`, `invisible` から選択してください。", ephemeral=True)
                 return
 
         new_activity = None
@@ -405,4 +410,3 @@ if __name__ == "__main__":
             logging.critical("Failed to login to Discord. Invalid token provided.")
         except Exception as e:
             logging.critical(f"An unexpected error occurred during bot execution: {e}", exc_info=True)
-
