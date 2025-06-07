@@ -5,9 +5,10 @@ from dotenv import load_dotenv
 import traceback
 import logging
 import sys
-import asyncio # <-- ここを追加！asyncioのエラーハンドリング用
+import asyncio # <-- asyncioのエラーハンドリング用
 
-# ロギング設定を一番最初に配置
+
+# --- ロギング設定を一番最初に配置 ---
 # 全体のロギングレベルをDEBUGに設定し、標準出力へ
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
@@ -34,7 +35,7 @@ def handle_exception(loop, context):
 load_dotenv()
 
 # Discordクライアントのインテント設定
-# デバッグのため、全てのインテントを一時的に有効にします。
+# !!! デバッグのため、全てのインテントを一時的に有効にします !!!
 # 問題解決後には、必要なインテントのみに戻すことを推奨します。
 intents = discord.Intents.all()
 
@@ -44,16 +45,20 @@ intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 
+# --- on_readyデコレータの直前にデバッグログを追加 ---
+print("DEBUG: on_readyイベントハンドラ定義直前（ボット初期化後）", file=sys.stderr)
+
 @bot.event
 async def on_ready():
     """ボットがDiscordに接続した際に実行される処理"""
-    print("--- on_ready イベント開始 (asyncioデバッグ版) ---", file=sys.stdout)
+    print("DEBUG: on_readyイベントの最初に入りました！", file=sys.stderr) # <-- on_ready内の最初のprint
+    print("--- on_ready イベント開始 (最終デバッグ版) ---", file=sys.stdout)
     try:
         print(f'Logged in as {bot.user.name}', file=sys.stdout)
         print(f'Bot ID: {bot.user.id}', file=sys.stdout)
         print('------', file=sys.stdout)
         print("ボットは正常に起動し、Discordに接続しました！", file=sys.stdout)
-        print("--- on_ready イベント終了 (asyncioデバッグ版) ---", file=sys.stdout)
+        print("--- on_ready イベント終了 (最終デバッグ版) ---", file=sys.stdout)
 
         # ここから先は、問題解決後にコメントアウトを解除し、元のコードを戻してください
         # global OWNER_ID
@@ -79,7 +84,10 @@ async def on_ready():
         # try:
         #     await bot.load_extension('admin_commands')
         #     print("admin_commands コグをロードしました。", file=sys.stdout)
-        #     await bot.sync_commands()
+        #     # ボットがWeb ServiceではなくBackground Workerとしてデプロイされているため、
+        #     # Flaskは不要で、純粋なボット動作になるはずです。
+        #     # スラッシュコマンドを同期 (treeはcommands.Botに自動で付与される)
+        #     await bot.tree.sync() # <-- treeを明示的に呼び出す
         #     print("スラッシュコマンドをDiscordに同期しました。", file=sys.stdout)
         # except Exception as e:
         #     print(f"admin_commands コグのロード中またはコマンド同期中にエラーが発生しました: {e}", file=sys.stderr)
@@ -95,7 +103,7 @@ async def on_ready():
 if __name__ == '__main__':
     # asyncioのイベントループを取得し、未捕捉例外ハンドラを設定
     loop = asyncio.get_event_loop()
-    loop.set_exception_handler(handle_exception) # <-- ここを追加！
+    loop.set_exception_handler(handle_exception)
 
     print("デバッグ: Flaskは無効。Discord Botを単独で実行します。", file=sys.stdout)
     try:
