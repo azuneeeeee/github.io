@@ -1,0 +1,91 @@
+# admin_commands.py
+
+import discord
+from discord.ext import commands
+
+# ボットの製作者IDを格納する変数
+# main.pyで設定されます
+OWNER_ID = None
+
+# 取り込み中モードの状態を管理する変数
+# Trueの場合、ボットは取り込み中モードです
+is_maintenance_mode = False
+
+# 製作者のみがコマンドを使えるようにするチェック関数
+def is_owner():
+    async def predicate(ctx):
+        if OWNER_ID is None:
+            # OWNER_IDが設定されていない場合は、いったん許可しない
+            await ctx.send("エラー: ボットの製作者IDが設定されていません。")
+            return False
+        if ctx.author.id != OWNER_ID:
+            await ctx.send("あなたはボットの製作者ではありません。このコマンドは使用できません。")
+            return False
+        return True
+    return commands.check(predicate)
+
+# 取り込み中モード中に特定のコマンドを制限するチェック関数
+def not_in_maintenance():
+    async def predicate(ctx):
+        if is_maintenance_mode and ctx.author.id != OWNER_ID:
+            await ctx.send("現在ボットはメンテナンス中のため、このコマンドは使用できません。")
+            return False
+        return True
+    return commands.check(predicate)
+
+
+class AdminCommands(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    # --- 製作者専用コマンド群 ---
+
+    @commands.slash_command(name="set_owner", description="ボットの製作者IDを設定します (初回のみ)。")
+    @commands.is_owner() # このコマンド自体はDiscord.pyの組み込みis_ownerで制限（Botのアプリケーションオーナー）
+    async def set_owner(self, ctx, user_id: str):
+        global OWNER_ID
+        try:
+            OWNER_ID = int(user_id)
+            await ctx.respond(f"ボットの製作者IDを `{OWNER_ID}` に設定しました。")
+            print(f"製作者IDが {OWNER_ID} に設定されました。")
+        except ValueError:
+            await ctx.respond("無効なユーザーIDです。半角数字で入力してください。")
+        except Exception as e:
+            await ctx.respond(f"エラーが発生しました: {e}")
+
+    @commands.slash_command(name="owner_status", description="現在の製作者IDを表示します。")
+    @is_owner() # 自作のis_ownerで制限
+    async def owner_status(self, ctx):
+        if OWNER_ID:
+            owner_user = self.bot.get_user(OWNER_ID)
+            if owner_user:
+                await ctx.respond(f"現在のボットの製作者は `{owner_user.name} ({OWNER_ID})` です。")
+            else:
+                await ctx.respond(f"現在のボットの製作者IDは `{OWNER_ID}` ですが、ユーザー情報を取得できませんでした。")
+        else:
+            await ctx.respond("現在、ボットの製作者IDは設定されていません。")
+
+    @commands.slash_command(name="toggle_maintenance", description="ボットのメンテナンスモードを切り替えます。")
+    @is_owner() # 自作のis_ownerで制限
+    async def toggle_maintenance(self, ctx):
+        global is_maintenance_mode
+        is_maintenance_mode = not is_maintenance_mode
+        status = "オン" if is_maintenance_mode else "オフ"
+        await ctx.respond(f"メンテナンスモードを **{status}** に切り替えました。")
+        print(f"メンテナンスモードが {status} に切り替わりました。")
+        
+        # ボットのステータスも変更して、ユーザーに分かりやすくする
+        if is_maintenance_mode:
+            await self.bot.change_presence(activity=discord.Game(name="メンテナンス中... | !help_proseka"))
+        else:
+            await self.bot.change_presence(activity=discord.Game(name="プロセカ！ | !help_proseka"))
+
+    @commands.slash_command(name="maintenance_status", description="現在のメンテナンスモードの状態を表示します。")
+    @is_owner() # 自作のis_ownerで制限
+    async def maintenance_status(self, ctx):
+        status = "オン" if is_maintenance_mode else "オフ"
+        await ctx.respond(f"現在のメンテナンスモードは **{status}** です。")
+
+# このコグをボットにロードするためのセットアップ関数
+def setup(bot):
+    bot.add_cog(AdminCommands(bot))
