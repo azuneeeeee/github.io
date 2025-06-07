@@ -174,14 +174,12 @@ class MyBot(commands.Bot):
             general_cog.ap_fc_rate_cog = ap_fc_rate_cog
             logging.info("Set general_cog.ap_fc_rate_cog.")
         
-        # ★修正: ProsekaRankMatchCommands と PjskApFcRateCommands 間の参照を明示的に設定★
         if rankmatch_cog and ap_fc_rate_cog:
             rankmatch_cog.ap_fc_rate_cog = ap_fc_rate_cog
             logging.info("Set rankmatch_cog.ap_fc_rate_cog.")
 
-        # ★修正: PjskRecordResult と PjskApFcRateCommands 間の参照を明示的に設定★
         if ap_fc_rate_cog and record_cog:
-            record_cog.ap_fc_rate_cog = ap_fc_rate_cog # PjskRecordResult の ap_fc_rate_cog を設定
+            record_cog.ap_fc_rate_cog = ap_fc_rate_cog
             logging.info("Set record_cog.ap_fc_rate_cog.")
         
         # すべての必須コグが存在する場合のみクロス参照設定完了と判断
@@ -216,14 +214,29 @@ class MyBot(commands.Bot):
         print(f'Bot is ready: {self.user.id}')
         
         owner = self.get_user(self.owner_id)
-        if owner and ADMIN_MODE: 
+        
+        # ★修正: 自動でオーナーに起動メッセージを送信するロジックを復元★
+        startup_message_content = f"ボットが起動しました！\n" \
+                                  f"現在、**{len(self.proseka_songs_data)}曲**の楽曲データ（合計**{sum(len(self.SONG_DATA_MAP[title]['expert'] for title in self.SONG_DATA_MAP if 'expert' in self.SONG_DATA_MAP[title]) + len(self.SONG_DATA_MAP[title]['master'] for title in self.SONG_DATA_MAP if 'master' in self.SONG_DATA_MAP[title]) + len(self.SONG_DATA_MAP[title]['append'] for title in self.SONG_DATA_MAP if 'append' in self.SONG_DATA_MAP[title]) if self.SONG_DATA_MAP) が未定義で、適切に数える必要があります。一時的な解決策として、個々の難易度の譜面数を数えるロジックを簡素化しました。**
+                                  f"**{len(self.proseka_songs_data)}曲**が登録されています。これには、各曲の複数の難易度（譜面）が含まれます。"
+
+        if owner:
             try:
-                await owner.send("ボットが起動しました。現在、**管理者モード**が有効になっています。")
-                logging.info(f"Sent admin mode notification to owner {owner.name}.")
+                if ADMIN_MODE:
+                    # 管理者モードの通知と結合
+                    await owner.send("ボットが起動しました。現在、**管理者モード**が有効になっています。\n" + startup_message_content)
+                    logging.info(f"Sent admin mode and startup notification to owner {owner.name}.")
+                else:
+                    # 通常モードの場合は起動メッセージのみ
+                    await owner.send(startup_message_content)
+                    logging.info(f"Sent startup notification to owner {owner.name}.")
             except discord.Forbidden:
-                logging.warning(f"Could not send DM to owner {owner.name}. DMs disabled.")
+                logging.warning(f"Could not send DM to owner {owner.name}. DMs disabled. Skipping startup message.")
             except Exception as e:
-                logging.error(f"Error sending DM to owner: {e}", exc_info=True)
+                logging.error(f"Error sending startup DM to owner: {e}", exc_info=True)
+        else:
+            logging.warning("Owner not found or could not resolve owner for startup notification. Displaying in logs instead.")
+            logging.info(f"BOT STARTUP: {startup_message_content}")
 
     async def on_command_error(self, ctx: commands.Context, error: commands.CommandError):
         if isinstance(error, commands.CommandNotFound):
