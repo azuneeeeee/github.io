@@ -45,7 +45,8 @@ else:
 # ランクマッチ結果を投稿するためのDiscordチャンネルID
 _rankmatch_channel_id_str = os.getenv('RANKMATCH_RESULT_CHANNEL_ID')
 if _rankmatch_channel_id_str is None:
-    logging.warning("RANKMATCH_RESULT_CHANNEL_ID environment variable is not set. Rankmatch results will not be posted to a dedicated channel.")
+    # ★修正: RANKMATCH_RESULT_CHANNEL_IDに関する警告メッセージを削除★
+    # logging.warning("RANKMATCH_RESULT_CHANNEL_ID environment variable is not set. Rankmatch results will not be posted to a dedicated channel.")
     RANKMATCH_RESULT_CHANNEL_ID = 0
 else:
     try:
@@ -152,7 +153,7 @@ class MyBot(commands.Bot):
             "cogs.pjsk_record_result", 
             "cogs.premium_features",
             "cogs.debug_commands",
-            "cogs.pjsk_ap_fc_rate", # ★追加: pjsk_ap_fc_rate コグをロード★
+            "cogs.pjsk_ap_fc_rate",
         ]
         
         for cog_name in cogs_to_load:
@@ -167,7 +168,7 @@ class MyBot(commands.Bot):
         record_cog = self.get_cog('PjskRecordResult')
         rankmatch_cog = self.get_cog('ProsekaRankMatchCommands')
         premium_cog = self.get_cog('PremiumManagerCog')
-        ap_fc_rate_cog = self.get_cog('PjskApFcRateCommands') # ApFcRateCommandsの正確なコグ名を取得
+        ap_fc_rate_cog = self.get_cog('PjskApFcRateCommands')
 
         # 各コグが存在することを確認してから参照を設定
         if general_cog and ap_fc_rate_cog:
@@ -175,21 +176,13 @@ class MyBot(commands.Bot):
             logging.info("Set general_cog.ap_fc_rate_cog.")
         
         if rankmatch_cog and ap_fc_rate_cog:
-            # pjsk_rankmatch_settings/pjsk_clear_rankmatch_historyを削除したので、
-            # should_update_ap_fc_rate_display の自動更新ロジックは無くなっているはず。
-            # ただし、ap_fc_rate_cog への参照自体は残す
-            # rankmatch_cog.ap_fc_rate_cog = ap_fc_rate_cog # ユーザーの提供コードではここに参照設定はないため削除
             logging.info("Checked rankmatch_cog and ap_fc_rate_cog for potential reference setting.")
 
 
         if ap_fc_rate_cog and record_cog:
-            # record_cogはPjskRecordResultのインスタンスであり、ap_fc_rate_cogへの参照を持つ
-            # しかし、record_cog側からap_fc_rate_cogを参照しているため、ap_fc_rate_cog側からrecord_cogへの参照は不要
-            # ap_fc_rate_cog.record_cog = record_cog # AP/FCレートコグにレコードコグを設定 (もし必要なら)
             logging.info("Checked ap_fc_rate_cog and record_cog for potential reference setting.")
         
         # すべての必須コグが存在する場合のみクロス参照設定完了と判断
-        # ap_fc_rate_cog はオプション扱い
         if general_cog and record_cog and rankmatch_cog and premium_cog: 
              logging.info("All essential cross-cog references set.")
         else:
