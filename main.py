@@ -2,76 +2,60 @@ import discord
 from discord.ext import commands
 import os
 from dotenv import load_dotenv
-import traceback  # <-- エラー詳細出力用
-import logging    # <-- ロギング設定用
-import sys        # <-- 標準エラー出力用
+import traceback
+import logging
+import sys
+import asyncio # <-- ここを追加！asyncioのエラーハンドリング用
 
-# random, unicodedata, re などはデバッグのため一時的にコメントアウトを維持
-# import random
-# import unicodedata
-# import re
+# ロギング設定を一番最初に配置
+# 全体のロギングレベルをDEBUGに設定し、標準出力へ
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
+                    stream=sys.stdout)
 
-# FlaskはRenderの無料Web Serviceで24時間稼働を試みる場合にのみ必要です。
-# デバッグのため一時的にコメントアウト
-# from flask import Flask
-# import threading
+# discord.pyとwebsocketsのロガーもDEBUGレベルに設定
+logging.getLogger('discord').setLevel(logging.DEBUG)
+logging.getLogger('websockets').setLevel(logging.DEBUG)
 
-# admin_commands コグはデバッグのため一時的にインポートしない
-# from admin_commands import not_in_maintenance, setup as setup_admin_commands_cog, OWNER_ID, is_maintenance_mode
+
+# --- async def handle_exception(loop, context): を追加 ---
+def handle_exception(loop, context):
+    """asyncioの未捕捉例外を処理するハンドラ"""
+    msg = context.get("exception", context["message"])
+    logging.error(f"非同期処理で未捕捉の例外が発生しました: {msg}")
+    if "exception" in context:
+        logging.error("トレースバック:", exc_info=context["exception"])
+    # 必要であれば、ここでボットを安全にシャットダウンする処理などを追加できます
+    # 例: asyncio.create_task(bot.close())
+
+# --- ここまで追加 ---
+
 
 load_dotenv()
 
-# songs モジュールもデバッグのため一時的にインポートしない
-# from songs import proseka_songs, VALID_DIFFICULTIES
-
-# --- ここからロギング設定を追加 ---
-# 全体のロギングレベルをDEBUGに設定
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
-                    stream=sys.stdout) # すべてのログを標準出力へ
-
-# discord.pyのロガーもDEBUGレベルに設定
-discord_logger = logging.getLogger('discord')
-discord_logger.setLevel(logging.DEBUG)
-
-# websocketsのロガーもDEBUGレベルに設定 (Discordの内部で使われることが多い)
-# これで接続の詳細が確認できる可能性
-websockets_logger = logging.getLogger('websockets')
-websockets_logger.setLevel(logging.DEBUG)
-# --- ロギング設定ここまで ---
-
-
 # Discordクライアントのインテント設定
-# !!! デバッグのため、全てのインテントを一時的に有効にします !!!
+# デバッグのため、全てのインテントを一時的に有効にします。
 # 問題解決後には、必要なインテントのみに戻すことを推奨します。
-intents = discord.Intents.all() # <-- ここを all() に変更
+intents = discord.Intents.all()
 
 
-# ボットのインスタンスを作成（最もシンプルな形）
-# application_command_prefix も一時的に削除
+# ボットのインスタンスを作成
+# application_command_prefix は今回もデバッグのため削除したまま
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# Flaskアプリのインスタンスを作成（デバッグのため一時的にコメントアウト）
-# app = Flask(__name__)
-
-# @app.route('/') # デバッグのため一時的にコメントアウト
-# def home():
-#     """Renderのヘルスチェック用エンドポイント"""
-#     return "プロセカBotは稼働中です！"
 
 @bot.event
 async def on_ready():
     """ボットがDiscordに接続した際に実行される処理"""
-    print("--- on_ready イベント開始 (最終デバッグ版) ---", file=sys.stdout) # <-- デバッグ用、標準出力へ
+    print("--- on_ready イベント開始 (asyncioデバッグ版) ---", file=sys.stdout)
     try:
         print(f'Logged in as {bot.user.name}', file=sys.stdout)
         print(f'Bot ID: {bot.user.id}', file=sys.stdout)
         print('------', file=sys.stdout)
         print("ボットは正常に起動し、Discordに接続しました！", file=sys.stdout)
-        # ここに到達すれば、on_readyイベント内での問題ではない可能性が高い
-        print("--- on_ready イベント終了 (最終デバッグ版) ---", file=sys.stdout) # <-- デバッグ用
+        print("--- on_ready イベント終了 (asyncioデバッグ版) ---", file=sys.stdout)
 
-        # 通常のコードに戻す際にここから下のコメントアウトを解除
+        # ここから先は、問題解決後にコメントアウトを解除し、元のコードを戻してください
         # global OWNER_ID
         # print("--- OWNER_ID 読み込み前 ---", file=sys.stdout)
         # if os.getenv('DISCORD_OWNER_ID'):
@@ -104,32 +88,21 @@ async def on_ready():
     except Exception as e:
         # on_ready 内で発生するエラーを捕捉
         print(f"!!! on_ready イベント内で予期せぬエラーが発生しました: {e}", file=sys.stderr)
-        traceback.print_exc(file=sys.stderr) # 完全なTracebackを出力
+        traceback.print_exc(file=sys.stderr)
 
 
 # ボットの起動処理
 if __name__ == '__main__':
-    # Flaskサーバーの起動処理も一時的にコメントアウト
-    # if os.getenv('FLASK_ENABLED', 'False').lower() == 'true':
-    #     def run_discord_bot():
-    #         try:
-    #             bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-    #         except Exception as e:
-    #             print(f"Discord Botの実行中にエラーが発生しました: {e}", file=sys.stderr)
+    # asyncioのイベントループを取得し、未捕捉例外ハンドラを設定
+    loop = asyncio.get_event_loop()
+    loop.set_exception_handler(handle_exception) # <-- ここを追加！
 
-    #     discord_thread = threading.Thread(target=run_discord_bot)
-    #     discord_thread.start()
-
-    #     port = int(os.environ.get('PORT', 10000))
-    #     print(f"Flaskサーバーをポート {port} で起動します。", file=sys.stdout)
-    #     app.run(host='0.0.0.0', port=port)
-    # else:
-    print("デバッグ: Flaskは無効。Discord Botを単独で実行します。", file=sys.stdout) # <-- デバッグ用
+    print("デバッグ: Flaskは無効。Discord Botを単独で実行します。", file=sys.stdout)
     try:
-        print("デバッグ: bot.run() を呼び出し中...", file=sys.stdout) # <-- デバッグ用
+        print("デバッグ: bot.run() を呼び出し中...", file=sys.stdout)
         bot.run(os.getenv('DISCORD_BOT_TOKEN'))
     except Exception as e:
         # bot.run() 自体で発生するエラーを捕捉
-        print(f"デバッグ: Discord Botの実行中に致命的なエラーが発生しました: {e}", file=sys.stderr) # <-- デバッグ用
-        traceback.print_exc(file=sys.stderr) # <-- Tracebackを強制的に出力
-    print("デバッグ: bot.run() 呼び出し後（ここまで来たらボットプロセスが意図せず終了）", file=sys.stdout) # <-- デバッグ用
+        print(f"デバッグ: Discord Botの実行中に致命的なエラーが発生しました: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+    print("デバッグ: bot.run() 呼び出し後（ここまで来たらボットプロセスが意図せず終了）", file=sys.stdout)
