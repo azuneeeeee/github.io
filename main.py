@@ -7,22 +7,20 @@ import logging
 import sys
 import asyncio
 
-# admin_commands コグをインポート
-# OWNER_ID と is_maintenance_mode は admin_commands.py から共有されます
-from admin_commands import is_maintenance_mode # OWNER_IDはadmin_commands.pyで直接読み込むため、ここでは不要
+# admin_commands コグは一時的にインポートしない
+# from admin_commands import is_maintenance_mode
 
 load_dotenv()
 
 # --- ロギング設定 ---
-# 全体のロギングレベルをINFOに設定 (本番運用向け、デバッグはDEBUG)
-# デバッグが必要な場合は level=logging.DEBUG に変更してください
-logging.basicConfig(level=logging.INFO,
+# 全体のロギングレベルをDEBUGに設定 (詳細なログを確認するため)
+logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
                     stream=sys.stdout)
 
-# discord.pyとwebsocketsのロガーもINFOレベルに設定 (本番運用向け)
-logging.getLogger('discord').setLevel(logging.INFO)
-logging.getLogger('websockets').setLevel(logging.INFO)
+# discord.pyとwebsocketsのロガーもDEBUGレベルに設定
+logging.getLogger('discord').setLevel(logging.DEBUG)
+logging.getLogger('websockets').setLevel(logging.DEBUG)
 
 # --- asyncioの未捕捉例外ハンドラ ---
 def handle_exception(loop, context):
@@ -33,46 +31,31 @@ def handle_exception(loop, context):
         logging.error("トレースバック:", exc_info=context["exception"])
 
 # --- Discordクライアントのインテント設定 ---
-# 本番運用時は必要なインテントのみに絞ることを推奨します。
-# 例: intents = discord.Intents.default()
-# intents.message_content = True
-# intents.members = True
-intents = discord.Intents.all() # デバッグ・テストのため、当面は all() のままにしておく
+# 全てのインテントを有効化
+intents = discord.Intents.all()
 
 # --- ボットのインスタンス作成 ---
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# --- on_readyイベントハンドラ ---
+# --- on_readyイベントハンドラ (究極のシンプル版) ---
 @bot.event
 async def on_ready():
     """ボットがDiscordに接続した際に実行される処理"""
-    print("--- on_ready イベント開始 ---", file=sys.stdout) # ログはstdoutへ統一
+    print("--- on_ready イベント開始 (究極のシンプル版) ---", file=sys.stdout)
     try:
         print(f'Logged in as {bot.user.name}', file=sys.stdout)
         print(f'Bot ID: {bot.user.id}', file=sys.stdout)
         print('------', file=sys.stdout)
         print("ボットは正常に起動し、Discordに接続しました！", file=sys.stdout)
+        
+        # ここから下の全ての処理はコメントアウトするか、削除する
+        # global OWNER_ID はもう参照しない
+        # is_maintenance_mode の参照も削除
+        # ステータス変更処理も削除
+        # admin_commands コグのロードも削除
+        # スラッシュコマンドの同期も削除
 
-        # ステータス変更処理
-        if is_maintenance_mode:
-            await bot.change_presence(activity=discord.Game(name="メンテナンス中... | !help_proseka"))
-        else:
-            await bot.change_presence(activity=discord.Game(name="プロセカ！ | !help_proseka"))
-        print("--- ステータス設定後 ---", file=sys.stdout)
-
-        # admin_commands コグのロードとスラッシュコマンドの同期
-        try:
-            await bot.load_extension('admin_commands')
-            print("admin_commands コグをロードしました。", file=sys.stdout)
-            # スラッシュコマンドをDiscordに同期
-            await bot.tree.sync()
-            print("スラッシュコマンドをDiscordに同期しました。", file=sys.stdout)
-        except Exception as e:
-            # コグのロードやコマンド同期中のエラーはstderrへ
-            print(f"!!! admin_commands コグのロード中またはコマンド同期中にエラーが発生しました: {e}", file=sys.stderr)
-            traceback.print_exc(file=sys.stderr)
-
-        print("--- on_ready イベント終了 ---", file=sys.stdout)
+        print("--- on_ready イベント終了 (究極のシンプル版) ---", file=sys.stdout)
 
     except Exception as e:
         # on_ready イベント内で発生する予期せぬエラーを捕捉
