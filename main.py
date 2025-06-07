@@ -19,7 +19,6 @@ logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
                     stream=sys.stdout)
 
-# discord.pyとwebsocketsのロガーもDEBUGレベルに設定
 logging.getLogger('discord').setLevel(logging.DEBUG)
 logging.getLogger('websockets').setLevel(logging.DEBUG)
 
@@ -36,67 +35,45 @@ intents = discord.Intents.all()
 # --- ボットのインスタンス作成 ---
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# --- READY イベントのフック ---
-# discord.py の内部イベントを直接捕捉する (on_ready の元になるイベント)
-@bot.event
-async def on_socket_raw_receive(msg):
-    """
-    ソケットから生データを受信した際に呼び出されるイベント。
-    DEBUGレベルでログ出力されないと非常に長文になる可能性があるため注意。
-    """
-    # msg はバイト列なのでデコードして表示
-    # print(f"DEBUG: RAW Socket Receive: {msg.decode('utf-8')[:200]}...", file=sys.stdout) # 長文になるので通常は非推奨
-
-# on_ready イベントの元となる READY イベントを処理する関数をフック
-# このフックは非常に内部的なものであり、discord.py のアップデートで動作しなくなる可能性もある
-_old_dispatch = bot.dispatch
-def _new_dispatch(event, *args, **kwargs):
-    if event == "ready":
-        print("DEBUG: EVENT 'ready' がディスパッチされました！(on_ready の直前) ----", file=sys.stdout)
-        # ここでさらに短い遅延を入れることも可能だが、まずはログ確認
-        # await asyncio.sleep(0.1) 
-    _old_dispatch(event, *args, **kwargs)
-
-# bot.dispatch をカスタムディスパッチ関数に置き換える
-# WARNING: これは非公開APIを操作しているため、推奨される方法ではありません。
-# ただし、現状のデバッグ目的のために試みています。
-bot.dispatch = _new_dispatch
-
-
 # --- on_readyイベントハンドラ ---
 @bot.event
 async def on_ready():
-    print("--- on_ready イベント開始 --- (フックテスト版)", file=sys.stdout)
+    # on_ready が発火したことを示す最も重要なログ
+    print("--- on_ready イベント開始 --- (段階的起動アプローチ)", file=sys.stdout)
     try:
         print(f'Logged in as {bot.user.name}', file=sys.stdout)
         print(f'Bot ID: {bot.user.id}', file=sys.stdout)
         print('------', file=sys.stdout)
         print("ボットは正常に起動し、Discordに接続しました！", file=sys.stdout)
 
-        # ステータス変更処理
+        # ステータス変更処理 (この前に少し遅延)
+        await asyncio.sleep(0.5) # ステータス変更前の短い遅延
         if is_maintenance_mode:
             await bot.change_presence(activity=discord.Game(name="メンテナンス中... | !help_proseka"))
         else:
-            await bot.change_presence(activity=discord.Game(name="プロセカ！ | !help_proseka"))
+            await bot.change_presence(activity=discord.Game(name="プロセka！ | !help_proseka"))
         print("--- ステータス設定後 ---", file=sys.stdout)
 
-        # admin_commands コグのロードとスラッシュコマンドの同期
+        # コグのロードとスラッシュコマンドの同期 (この前に少し遅延)
+        await asyncio.sleep(1) # コグロード前の遅延
         try:
             await bot.load_extension('admin_commands')
             print("admin_commands コグをロードしました。", file=sys.stdout)
+            await asyncio.sleep(0.5) # コマンド同期前の短い遅延
             await bot.tree.sync() # スラッシュコマンドをDiscordに同期
             print("スラッシュコマンドをDiscordに同期しました。", file=sys.stdout)
         except Exception as e:
             print(f"!!! admin_commands コグのロード中またはコマンド同期中にエラーが発生しました: {e}", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
 
-        print("--- on_ready イベント終了 --- (フックテスト版)", file=sys.stdout)
+        await asyncio.sleep(0.5) # on_ready 終了前の短い遅延
+        print("--- on_ready イベント終了 --- (段階的起動アプローチ)", file=sys.stdout)
 
     except Exception as e:
         print(f"!!! on_ready イベント内で予期せぬエラーが発生しました: {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
 
-# --- ボットの起動処理 (低レベル制御を維持) ---
+# --- ボットの起動処理 (段階的起動) ---
 async def main():
     print("デバッグ: メイン非同期関数 'main()' 開始。", file=sys.stdout)
     try:
@@ -104,19 +81,19 @@ async def main():
         await bot.login(os.getenv('DISCORD_BOT_TOKEN'))
         print("デバッグ: bot.login() 完了。ゲートウェイ接続待機中...", file=sys.stdout)
 
-        # 短い遅延を導入することで、リソーススパイクを回避できないか試す
-        await asyncio.sleep(2) # <-- 前回効果があった遅延を維持
+        # ログイン後、ゲートウェイ接続前の重要な遅延
+        await asyncio.sleep(3) # <-- ここで3秒の遅延 (以前の2秒より長く)
 
         print("デバッグ: bot.connect() を呼び出し中...", file=sys.stdout)
         await bot.connect() # ゲートウェイに接続し、イベントループを開始
 
     except discord.LoginFailure:
         print("致命的エラー: トークン認証に失敗しました。環境変数 DISCORD_BOT_TOKEN を確認してください。", file=sys.stderr)
-        sys.exit(1) # 強制終了
+        sys.exit(1)
     except Exception as e:
         print(f"致命的エラー: メイン非同期関数内で予期せぬエラーが発生しました: {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
-        sys.exit(1) # 強制終了
+        sys.exit(1)
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
