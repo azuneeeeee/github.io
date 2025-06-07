@@ -1,11 +1,37 @@
 # admin_commands.py
 
 import discord
-from discord.ext import commands
-from discord import SlashCommandGroup # <-- この行を追加！
-# または from discord.commands import slash_command, SlashCommandGroup # <-- どちらでもOK
+from discord.ext import commands # <-- この行はそのまま
 
-# ... (中略) ...
+# from discord import SlashCommandGroup # <-- この行は削除！
+
+# ボットの製作者IDを格納する変数
+OWNER_ID = None
+
+# 取り込み中モードの状態を管理する変数
+is_maintenance_mode = False
+
+# 製作者のみがコマンドを使えるようにするチェック関数
+def is_owner():
+    async def predicate(ctx):
+        if OWNER_ID is None:
+            await ctx.send("エラー: ボットの製作者IDが設定されていません。")
+            return False
+        if ctx.author.id != OWNER_ID:
+            await ctx.send("あなたはボットの製作者ではありません。このコマンドは使用できません。")
+            return False
+        return True
+    return commands.check(predicate)
+
+# 取り込み中モード中に特定のコマンドを制限するチェック関数
+def not_in_maintenance():
+    async def predicate(ctx):
+        if is_maintenance_mode and ctx.author.id != OWNER_ID:
+            await ctx.send("現在ボットはメンテナンス中のため、このコマンドは使用できません。")
+            return False
+        return True
+    return commands.check(predicate)
+
 
 class AdminCommands(commands.Cog):
     def __init__(self, bot):
@@ -13,10 +39,10 @@ class AdminCommands(commands.Cog):
 
     # --- 製作者専用コマンド群 ---
 
-    # @commands.slash_command の代わりに @SlashCommandGroup.slash_command を使うか、
-    # あるいは直接 @discord.slash_command を使う
+    # @commands.slash_command を使用します。
+    # これは discord.py v2.x での正しいスラッシュコマンドのデコレータです。
 
-    @discord.slash_command(name="set_owner", description="ボットの製作者IDを設定します (初回のみ)。") # <-- ここを修正
+    @commands.slash_command(name="set_owner", description="ボットの製作者IDを設定します (初回のみ)。") # <-- ここを元に戻す
     @commands.is_owner()
     async def set_owner(self, ctx, user_id: str):
         global OWNER_ID
@@ -29,7 +55,7 @@ class AdminCommands(commands.Cog):
         except Exception as e:
             await ctx.respond(f"エラーが発生しました: {e}")
 
-    @discord.slash_command(name="owner_status", description="現在の製作者IDを表示します。") # <-- ここを修正
+    @commands.slash_command(name="owner_status", description="現在の製作者IDを表示します。") # <-- ここを元に戻す
     @is_owner()
     async def owner_status(self, ctx):
         if OWNER_ID:
@@ -41,7 +67,7 @@ class AdminCommands(commands.Cog):
         else:
             await ctx.respond("現在、ボットの製作者IDは設定されていません。")
 
-    @discord.slash_command(name="toggle_maintenance", description="ボットのメンテナンスモードを切り替えます。") # <-- ここを修正
+    @commands.slash_command(name="toggle_maintenance", description="ボットのメンテナンスモードを切り替えます。") # <-- ここを元に戻す
     @is_owner()
     async def toggle_maintenance(self, ctx):
         global is_maintenance_mode
@@ -55,7 +81,7 @@ class AdminCommands(commands.Cog):
         else:
             await self.bot.change_presence(activity=discord.Game(name="プロセカ！ | !help_proseka"))
 
-    @discord.slash_command(name="maintenance_status", description="現在のメンテナンスモードの状態を表示します。") # <-- ここを修正
+    @commands.slash_command(name="maintenance_status", description="現在のメンテナンスモードの状態を表示します。") # <-- ここを元に戻す
     @is_owner()
     async def maintenance_status(self, ctx):
         status = "オン" if is_maintenance_mode else "オフ"
