@@ -81,7 +81,7 @@ class AdminCommands(commands.Cog):
         else:
             await self.bot.change_presence(activity=discord.Game(name="プロセカ！ | !help_proseka"))
 
-    @commands.slash_command(name="maintenance_status", description="現在のメンテナンスモードの状態を表示します。") # <-- ここを元に戻す
+    @commands.Cog.slash_command(name="maintenance_status", description="現在のメンテナンスモードの状態を表示します。") # <-- ここを元に戻す
     @is_owner()
     async def maintenance_status(self, ctx):
         status = "オン" if is_maintenance_mode else "オフ"
