@@ -63,7 +63,7 @@ SONGS_FILE = "data/songs.json"
 # グローバル変数としてJSTを設定 (PremiumManagerCogでも使用)
 JST = timezone(timedelta(hours=9))
 
-# 管理者モードのフラグ
+# 管理者モードのフラグ（初期値）
 ADMIN_MODE = False
 
 # ボットオーナーであるかをチェックする関数
@@ -84,6 +84,7 @@ def is_not_admin_mode_for_non_owner():
             # オーナーは常にコマンドを実行できる
             return True
         
+        # グローバルなADMIN_MODEフラグをチェック
         if ADMIN_MODE:
             # 管理者モードがONで、かつオーナーではない場合
             await interaction.response.send_message(
@@ -114,7 +115,7 @@ async def load_songs_data():
         logging.critical(f"Unexpected error loading songs.json: {e}")
         return []
 
-# ★ここから _create_song_data_map をmain.pyに移動★
+# _create_song_data_map をmain.pyに移動
 def _create_song_data_map(songs_list):
     """songs.jsonのリストデータをタイトルをキーとする辞書に変換します。"""
     song_map = {}
@@ -124,7 +125,6 @@ def _create_song_data_map(songs_list):
             song_map[title.lower()] = song
     logging.info(f"Created song data map with {len(song_map)} entries.")
     return song_map
-# ★ここまで _create_song_data_map をmain.pyに移動★
 
 
 class MyBot(commands.Bot):
@@ -141,7 +141,7 @@ class MyBot(commands.Bot):
         self.GUILD_ID = GUILD_ID
         self.RANKMATCH_RESULT_CHANNEL_ID = RANKMATCH_RESULT_CHANNEL_ID
         self.is_bot_ready = False # ボットの準備完了フラグ
-        self.admin_mode = ADMIN_MODE # 管理者モードの初期状態
+        # self.admin_mode は直接グローバルなADMIN_MODEを使用するため、インスタンス変数としては不要
         
         self.proseka_songs_data = [] # 楽曲データ全体
         self.SONG_DATA_MAP = {} # 楽曲データをタイトルで検索するためのマップ
@@ -157,40 +157,36 @@ class MyBot(commands.Bot):
         
         # 楽曲データを読み込む
         self.proseka_songs_data = await load_songs_data()
-        self.SONG_DATA_MAP = _create_song_data_map(self.proseka_songs_data) # ★SONG_DATA_MAPを作成★
+        self.SONG_DATA_MAP = _create_song_data_map(self.proseka_songs_data) 
 
         # コグをロード
         cogs_to_load = [
             "cogs.proseka_general",
             "cogs.help_command",
             "cogs.proseka_rankmatch",
-            "cogs.pjsk_record_result", # pjsk_record_resultをロード
+            "cogs.pjsk_record_result", 
             "cogs.premium_features",
             "cogs.debug_commands",
             "cogs.ap_fc_rate", # AP/FCレートコグをロード
         ]
         
+        # 後でコグインスタンスにアクセスするために変数を定義
+        general_cog = None
+        record_cog = None
+        rankmatch_cog = None
+        premium_cog = None
+        ap_fc_rate_cog = None
+
         for cog_name in cogs_to_load:
             try:
-                # pjsk_record_result と proseka_general に songs_data を渡す
                 if cog_name == "cogs.pjsk_record_result":
-                    # ★修正: pjsk_record_result に songs_data_map を渡す★
-                    cog = self.load_extension(cog_name, cog_kwargs={"songs_data_map": self.SONG_DATA_MAP})
-                    logging.info(f"Successfully loaded {cog_name} with SONG_DATA_MAP.")
+                    cog_instance = await self.load_extension(cog_name, cog_kwargs={"songs_data_map": self.SONG_DATA_MAP})
                 elif cog_name == "cogs.proseka_general":
-                    # proseka_general には songs_data を渡す
-                    cog = self.load_extension(cog_name, cog_kwargs={"songs_data": self.proseka_songs_data})
-                    logging.info(f"Successfully loaded {cog_name} with songs_data.")
+                    cog_instance = await self.load_extension(cog_name, cog_kwargs={"songs_data": self.proseka_songs_data})
                 else:
-                    await self.load_extension(cog_name)
-                    logging.info(f"Successfully loaded {cog_name}.")
-            except Exception as e:
-                logging.error(f"Failed to load cog {cog_name}: {e}", exc_info=True)
-
-        # コグがロードされた後、各コグに他のコグへの参照を設定
-        for cog_name in cogs_to_load:
-            cog_instance = self.get_cog(cog_name.split('.')[-1].replace('_', ''))
-            if cog_instance:
+                    cog_instance = await self.load_extension(cog_name)
+                
+                # ロードしたコグインスタンスを対応する変数に代入
                 if isinstance(cog_instance, self.get_cog('ProsekaGeneralCommands')):
                     general_cog = cog_instance
                 elif isinstance(cog_instance, self.get_cog('PjskRecordResult')):
@@ -201,11 +197,15 @@ class MyBot(commands.Bot):
                     premium_cog = cog_instance
                 elif isinstance(cog_instance, self.get_cog('ApFcRate')):
                     ap_fc_rate_cog = cog_instance
-        
+                logging.info(f"Successfully loaded {cog_name}.")
+            except Exception as e:
+                logging.error(f"Failed to load cog {cog_name}: {e}", exc_info=True)
+                
         # コグ間の参照設定
+        # 全てのコグがロードされていることを確認してから参照を設定する
         if all(cog_instance is not None for cog_instance in [general_cog, record_cog, rankmatch_cog, premium_cog, ap_fc_rate_cog]):
             general_cog.ap_fc_rate_cog = ap_fc_rate_cog
-            record_cog.ap_fc_rate_cog = ap_fc_rate_cog
+            # record_cog.ap_fc_rate_cog = ap_fc_rate_cog # pjsk_record_result は ap_fc_rate_cog を必要としないため削除
             rankmatch_cog.ap_fc_rate_cog = ap_fc_rate_cog
             ap_fc_rate_cog.record_cog = record_cog # AP/FCレートコグにレコードコグを設定
             logging.info("Cross-cog references set.")
@@ -223,9 +223,8 @@ class MyBot(commands.Bot):
             logging.info(f"Synced {len(synced)} global commands.")
 
         # プレミアム同期タスクを開始 (PremiumManagerCogが存在する場合)
-        premium_cog_instance = self.get_cog("PremiumManagerCog")
-        if premium_cog_instance and not premium_cog_instance.patreon_sync_task.is_running():
-            premium_cog_instance.patreon_sync_task.start()
+        if premium_cog and not premium_cog.patreon_sync_task.is_running():
+            premium_cog.patreon_sync_task.start()
             logging.info("Patreon sync task started.")
         else:
             logging.warning("PremiumManagerCog not found or Patreon sync task already running. Skipping task start.")
@@ -242,7 +241,8 @@ class MyBot(commands.Bot):
         
         # 起動時にオーナーに管理者モードの通知を送信 (任意)
         owner = self.get_user(self.owner_id)
-        if owner and self.admin_mode:
+        # グローバルなADMIN_MODEフラグを使用
+        if owner and ADMIN_MODE: 
             try:
                 await owner.send("ボットが起動しました。現在、**管理者モード**が有効になっています。")
                 logging.info(f"Sent admin mode notification to owner {owner.name}.")
@@ -337,6 +337,9 @@ class MyBot(commands.Bot):
                          bot_mode: str = None):
         logging.info(f"Command '/set_status' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
         
+        # ★修正: global ADMIN_MODE を関数の冒頭に移動★
+        global ADMIN_MODE 
+
         await interaction.response.defer(ephemeral=True)
 
         if status:
@@ -373,15 +376,11 @@ class MyBot(commands.Bot):
 
         if bot_mode:
             if bot_mode.lower() == "admin":
-                self.admin_mode = True
-                global ADMIN_MODE
-                ADMIN_MODE = True # グローバル変数も更新
+                ADMIN_MODE = True # グローバル変数を更新
                 logging.warning("Bot entered ADMIN MODE.")
                 await interaction.followup.send("ボットは**管理者モード**になりました。オーナー以外のユーザーからのほとんどのコマンドはブロックされます。", ephemeral=True)
             elif bot_mode.lower() == "normal":
-                self.admin_mode = False
-                global ADMIN_MODE
-                ADMIN_MODE = False # グローバル変数も更新
+                ADMIN_MODE = False # グローバル変数を更新
                 logging.info("Bot entered NORMAL MODE.")
                 await interaction.followup.send("ボットは**通常モード**になりました。", ephemeral=True)
             else:
@@ -393,7 +392,7 @@ class MyBot(commands.Bot):
         else:
             current_status = status if status else self.status.name
             current_activity = f"{activity_type}: {activity_name}" if activity_type and activity_name else "なし"
-            current_mode = "管理者モード" if self.admin_mode else "通常モード"
+            current_mode = "管理者モード" if ADMIN_MODE else "通常モード" # グローバル変数を使用
             
             await interaction.followup.send(
                 f"ボットの設定を更新しました。\n"
@@ -415,7 +414,7 @@ class MyBot(commands.Bot):
         embed.add_field(name="オーナーID", value=f"`{self.owner_id}`", inline=False)
         embed.add_field(name="GUILD_ID", value=f"`{self.GUILD_ID}`", inline=False)
         embed.add_field(name="RANKMATCH_RESULT_CHANNEL_ID", value=f"`{self.RANKMATCH_RESULT_CHANNEL_ID}`", inline=False)
-        embed.add_field(name="管理者モード", value=f"`{'有効' if self.admin_mode else '無効'}`", inline=False)
+        embed.add_field(name="管理者モード", value=f"`{'有効' if ADMIN_MODE else '無効'}`", inline=False) # グローバル変数を使用
         embed.add_field(name="ボット準備完了", value=f"`{'はい' if self.is_bot_ready else 'いいえ'}`", inline=False)
         
         # ロード済みのコグと認識しているコマンドの数を表示
