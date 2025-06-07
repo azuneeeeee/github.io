@@ -96,7 +96,6 @@ async def load_songs_data():
     try:
         songs_module = __import__(SONGS_FILE, fromlist=['proseka_songs', 'VALID_DIFFICULTIES'])
         songs = getattr(songs_module, 'proseka_songs', [])
-        # VALID_DIFFICULTIESもここで取得
         global VALID_DIFFICULTIES_FOR_COUNT
         VALID_DIFFICULTIES_FOR_COUNT = getattr(songs_module, 'VALID_DIFFICULTIES', ['EASY', 'NORMAL', 'HARD', 'EXPERT', 'MASTER', 'APPEND'])
         logging.info(f"Loaded {len(songs)} songs from {SONGS_FILE}.")
@@ -219,33 +218,47 @@ class MyBot(commands.Bot):
         
         owner = self.get_user(self.owner_id)
         
-        # ★修正: 譜面数を正しく数えるロジックとメッセージの構文を修正★
+        # 譜面数を正しく数えるロジック
         total_sheet_music_count = 0
-        for song_data in self.proseka_songs_data:
-            for difficulty_key in ['easy', 'normal', 'hard', 'expert', 'master', 'append']: # 小文字に統一
-                if song_data.get(difficulty_key) is not None:
-                    total_sheet_music_count += 1
-
-        startup_message_content = (
-            f"ボットが起動しました！\n"
-            f"現在、**{len(self.proseka_songs_data)}曲**（合計**{total_sheet_music_count}譜面**）が登録されています。"
-        )
-
-        if owner:
-            try:
-                if ADMIN_MODE:
-                    await owner.send("ボットが起動しました。現在、**管理者モード**が有効になっています。\n" + startup_message_content)
-                    logging.info(f"Sent admin mode and startup notification to owner {owner.name}.")
-                else:
-                    await owner.send(startup_message_content)
-                    logging.info(f"Sent startup notification to owner {owner.name}.")
-            except discord.Forbidden:
-                logging.warning(f"Could not send DM to owner {owner.name}. DMs disabled. Skipping startup message.")
-            except Exception as e:
-                logging.error(f"Error sending startup DM to owner: {e}", exc_info=True)
+        # VALID_DIFFICULTIES_FOR_COUNT が定義されていることを前提とする
+        if 'VALID_DIFFICULTIES_FOR_COUNT' in globals():
+            for song_data in self.proseka_songs_data:
+                for difficulty_key in [d.lower() for d in VALID_DIFFICULTIES_FOR_COUNT]:
+                    if song_data.get(difficulty_key) is not None:
+                        total_sheet_music_count += 1
         else:
-            logging.warning("Owner not found or could not resolve owner for startup notification. Displaying in logs instead.")
-            logging.info(f"BOT STARTUP: {startup_message_content}")
+            logging.warning("VALID_DIFFICULTIES_FOR_COUNT not found. Cannot accurately count total sheet music.")
+            # フォールバックとして、とりあえず各曲のmaster/expert/appendなどがある譜面を数える
+            for song_data in self.proseka_songs_data:
+                if song_data.get('easy') is not None: total_sheet_music_count += 1
+                if song_data.get('normal') is not None: total_sheet_music_count += 1
+                if song_data.get('hard') is not None: total_sheet_music_count += 1
+                if song_data.get('expert') is not None: total_sheet_music_count += 1
+                if song_data.get('master') is not None: total_sheet_music_count += 1
+                if song_data.get('append') is not None: total_sheet_music_count += 1
+
+
+        # ★修正: ボットのカスタムステータスを設定する★
+        activity_name = f"{len(self.proseka_songs_data)}曲 / {total_sheet_music_count}譜面が登録済み"
+        try:
+            await self.change_presence(activity=discord.Game(name=activity_name))
+            logging.info(f"Bot activity set to: '{activity_name}'.")
+        except Exception as e:
+            logging.error(f"Failed to set bot activity: {e}", exc_info=True)
+
+
+        # ★修正: オーナーへのDM通知ロジックを削除★
+        if owner and ADMIN_MODE: 
+            try:
+                await owner.send("ボットが起動しました。現在、**管理者モード**が有効になっています。")
+                logging.info(f"Sent admin mode notification to owner {owner.name}.")
+            except discord.Forbidden:
+                logging.warning(f"Could not send DM to owner {owner.name}. DMs disabled. Skipping admin mode message.")
+            except Exception as e:
+                logging.error(f"Error sending admin mode DM to owner: {e}", exc_info=True)
+        elif not owner:
+            logging.warning("Owner not found or could not resolve owner. Skipping admin mode DM notification.")
+        # ここから下の元のDM通知ロジックは全て削除されます
 
     async def on_command_error(self, ctx: commands.Context, error: commands.CommandError):
         if isinstance(error, commands.CommandNotFound):
