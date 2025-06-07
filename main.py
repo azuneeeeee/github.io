@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import traceback
 import logging
 import sys
-import asyncio # <-- 追加: asyncio を使用
+import asyncio
 
 # admin_commands コグをインポート
 # is_maintenance_mode は admin_commands.py から共有されます
@@ -14,13 +14,14 @@ from admin_commands import is_maintenance_mode
 load_dotenv()
 
 # --- ロギング設定 ---
-# 本番運用向けにINFOレベルに設定。必要に応じてDEBUGに変更してください。
-logging.basicConfig(level=logging.INFO,
+# 全体のロギングレベルをDEBUGに設定 (詳細なログを確認するため)
+logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
                     stream=sys.stdout)
 
-logging.getLogger('discord').setLevel(logging.INFO)
-logging.getLogger('websockets').setLevel(logging.INFO)
+# discord.pyとwebsocketsのロガーもDEBUGレベルに設定
+logging.getLogger('discord').setLevel(logging.DEBUG)
+logging.getLogger('websockets').setLevel(logging.DEBUG)
 
 # --- asyncioの未捕捉例外ハンドラ ---
 def handle_exception(loop, context):
@@ -30,15 +31,42 @@ def handle_exception(loop, context):
         logging.error("トレースバック:", exc_info=context["exception"])
 
 # --- Discordクライアントのインテント設定 ---
-intents = discord.Intents.all() # デバッグ・テストのため、当面は all() のままにしておく
+intents = discord.Intents.all() 
 
 # --- ボットのインスタンス作成 ---
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+# --- READY イベントのフック ---
+# discord.py の内部イベントを直接捕捉する (on_ready の元になるイベント)
+@bot.event
+async def on_socket_raw_receive(msg):
+    """
+    ソケットから生データを受信した際に呼び出されるイベント。
+    DEBUGレベルでログ出力されないと非常に長文になる可能性があるため注意。
+    """
+    # msg はバイト列なのでデコードして表示
+    # print(f"DEBUG: RAW Socket Receive: {msg.decode('utf-8')[:200]}...", file=sys.stdout) # 長文になるので通常は非推奨
+
+# on_ready イベントの元となる READY イベントを処理する関数をフック
+# このフックは非常に内部的なものであり、discord.py のアップデートで動作しなくなる可能性もある
+_old_dispatch = bot.dispatch
+def _new_dispatch(event, *args, **kwargs):
+    if event == "ready":
+        print("DEBUG: EVENT 'ready' がディスパッチされました！(on_ready の直前) ----", file=sys.stdout)
+        # ここでさらに短い遅延を入れることも可能だが、まずはログ確認
+        # await asyncio.sleep(0.1) 
+    _old_dispatch(event, *args, **kwargs)
+
+# bot.dispatch をカスタムディスパッチ関数に置き換える
+# WARNING: これは非公開APIを操作しているため、推奨される方法ではありません。
+# ただし、現状のデバッグ目的のために試みています。
+bot.dispatch = _new_dispatch
+
+
 # --- on_readyイベントハンドラ ---
 @bot.event
 async def on_ready():
-    print("--- on_ready イベント開始 ---", file=sys.stdout)
+    print("--- on_ready イベント開始 --- (フックテスト版)", file=sys.stdout)
     try:
         print(f'Logged in as {bot.user.name}', file=sys.stdout)
         print(f'Bot ID: {bot.user.id}', file=sys.stdout)
@@ -62,7 +90,7 @@ async def on_ready():
             print(f"!!! admin_commands コグのロード中またはコマンド同期中にエラーが発生しました: {e}", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
 
-        print("--- on_ready イベント終了 ---", file=sys.stdout)
+        print("--- on_ready イベント終了 --- (フックテスト版)", file=sys.stdout)
 
     except Exception as e:
         print(f"!!! on_ready イベント内で予期せぬエラーが発生しました: {e}", file=sys.stderr)
@@ -96,7 +124,6 @@ if __name__ == '__main__':
 
     print("デバッグ: Discord Botを起動します。", file=sys.stdout)
     try:
-        # bot.run() の代わりに、より低レベルな制御をするために main() を実行
         asyncio.run(main())
     except Exception as e:
         print(f"デバッグ: asyncio.run(main()) 呼び出し中に致命的なエラーが発生しました: {e}", file=sys.stderr)
