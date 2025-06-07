@@ -63,8 +63,8 @@ JST = timezone(timedelta(hours=9))
 # 管理者モードのフラグ（初期値）
 ADMIN_MODE = False
 
-# ボットオーナーであるかをチェックする関数 (is_owner_global として使用)
-def is_bot_owner_check(): # 名前を is_owner_global と区別するために変更
+# ★修正: 関数名を is_bot_owner に戻す★
+def is_bot_owner():
     async def predicate(interaction: discord.Interaction) -> bool:
         if interaction.user.id == OWNER_ID:
             logging.info(f"Owner {interaction.user.name} (ID: {interaction.user.id}) bypassed admin mode check.")
@@ -74,9 +74,8 @@ def is_bot_owner_check(): # 名前を is_owner_global と区別するために�
         return False
     return app_commands.check(predicate)
 
-# is_owner_global は StatusCommands cog にて参照される
-# bot.is_admin_mode_active が StatusCommands から参照される
-is_owner_global = is_bot_owner_check
+# ★修正: is_owner_global のエイリアス行を削除 (StatusCommands cogで直接 is_bot_owner をインポートするため)★
+# is_owner_global = is_bot_owner_check
 
 # 非オーナーに対して管理者モードが有効な場合にコマンド実行をブロックする関数
 def is_not_admin_mode_for_non_owner():
@@ -162,7 +161,7 @@ class MyBot(commands.Bot):
             "cogs.premium_features",
             "cogs.debug_commands",
             "cogs.pjsk_ap_fc_rate",
-            "cogs.status_commands", # ★追加: StatusCommands コグをロード★
+            "cogs.status_commands",
         ]
         
         for cog_name in cogs_to_load:
@@ -178,7 +177,7 @@ class MyBot(commands.Bot):
         rankmatch_cog = self.get_cog('ProsekaRankMatchCommands')
         premium_cog = self.get_cog('PremiumManagerCog')
         ap_fc_rate_cog = self.get_cog('PjskApFcRateCommands')
-        status_cog = self.get_cog('StatusCommands') # StatusCommands コグのインスタンスを取得
+        status_cog = self.get_cog('StatusCommands')
 
         # 各コグが存在することを確認してから参照を設定
         if general_cog and ap_fc_rate_cog:
@@ -194,7 +193,7 @@ class MyBot(commands.Bot):
             logging.info("Set record_cog.ap_fc_rate_cog.")
         
         # すべての必須コグが存在する場合のみクロス参照設定完了と判断
-        if general_cog and record_cog and rankmatch_cog and premium_cog and status_cog: # status_cogも必須に追加
+        if general_cog and record_cog and rankmatch_cog and premium_cog and status_cog: 
              logging.info("All essential cross-cog references set.")
         else:
             logging.warning("Some cogs or their references are missing. Cross-cog functionality might be limited.")
@@ -262,7 +261,7 @@ class MyBot(commands.Bot):
                 logging.warning(f"Could not send DM to owner {owner.name}. DMs disabled. Skipping admin mode message.")
             except Exception as e:
                 logging.error(f"Error sending admin mode DM to owner: {e}", exc_info=True)
-        elif not owner and self.is_admin_mode_active: # オーナーが見つからない場合もログに通知
+        elif not owner and self.is_admin_mode_active: 
             logging.warning("Owner not found or could not resolve owner. Skipping admin mode DM notification.")
 
 
@@ -331,7 +330,6 @@ class MyBot(commands.Bot):
 
     # set_status コマンドは cogs/status_commands.py に移動しました
     # debug_status コマンドは cogs/debug_commands.py に残ります (もし存在する場合)
-    # または必要に応じてこの main.py にオーナー専用コマンドとして残すこともできます
 
 if __name__ == "__main__":
     bot = MyBot()
