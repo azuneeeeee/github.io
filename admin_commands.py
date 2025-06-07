@@ -50,6 +50,9 @@ class AdminCommands(commands.Cog):
         status = "オン" if is_maintenance_mode else "オフ"
         await interaction.response.send_message(f"現在のメンテナンスモードは **{status}** です。", ephemeral=True)
 
+    # TODO: ここに他の製作者コマンドを追加できます
+    # 例: toggle_maintenance, owner_status など
+
 # --- コグをボットに追加するためのセットアップ関数 ---
 async def setup(bot):
     await bot.add_cog(AdminCommands(bot))
