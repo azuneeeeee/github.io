@@ -1,5 +1,1 @@
-discord.py==2.3.2
-python-dotenv==1.0.0
-PyNaCl==1.5.0 # 音声関連の機能を使用する場合に必要
-requests==2.32.3
-patreon==0.5.0 # Patreon APIライブラリ
+
