@@ -1,348 +1,201 @@
+# main.py の修正箇所
+
 import discord
 from discord.ext import commands
-from discord import app_commands
 import os
-import asyncio
-import traceback
-import logging
-from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
-import json
+import random
+import unicodedata
+import re
 
-# .envファイルから環境変数を読み込む
+# FlaskはRenderの無料Web Serviceで24時間稼働を試みる場合にのみ必要です。
+# from flask import Flask
+# import threading
+
+# admin_commands.py から必要な関数と変数をインポート
+from admin_commands import not_in_maintenance, setup as setup_admin_commands_cog, OWNER_ID, is_maintenance_mode
+
+# .env ファイルから環境変数を読み込む
 load_dotenv()
 
-# ロギング設定
-if not logging.root.handlers:
-    logging.basicConfig(level=logging.INFO,
-                        format='%(asctime)s [%(levelname)s] %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')
+# songs.py から楽曲データと有効な難易度リストをインポート
+from songs import proseka_songs, VALID_DIFFICULTIES
 
-# 環境変数からオーナーIDを読み込む
-_owner_id_str = os.getenv('OWNER_ID')
-if _owner_id_str is None:
-    logging.critical("OWNER_ID environment variable is not set. Please set it in Render's Environment settings.")
-    OWNER_ID = -1
-else:
-    try:
-        OWNER_ID = int(_owner_id_str)
-    except ValueError:
-        logging.critical(f"OWNER_ID environment variable '{_owner_id_str}' is not a valid integer. Please check Render's Environment settings.")
-        OWNER_ID = -1
+# Discordのインテントを有効にする
+intents = discord.Intents.default()
+intents.message_content = True
+intents.members = True # 製作者のユーザー情報を取得するために必要かもしれません
 
-# 環境変数からギルドIDを読み込む
-_guild_id_str = os.getenv('GUILD_ID')
-if _guild_id_str is None:
-    logging.warning("GUILD_ID environment variable is not set. Some commands might not be registered correctly.")
-    GUILD_ID = 0
-else:
-    try:
-        GUILD_ID = int(_guild_id_str)
-    except ValueError:
-        logging.critical(f"GUILD_ID environment variable '{_guild_id_str}' is not a valid integer. Please check Render's Environment settings.")
-        GUILD_ID = 0
+# コマンドプレフィックスを設定
+bot = commands.Bot(command_prefix='!', intents=intents)
 
-# ランクマッチ結果を投稿するためのDiscordチャンネルID
-_rankmatch_channel_id_str = os.getenv('RANKMATCH_RESULT_CHANNEL_ID')
-if _rankmatch_channel_id_str is None:
-    # RANKMATCH_RESULT_CHANNEL_IDに関する警告メッセージを削除済み
-    RANKMATCH_RESULT_CHANNEL_ID = 0
-else:
-    try:
-        RANKMATCH_RESULT_CHANNEL_ID = int(_rankmatch_channel_id_str)
-    except ValueError:
-        logging.critical(f"RANKMATCH_RESULT_CHANNEL_ID environment variable '{_rankmatch_channel_id_str}' is not a valid integer.")
-        RANKMATCH_RESULT_CHANNEL_ID = 0
+# Flaskアプリのインスタンスを作成 (24時間稼働を試みる場合のみ有効化)
+# app = Flask(__name__)
 
-# SONGS_FILE を Python モジュールとして指定 (data/songs.py)
-SONGS_FILE = "data.songs"
+# Flaskのエンドポイント (24時間稼働を試みる場合のみ有効化)
+# @app.route('/')
+# def home():
+#     return "プロセカBotは稼働中です！"
 
-# グローバル変数としてJSTを設定
-JST = timezone(timedelta(hours=9))
+# ボットが起動した時のイベント
+@bot.event
+async def on_ready():
+    print(f'Logged in as {bot.user.name}')
+    print(f'Bot ID: {bot.user.id}')
+    print('------')
 
-# 管理者モードのフラグ（初期値）
-ADMIN_MODE = False # MyBotインスタンスのis_admin_mode_activeで管理される
-
-# ボットオーナーであるかをチェックする関数
-def is_bot_owner():
-    """
-    ボットオーナーのみがコマンドを使用できるかをチェックするカスタムデコレータを返します。
-    """
-    async def predicate(interaction: discord.Interaction) -> bool:
-        if interaction.user.id == OWNER_ID:
-            logging.info(f"Owner {interaction.user.name} (ID: {interaction.user.id}) bypassed owner check.")
-            return True
-        await interaction.response.send_message("このコマンドはボットの製作者のみが使用できます。", ephemeral=True)
-        logging.warning(f"Non-owner {interaction.user.name} (ID: {interaction.user.id}) attempted to use owner-only command.")
-        return False
-    return app_commands.check(predicate)
-
-# 非オーナーに対して管理者モードが有効な場合にコマンド実行をブロックする関数
-def is_not_admin_mode_for_non_owner():
-    """
-    ボットが管理者モードの場合、オーナー以外のコマンド実行をブロックするカスタムデコレータを返します。
-    """
-    async def predicate(interaction: discord.Interaction) -> bool:
-        if interaction.user.id == OWNER_ID:
-            return True # オーナーは常に許可
-        
-        # MyBotインスタンスからis_admin_mode_activeの状態を取得
-        # interaction.client は MyBot のインスタンスを参照します
-        if hasattr(interaction.client, 'is_admin_mode_active') and interaction.client.is_admin_mode_active:
-            await interaction.response.send_message(
-                "現在、ボットはメンテナンスのための**管理者モード**です。一時的にコマンドの使用が制限されています。",
-                ephemeral=True
-            )
-            logging.info(f"Command blocked for non-owner {interaction.user.name} (ID: {interaction.user.id}) due to admin mode.")
-            return False
-        
-        return True
-    return app_commands.check(predicate)
-
-# 楽曲データをPythonファイルから読み込む関数
-async def load_songs_data():
-    try:
-        songs_module = __import__(SONGS_FILE, fromlist=['proseka_songs', 'VALID_DIFFICULTIES'])
-        songs = getattr(songs_module, 'proseka_songs', [])
-        global VALID_DIFFICULTIES_FOR_COUNT
-        VALID_DIFFICULTIES_FOR_COUNT = getattr(songs_module, 'VALID_DIFFICULTIES', ['EASY', 'NORMAL', 'HARD', 'EXPERT', 'MASTER', 'APPEND'])
-        logging.info(f"Loaded {len(songs)} songs from {SONGS_FILE}.")
-        return songs
-    except ImportError as e:
-        logging.critical(f"Error importing songs data from {SONGS_FILE}. Please ensure data/songs.py exists and contains a 'proseka_songs' variable: {e}")
-        return []
-    except AttributeError:
-        logging.critical(f"'{SONGS_FILE}' module does not contain 'proseka_songs' or 'VALID_DIFFICULTIES' variable. Please define your song data in 'data/songs.py' as 'proseka_songs = [...]' and 'VALID_DIFFICULTIES = [...]'.")
-        VALID_DIFFICULTIES_FOR_COUNT = ['EASY', 'NORMAL', 'HARD', 'EXPERT', 'MASTER', 'APPEND'] # フォールバック
-        return []
-    except Exception as e:
-        logging.critical(f"Unexpected error loading songs data from {SONGS_FILE}: {e}", exc_info=True)
-        return []
-
-# _create_song_data_map は変更なし
-def _create_song_data_map(songs_list):
-    """songs.pyのリストデータをタイトルをキーとする辞書に変換します。"""
-    song_map = {}
-    for song in songs_list:
-        title = song.get("title")
-        if title:
-            song_map[title.lower()] = song
-    logging.info(f"Created song data map with {len(song_map)} entries.")
-    return song_map
-
-
-class MyBot(commands.Bot):
-    def __init__(self):
-        intents = discord.Intents.default()
-        intents.message_content = True 
-        intents.members = True          
-        intents.guilds = True           
-        
-        super().__init__(command_prefix='!', intents=intents)
-        
-        self.owner_id = OWNER_ID
-        self.GUILD_ID = GUILD_ID
-        self.RANKMATCH_RESULT_CHANNEL_ID = RANKMATCH_RESULT_CHANNEL_ID
-        self.is_bot_ready = False 
-        self.is_admin_mode_active = ADMIN_MODE # MyBotインスタンスで管理される管理者モードフラグ
-
-        self.proseka_songs_data = [] 
-        self.SONG_DATA_MAP = {} 
-
-        logging.info("Bot initialized.")
-
-    async def setup_hook(self):
-        logging.info("Running setup_hook...")
-        
-        self.proseka_songs_data = await load_songs_data()
-        self.SONG_DATA_MAP = _create_song_data_map(self.proseka_songs_data) 
-
-        cogs_to_load = [
-            "cogs.proseka_general",
-            "cogs.help_command",
-            "cogs.proseka_rankmatch",
-            "cogs.pjsk_record_result", 
-            "cogs.premium_features",
-            "cogs.debug_commands",
-            "cogs.pjsk_ap_fc_rate",
-            "cogs.status_commands",
-        ]
-        
-        for cog_name in cogs_to_load:
-            try:
-                await self.load_extension(cog_name) 
-                logging.info(f"Successfully loaded {cog_name}.")
-            except Exception as e:
-                logging.error(f"Failed to load cog {cog_name}: {e}", exc_info=True)
-        
-        # コグ間の参照設定（全てのコグがロードされた後に行う）
-        general_cog = self.get_cog('ProsekaGeneralCommands')
-        record_cog = self.get_cog('PjskRecordResult')
-        rankmatch_cog = self.get_cog('ProsekaRankMatchCommands')
-        premium_cog = self.get_cog('PremiumManagerCog')
-        ap_fc_rate_cog = self.get_cog('PjskApFcRateCommands')
-        status_cog = self.get_cog('StatusCommands')
-
-        # 各コグが存在することを確認してから参照を設定
-        if general_cog and ap_fc_rate_cog:
-            general_cog.ap_fc_rate_cog = ap_fc_rate_cog
-            logging.info("Set general_cog.ap_fc_rate_cog.")
-        
-        if rankmatch_cog and ap_fc_rate_cog:
-            rankmatch_cog.ap_fc_rate_cog = ap_fc_rate_cog
-            logging.info("Set rankmatch_cog.ap_fc_rate_cog.")
-
-        if ap_fc_rate_cog and record_cog:
-            record_cog.ap_fc_rate_cog = ap_fc_rate_cog
-            logging.info("Set record_cog.ap_fc_rate_cog.")
-        
-        # すべての必須コグが存在する場合のみクロス参照設定完了と判断
-        if all(cog is not None for cog in [general_cog, record_cog, rankmatch_cog, premium_cog, ap_fc_rate_cog, status_cog]): 
-             logging.info("All essential cross-cog references set.")
-        else:
-            logging.warning("Some cogs or their references are missing. Cross-cog functionality might be limited.")
-
-
-        if self.GUILD_ID != 0:
-            guild_obj = discord.Object(id=self.GUILD_ID)
-            self.tree.copy_global_to(guild=guild_obj)
-            synced = await self.tree.sync(guild=guild_obj)
-            logging.info(f"Synced {len(synced)} commands to guild {self.GUILD_ID}.")
-        else:
-            synced = await self.tree.sync()
-            logging.info(f"Synced {len(synced)} global commands.")
-
-        if premium_cog and hasattr(premium_cog, 'patreon_sync_task') and not premium_cog.patreon_sync_task.is_running():
-            premium_cog.patreon_sync_task.start()
-            logging.info("Patreon sync task started.")
-        else:
-            logging.warning("PremiumManagerCog not found or Patreon sync task already running. Skipping task start.")
-
-        self.is_bot_ready = True 
-        logging.info("setup_hook completed. Bot is ready!")
-
-    async def on_ready(self):
-        logging.info(f'Logged in as {self.user} (ID: {self.user.id})')
-        logging.info(f'Bot is ready: {self.is_bot_ready}')
-        print(f'Logged in as {self.user} (ID: {self.user.id})')
-        print(f'Bot is ready: {self.user.id}')
-        
-        owner = self.get_user(self.owner_id)
-        
-        # 譜面数を正しく数えるロジック
-        total_sheet_music_count = 0
-        if 'VALID_DIFFICULTIES_FOR_COUNT' in globals():
-            for song_data in self.proseka_songs_data:
-                for difficulty_key in [d.lower() for d in VALID_DIFFICULTIES_FOR_COUNT]:
-                    if song_data.get(difficulty_key) is not None:
-                        total_sheet_music_count += 1
-        else:
-            logging.warning("VALID_DIFFICULTIES_FOR_COUNT not found. Cannot accurately count total sheet music.")
-            for song_data in self.proseka_songs_data:
-                if song_data.get('easy') is not None: total_sheet_music_count += 1
-                if song_data.get('normal') is not None: total_sheet_music_count += 1
-                if song_data.get('hard') is not None: total_sheet_music_count += 1
-                if song_data.get('expert') is not None: total_sheet_music_count += 1
-                if song_data.get('master') is not None: total_sheet_music_count += 1
-                if song_data.get('append') is not None: total_sheet_music_count += 1
-
-
-        # ボットのカスタムステータスを設定
-        activity_name = f"{len(self.proseka_songs_data)}曲 / {total_sheet_music_count}譜面が登録済み"
+    # 製作者IDを環境変数から設定する
+    # Renderの環境変数に DISCORD_OWNER_ID=あなたのユーザーID (数字) を設定してください。
+    global OWNER_ID
+    if os.getenv('DISCORD_OWNER_ID'):
         try:
-            await self.change_presence(activity=discord.Game(name=activity_name))
-            logging.info(f"Bot activity set to: '{activity_name}'.")
-        except Exception as e:
-            logging.error(f"Failed to set bot activity: {e}", exc_info=True)
-
-
-        # 管理者モードが有効な場合のみオーナーにDMを送信 (StatusCommands cogがこのフラグを制御します)
-        if owner and self.is_admin_mode_active: 
-            try:
-                await owner.send("ボットが起動しました。現在、**管理者モード**が有効になっています。")
-                logging.info(f"Sent admin mode notification to owner {owner.name}.")
-            except discord.Forbidden:
-                logging.warning(f"Could not send DM to owner {owner.name}. DMs disabled. Skipping admin mode message.")
-            except Exception as e:
-                logging.error(f"Error sending admin mode DM to owner: {e}", exc_info=True)
-        elif not owner and self.is_admin_mode_active: 
-            logging.warning("Owner not found or could not resolve owner. Skipping admin mode DM notification.")
-
-
-    async def on_command_error(self, ctx: commands.Context, error: commands.CommandError):
-        if isinstance(error, commands.CommandNotFound):
-            logging.warning(f"Command not found: {ctx.message.content} by {ctx.author.name}")
-        elif isinstance(error, commands.MissingRequiredArgument):
-            logging.warning(f"Missing arguments for {ctx.command}: {error} by {ctx.author.name}")
-            await ctx.send(f"コマンドの引数が不足しています: {error}")
-        elif isinstance(error, commands.NotOwner):
-            logging.warning(f"Non-owner {ctx.author.name} attempted owner-only command {ctx.command.name}.")
-            await ctx.send("このコマンドはボットの製作者のみが使用できます。")
-        elif isinstance(error, commands.CommandInvokeError):
-            logging.error(f"Error invoking command {ctx.command}: {error.original}", exc_info=True)
-            await ctx.send(f"コマンドの実行中にエラーが発生しました: `{error.original}`")
-            owner = self.get_user(self.owner_id)
-            if owner:
-                error_msg = f"コマンドエラー: `{ctx.command.name}`\n" \
-                            f"実行者: {ctx.author.name} (ID: {ctx.author.id})\n" \
-                            f"ギルド: {ctx.guild.name} (ID: {ctx.guild.id}) if ctx.guild else 'DM'\n" \
-                            f"エラー: ```py\n{type(error.original).__name__}: {error.original}\n" \
-                            f"{''.join(traceback.format_exception(type(error.original), error.original, error.original.__traceback__))[:1500]}...```"
-                try:
-                    await owner.send(error_msg)
-                except discord.Forbidden:
-                    logging.warning(f"Could not send error DM to owner {owner.name}. DMs disabled.")
-        else:
-            logging.error(f"Unhandled command error: {error}", exc_info=True)
-            await ctx.send(f"予期せぬエラーが発生しました: `{error}`")
-
-    async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.CommandOnCooldown):
-            remaining = error.retry_after
-            await interaction.response.send_message(f"このコマンドはクールダウン中です。あと {remaining:.1f} 秒待ってください。", ephemeral=True)
-            logging.info(f"CommandOnCooldown for {interaction.command.name} by {interaction.user.name}. Remaining: {remaining:.1f}s")
-        elif isinstance(error, app_commands.MissingPermissions):
-            missing_perms = ", ".join(error.missing_permissions)
-            await interaction.response.send_message(f"このコマンドを実行するには、以下の権限が必要です: `{missing_perms}`", ephemeral=True)
-            logging.warning(f"MissingPermissions for {interaction.command.name} by {interaction.user.name}: {missing_perms}")
-        elif isinstance(error, app_commands.CheckFailure):
-            logging.warning(f"AppCommand CheckFailure for {interaction.command.name} by {interaction.user.name}. Error: {error}")
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    "このコマンドは現在利用できません、またはあなたには実行する権限がありません。",
-                    ephemeral=True
-                )
-        elif isinstance(error, app_commands.CommandInvokeError):
-            logging.error(f"Error invoking app command {interaction.command.name}: {error.original}", exc_info=True)
-            if not interaction.response.is_done():
-                await interaction.response.send_message(f"コマンドの実行中にエラーが発生しました: `{error.original}`", ephemeral=True)
-            owner = self.get_user(self.owner_id)
-            if owner:
-                error_msg = f"スラッシュコマンドエラー: `{interaction.command.name}`\n" \
-                            f"実行者: {interaction.user.name} (ID: {interaction.user.id})\n" \
-                            f"ギルド: {interaction.guild.name} (ID: {interaction.guild.id}) if interaction.guild else 'DM'\n" \
-                            f"エラー: ```py\n{type(error.original).__name__}: {error.original}\n" \
-                            f"{''.join(traceback.format_exception(type(error.original), error.original, error.original.__traceback__))[:1500]}...```"
-                try:
-                    await owner.send(error_msg)
-                except discord.Forbidden:
-                    logging.warning(f"Could not send error DM to owner {owner.name}. DMs disabled.")
-        else:
-            logging.error(f"Unhandled app command error: {error}", exc_info=True)
-            if not interaction.response.is_done():
-                await interaction.response.send_message(f"予期せぬエラーが発生しました: `{error}`", ephemeral=True)
-
-    # set_status コマンドは cogs/status_commands.py に移動しました
-
-if __name__ == "__main__":
-    bot = MyBot()
-    DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
-    if DISCORD_BOT_TOKEN is None:
-        logging.critical("DISCORD_BOT_TOKEN environment variable is not set. Please set it to run the bot.")
+            OWNER_ID = int(os.getenv('DISCORD_OWNER_ID'))
+            print(f"製作者IDが環境変数から {OWNER_ID} に設定されました。")
+        except ValueError:
+            print("警告: 環境変数 DISCORD_OWNER_ID が無効な数値です。")
     else:
-        try:
-            bot.run(DISCORD_BOT_TOKEN)
-        except discord.LoginFailure:
-            logging.critical("Failed to login to Discord. Invalid token provided.")
-        except Exception as e:
-            logging.critical(f"An unexpected error occurred during bot execution: {e}", exc_info=True)
+        print("警告: 環境変数 DISCORD_OWNER_ID が設定されていません。`!set_owner`コマンドで設定するか、Renderの環境変数に設定してください。")
+
+    # 初期ステータスを設定（メンテナンスモードの有無によって調整）
+    if is_maintenance_mode:
+        await bot.change_presence(activity=discord.Game(name="メンテナンス中... | !help_proseka"))
+    else:
+        await bot.change_presence(activity=discord.Game(name="プロセカ！ | !help_proseka"))
+
+    # admin_commands コグをロード
+    # setup_admin_commands_cog(bot) # こちらの形式でも可
+    await bot.load_extension('admin_commands') # コグを読み込む推奨される方法
+
+
+# --- ヘルプコマンド ---
+@bot.command(name='help_proseka', description='プロセカBotのヘルプを表示します。')
+@not_in_maintenance() # メンテナンスモード中は製作者以外は使用不可
+async def help_proseka(ctx):
+    embed = discord.Embed(title="プロセカBot ヘルプ", description="プロセカに関する情報を提供するBotです！", color=0x7289DA)
+
+    embed.add_field(
+        name="`!song <曲名>`",
+        value="指定された曲の情報を表示します。\n例: `!song Tell Your World`",
+        inline=False
+    )
+    embed.add_field(
+        name="`!random_song [難易度]`",
+        value="ランダムな曲を選びます。難易度を指定すると、その難易度の曲を選びます。\n例: `!random_song` または `!random_song master`",
+        inline=False
+    )
+    embed.add_field(
+        name="`!difficulty_list`",
+        value="対応している難易度の一覧を表示します。",
+        inline=False
+    )
+    embed.set_footer(text="お楽しみください！")
+    await ctx.send(embed=embed)
+
+# --- 曲情報表示コマンド ---
+@bot.command(name='song', description='指定された曲の情報を表示します。')
+@not_in_maintenance() # メンテナンスモード中は製作者以外は使用不可
+async def get_song_info(ctx, *, query: str):
+    # クエリを正規化
+    normalized_query = unicodedata.normalize('NFKC', query).lower().replace(" ", "").replace("　", "")
+    normalized_query = re.sub(r'[^\w]', '', normalized_query)
+
+    found_song = None
+    for song in proseka_songs:
+        normalized_title = unicodedata.normalize('NFKC', song["title"]).lower().replace(" ", "").replace("　", "")
+        normalized_title = re.sub(r'[^\w]', '', normalized_title)
+        
+        if normalized_query == normalized_title:
+            found_song = song
+            break
+
+    if found_song:
+        embed = discord.Embed(title=f"🎵 {found_song['title']}", color=0x0099ff)
+        if found_song.get("image_url"):
+            embed.set_thumbnail(url=found_song["image_url"])
+
+        difficulty_info = []
+        for diff in VALID_DIFFICULTIES:
+            diff_lower = diff.lower()
+            if diff_lower in found_song and found_song[diff_lower] is not None:
+                difficulty_info.append(f"**{diff}:** {found_song[diff_lower]}")
+        
+        if difficulty_info:
+            embed.add_field(name="🎶 難易度", value="\n".join(difficulty_info), inline=False)
+        else:
+            embed.add_field(name="🎶 難易度", value="難易度情報がありません。", inline=False)
+        
+        embed.set_footer(text=f"情報提供: プロセカBot")
+        await ctx.send(embed=embed)
+    else:
+        await ctx.send(f"⚠️ **'{query}'** という曲は見つかりませんでした。\n曲名が正しいか、全角・半角、スペースなどを確認してみてください。")
+
+# --- ランダムな曲を返すコマンド ---
+@bot.command(name='random_song', description='ランダムな曲を選びます。')
+@not_in_maintenance() # メンテナンスモード中は製作者以外は使用不可
+async def random_song(ctx, difficulty: str = None):
+    target_songs = []
+    
+    if difficulty:
+        normalized_difficulty = difficulty.upper()
+        if normalized_difficulty not in VALID_DIFFICULTIES:
+            await ctx.send(f"⚠️ 無効な難易度です。有効な難易度は: `{', '.join(VALID_DIFFICULTIES)}` です。")
+            return
+        
+        for song in proseka_songs:
+            if normalized_difficulty.lower() in song and song[normalized_difficulty.lower()] is not None:
+                target_songs.append(song)
+        
+        if not target_songs:
+            await ctx.send(f"⚠️ '{normalized_difficulty}' の難易度データを持つ曲が見つかりませんでした。")
+            return
+    else:
+        target_songs = proseka_songs[:]
+
+    if not target_songs:
+        await ctx.send("⚠️ 楽曲データがありません。`songs.py`に曲を追加してください。")
+        return
+
+    random_song_choice = random.choice(target_songs)
+
+    embed = discord.Embed(title=f"今日のあなたへのおすすめ曲！\n🎵 {random_song_choice['title']}", color=0xff69b4)
+
+    if random_song_choice.get("image_url"):
+        embed.set_thumbnail(url=random_song_choice["image_url"])
+
+    difficulty_info = []
+    for diff in VALID_DIFFICULTIES:
+        diff_lower = diff.lower()
+        if diff_lower in random_song_choice and random_song_choice[diff_lower] is not None:
+            difficulty_info.append(f"**{diff}:** {random_song_choice[diff_lower]}")
+    
+    if difficulty_info:
+        embed.add_field(name="🎶 難易度", value="\n".join(difficulty_info), inline=False)
+    else:
+        embed.add_field(name="🎶 難易度", value="難易度情報がありません。", inline=False)
+    
+    embed.set_footer(text=f"情報提供: プロセカBot")
+    await ctx.send(embed=embed)
+
+# --- 難易度リスト表示コマンド ---
+@bot.command(name='difficulty_list', description='対応している難易度の一覧を表示します。')
+@not_in_maintenance() # メンテナンスモード中は製作者以外は使用不可
+async def show_difficulty_list(ctx):
+    await ctx.send(f"対応している難易度は以下の通りです: `{', '.join(VALID_DIFFICULTIES)}`")
+
+
+# ボットの実行部分
+# FlaskとDiscord Botを並行して実行するロジック (Render無料Web Service向け)
+# 環境変数 FLASK_ENABLED=true で有効化します
+# if __name__ == '__main__':
+#     if os.getenv('FLASK_ENABLED', 'False').lower() == 'true':
+#         def run_discord_bot():
+#             bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+#         discord_thread = threading.Thread(target=run_discord_bot)
+#         discord_thread.start()
+
+#         port = int(os.environ.get('PORT', 10000))
+#         app.run(host='0.0.0.0', port=port)
+#     else:
+# 通常のDiscord Bot実行
+bot.run(os.getenv('DISCORD_BOT_TOKEN'))
