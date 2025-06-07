@@ -42,7 +42,7 @@ class AdminCommands(commands.Cog):
     # @commands.slash_command を使用します。
     # これは discord.py v2.x での正しいスラッシュコマンドのデコレータです。
 
-    @commands.slash_command(name="set_owner", description="ボットの製作者IDを設定します (初回のみ)。") # <-- ここを元に戻す
+    @commands.Cog.slash_command(name="set_owner", description="ボットの製作者IDを設定します (初回のみ)。") # <-- ここを元に戻す
     @commands.is_owner()
     async def set_owner(self, ctx, user_id: str):
         global OWNER_ID
@@ -55,7 +55,7 @@ class AdminCommands(commands.Cog):
         except Exception as e:
             await ctx.respond(f"エラーが発生しました: {e}")
 
-    @commands.slash_command(name="owner_status", description="現在の製作者IDを表示します。") # <-- ここを元に戻す
+    @commands.Cog.slash_command(name="owner_status", description="現在の製作者IDを表示します。") # <-- ここを元に戻す
     @is_owner()
     async def owner_status(self, ctx):
         if OWNER_ID:
@@ -67,7 +67,7 @@ class AdminCommands(commands.Cog):
         else:
             await ctx.respond("現在、ボットの製作者IDは設定されていません。")
 
-    @commands.slash_command(name="toggle_maintenance", description="ボットのメンテナンスモードを切り替えます。") # <-- ここを元に戻す
+    @commands.Cog.slash_command(name="toggle_maintenance", description="ボットのメンテナンスモードを切り替えます。") # <-- ここを元に戻す
     @is_owner()
     async def toggle_maintenance(self, ctx):
         global is_maintenance_mode
