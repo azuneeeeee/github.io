@@ -36,7 +36,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 # --- on_readyイベントハンドラ ---
 @bot.event
 async def on_ready():
-    print("--- on_ready イベント開始 --- (スラッシュコマンド同期後待機版)", file=sys.stdout) 
+    print("--- on_ready イベント開始 --- (究極の安定起動版)", file=sys.stdout) 
     try:
         print(f'Logged in as {bot.user.name}', file=sys.stdout)
         print(f'Bot ID: {bot.user.id}', file=sys.stdout)
@@ -60,20 +60,25 @@ async def on_ready():
             await bot.tree.sync() # スラッシュコマンドをDiscordに同期
             print("スラッシュコマンドをDiscordに同期しました。", file=sys.stdout)
             
-            # --- ここが最も重要な変更点 ---
             # スラッシュコマンド同期後、Discordのキャッシュが更新されるのを待つ
-            # 安定のため、少し長めに待機
             print("デバッグ: スラッシュコマンド同期完了。Discordキャッシュの更新を待機中...", file=sys.stdout)
             await asyncio.sleep(5) # 5秒待機
             print("デバッグ: スラッシュコマンド同期後待機完了。", file=sys.stdout)
-            # ---------------------------
 
         except Exception as e:
             print(f"!!! admin_commands コグのロード中またはコマンド同期中にエラーが発生しました: {e}", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
 
         await asyncio.sleep(0.5) 
-        print("--- on_ready イベント終了 --- (スラッシュコマンド同期後待機版)", file=sys.stdout)
+        print("--- on_ready イベント終了 --- (究極の安定起動版)", file=sys.stdout)
+
+        # --- 新しい追加点 ---
+        # on_ready イベントの終了後、さらに待機する
+        # これにより、ボットが完全に「クールダウン」する時間を確保
+        print("デバッグ: ボット起動シーケンス完了。コマンド受付開始前の最終待機中...", file=sys.stdout)
+        await asyncio.sleep(10) # <-- ここでさらに10秒待機
+        print("デバッグ: ボットは全てのコマンドを受け付ける準備ができました。", file=sys.stdout)
+        # -------------------
 
     except Exception as e:
         print(f"!!! on_ready イベント内で予期せぬエラーが発生しました: {e}", file=sys.stderr)
