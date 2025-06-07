@@ -4,55 +4,48 @@ import discord.app_commands
 import os
 from dotenv import load_dotenv
 
-# .envファイルを読み込む (このファイルでOWNER_IDを直接読み込むため)
 load_dotenv() 
 
-# ボットの製作者IDを環境変数から直接読み込む
-# ファイル冒頭で読み込むことで、is_owner() 関数が定義される時点で値が設定されているようにする
-# 環境変数が設定されていない場合でもエラーにならないようにNoneを設定
 OWNER_ID = int(os.getenv('DISCORD_OWNER_ID')) if os.getenv('DISCORD_OWNER_ID') else None
 
-# 取り込み中モードの状態を管理する変数 (main.py からも参照されます)
 is_maintenance_mode = False 
 
-# --- 製作者のみがコマンドを使えるようにするチェック関数 ---
 def is_owner():
     async def predicate(interaction: discord.Interaction):
         if OWNER_ID is None:
-            # 製作者IDが設定されていない場合のエラーメッセージ
             await interaction.response.send_message("エラー: ボットの製作者IDが設定されていません。環境変数をご確認ください。", ephemeral=True)
             return False
         if interaction.user.id != OWNER_ID:
-            # 製作者ではない場合のエラーメッセージ
             await interaction.response.send_message("あなたはボットの製作者ではありません。このコマンドは使用できません。", ephemeral=True)
             return False
         return True
     return discord.app_commands.check(predicate)
 
-# --- 取り込み中モード中に特定のコマンドを制限するチェック関数 ---
 def not_in_maintenance():
     async def predicate(interaction: discord.Interaction):
-        # メンテナンスモード中で、かつユーザーが製作者ではない場合に制限
         if is_maintenance_mode and interaction.user.id != OWNER_ID:
             await interaction.response.send_message("現在ボットはメンテナンス中のため、このコマンドは使用できません。", ephemeral=True)
             return False
         return True
     return discord.app_commands.check(predicate)
 
-# --- AdminCommands コグの定義 ---
 class AdminCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     @discord.app_commands.command(name="maintenance_status", description="現在のメンテナンスモードの状態を表示します。")
-    @is_owner() # 製作者チェックを適用
+    @is_owner()
     async def maintenance_status(self, interaction: discord.Interaction):
+        # --- ここから追加/修正 ---
+        # コマンドを受け取ったことをDiscordに通知 (3秒のタイムアウト回避)
+        await interaction.response.defer(ephemeral=True, thinking=True) 
+        # ephemeral=True は製作者のみに見えるようにするため
+        # thinking=True は "Bot is thinking..." の表示を出すため
+
         status = "オン" if is_maintenance_mode else "オフ"
-        await interaction.response.send_message(f"現在のメンテナンスモードは **{status}** です。", ephemeral=True)
+        # defer 後の応答は followuo.send_message を使用
+        await interaction.followup.send(f"現在のメンテナンスモードは **{status}** です。", ephemeral=True)
+        # --- ここまで追加/修正 ---
 
-    # TODO: ここに他の製作者コマンドを追加できます
-    # 例: toggle_maintenance, owner_status など
-
-# --- コグをボットに追加するためのセットアップ関数 ---
 async def setup(bot):
     await bot.add_cog(AdminCommands(bot))
