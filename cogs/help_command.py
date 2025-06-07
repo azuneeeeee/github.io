@@ -6,7 +6,8 @@ from discord import app_commands
 import logging
 
 # main.pyから必要なグローバルチェック関数をインポート
-from main import is_not_admin_mode_for_non_owner, is_owner_global
+# is_owner_global は main.py から削除されたため、ここでも削除
+from main import is_not_admin_mode_for_non_owner 
 
 class HelpCommand(commands.Cog):
     """
@@ -18,7 +19,7 @@ class HelpCommand(commands.Cog):
         logging.info("HelpCommand Cog initialized.") # コグの初期化ログ
 
     @app_commands.command(name="help", description="ボットのコマンドリストを表示します。")
-    @is_not_admin_mode_for_non_owner() # ★追加: 管理者モードチェックを適用★
+    @is_not_admin_mode_for_non_owner() # 管理者モードチェックを適用
     async def help_command(self, interaction: discord.Interaction):
         """
         Slash command to display the bot's command list.
@@ -40,7 +41,7 @@ class HelpCommand(commands.Cog):
         embed.add_field(name="`/pjsk_record_result`", value="楽曲の精度記録を管理します。", inline=False)
         embed.add_field(name="`/pjsk_rankmatch_result`", value="ランクマッチの結果を投稿・集計します。(最大5人対応)", inline=False)
         embed.add_field(name="`/premium_info`", value="あなたのプレミアムステータスを表示します。", inline=False)
-        embed.add_field(name="`/link_patreon`", value="PatreonアカウントとDiscordアカウントを連携します。", inline=False) # <email>を削除 (引数は不要なため)
+        embed.add_field(name="`/link_patreon`", value="PatreonアカウントとDiscordアカウントを連携します。", inline=False) 
         
         embed.add_field(name="--- オーナー専用コマンド (製作者のみ利用可能) ---", value="これらのコマンドはボットの製作者のみが使用できます。", inline=False)
         embed.add_field(name="`/set_status <status>`", value="ボットのステータスを設定し、管理者モードを切り替えます。", inline=False)
