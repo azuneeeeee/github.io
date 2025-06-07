@@ -94,15 +94,19 @@ def is_not_admin_mode_for_non_owner():
 # 楽曲データをPythonファイルから読み込む関数
 async def load_songs_data():
     try:
-        songs_module = __import__(SONGS_FILE, fromlist=['proseka_songs'])
+        songs_module = __import__(SONGS_FILE, fromlist=['proseka_songs', 'VALID_DIFFICULTIES'])
         songs = getattr(songs_module, 'proseka_songs', [])
+        # VALID_DIFFICULTIESもここで取得
+        global VALID_DIFFICULTIES_FOR_COUNT
+        VALID_DIFFICULTIES_FOR_COUNT = getattr(songs_module, 'VALID_DIFFICULTIES', ['EASY', 'NORMAL', 'HARD', 'EXPERT', 'MASTER', 'APPEND'])
         logging.info(f"Loaded {len(songs)} songs from {SONGS_FILE}.")
         return songs
     except ImportError as e:
         logging.critical(f"Error importing songs data from {SONGS_FILE}. Please ensure data/songs.py exists and contains a 'proseka_songs' variable: {e}")
         return []
     except AttributeError:
-        logging.critical(f"'{SONGS_FILE}' module does not contain a 'proseka_songs' variable. Please define your song data in 'data/songs.py' as 'proseka_songs = [...]'.")
+        logging.critical(f"'{SONGS_FILE}' module does not contain 'proseka_songs' or 'VALID_DIFFICULTIES' variable. Please define your song data in 'data/songs.py' as 'proseka_songs = [...]' and 'VALID_DIFFICULTIES = [...]'.")
+        VALID_DIFFICULTIES_FOR_COUNT = ['EASY', 'NORMAL', 'HARD', 'EXPERT', 'MASTER', 'APPEND'] # フォールバック
         return []
     except Exception as e:
         logging.critical(f"Unexpected error loading songs data from {SONGS_FILE}: {e}", exc_info=True)
@@ -215,19 +219,24 @@ class MyBot(commands.Bot):
         
         owner = self.get_user(self.owner_id)
         
-        # ★修正: 自動でオーナーに起動メッセージを送信するロジックを復元★
-        startup_message_content = f"ボットが起動しました！\n" \
-                                  f"現在、**{len(self.proseka_songs_data)}曲**の楽曲データ（合計**{sum(len(self.SONG_DATA_MAP[title]['expert'] for title in self.SONG_DATA_MAP if 'expert' in self.SONG_DATA_MAP[title]) + len(self.SONG_DATA_MAP[title]['master'] for title in self.SONG_DATA_MAP if 'master' in self.SONG_DATA_MAP[title]) + len(self.SONG_DATA_MAP[title]['append'] for title in self.SONG_DATA_MAP if 'append' in self.SONG_DATA_MAP[title]) if self.SONG_DATA_MAP) が未定義で、適切に数える必要があります。一時的な解決策として、個々の難易度の譜面数を数えるロジックを簡素化しました。**
-                                  f"**{len(self.proseka_songs_data)}曲**が登録されています。これには、各曲の複数の難易度（譜面）が含まれます。"
+        # ★修正: 譜面数を正しく数えるロジックとメッセージの構文を修正★
+        total_sheet_music_count = 0
+        for song_data in self.proseka_songs_data:
+            for difficulty_key in ['easy', 'normal', 'hard', 'expert', 'master', 'append']: # 小文字に統一
+                if song_data.get(difficulty_key) is not None:
+                    total_sheet_music_count += 1
+
+        startup_message_content = (
+            f"ボットが起動しました！\n"
+            f"現在、**{len(self.proseka_songs_data)}曲**（合計**{total_sheet_music_count}譜面**）が登録されています。"
+        )
 
         if owner:
             try:
                 if ADMIN_MODE:
-                    # 管理者モードの通知と結合
                     await owner.send("ボットが起動しました。現在、**管理者モード**が有効になっています。\n" + startup_message_content)
                     logging.info(f"Sent admin mode and startup notification to owner {owner.name}.")
                 else:
-                    # 通常モードの場合は起動メッセージのみ
                     await owner.send(startup_message_content)
                     logging.info(f"Sent startup notification to owner {owner.name}.")
             except discord.Forbidden:
