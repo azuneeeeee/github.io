@@ -54,7 +54,7 @@ else:
         logging.critical(f"RANKMATCH_RESULT_CHANNEL_ID environment variable '{_rankmatch_channel_id_str}' is not a valid integer.")
         RANKMATCH_RESULT_CHANNEL_ID = 0
 
-# ★修正: SONGS_FILE を Python モジュールとして指定★
+# SONGS_FILE を Python モジュールとして指定
 SONGS_FILE = "data.songs" # data/songs.py をモジュールとしてインポート
 
 # グローバル変数としてJSTを設定
@@ -91,21 +91,20 @@ def is_not_admin_mode_for_non_owner():
         return True
     return app_commands.check(predicate)
 
-# ★修正: 楽曲データをPythonファイルから読み込む関数★
+# 楽曲データをPythonファイルから読み込む関数
 async def load_songs_data():
     try:
         # SONGS_FILE (data.songs) をモジュールとしてインポート
-        # __import__ を使用すると、動的にモジュールをインポートできる
-        # fromlist=['SONGS'] は SONGS という名前のオブジェクトをインポートすることを示す
-        songs_module = __import__(SONGS_FILE, fromlist=['SONGS'])
-        songs = getattr(songs_module, 'SONGS', []) # SONGS 変数を取得。なければ空リスト
+        # fromlist=['proseka_songs'] は proseka_songs という名前のオブジェクトをインポートすることを示す
+        songs_module = __import__(SONGS_FILE, fromlist=['proseka_songs'])
+        songs = getattr(songs_module, 'proseka_songs', []) # ★修正: 'proseka_songs' 変数を取得★
         logging.info(f"Loaded {len(songs)} songs from {SONGS_FILE}.")
         return songs
     except ImportError as e:
-        logging.critical(f"Error importing songs data from {SONGS_FILE}. Please ensure data/songs.py exists and contains a 'SONGS' variable: {e}")
+        logging.critical(f"Error importing songs data from {SONGS_FILE}. Please ensure data/songs.py exists and contains a 'proseka_songs' variable: {e}")
         return []
     except AttributeError:
-        logging.critical(f"'{SONGS_FILE}' module does not contain a 'SONGS' variable. Please define your song data in 'data/songs.py' as 'SONGS = [...]'.")
+        logging.critical(f"'{SONGS_FILE}' module does not contain a 'proseka_songs' variable. Please define your song data in 'data/songs.py' as 'proseka_songs = [...]'.")
         return []
     except Exception as e:
         logging.critical(f"Unexpected error loading songs data from {SONGS_FILE}: {e}", exc_info=True)
@@ -185,7 +184,7 @@ class MyBot(commands.Bot):
             ap_fc_rate_cog.record_cog = record_cog
             logging.info("Set ap_fc_rate_cog.record_cog.")
         
-        # すべてのコグが存在する場合のみクロス参照設定完了と判断
+        # すべての必須コグが存在する場合のみクロス参照設定完了と判断
         if general_cog and record_cog and rankmatch_cog and premium_cog: # ap_fc_rate_cog はオプションのため除外
              logging.info("All essential cross-cog references set.")
         else:
@@ -320,7 +319,7 @@ class MyBot(commands.Bot):
                 await self.change_presence(status=new_status)
                 logging.info(f"Bot status changed to {status}.")
             else:
-                await interaction.followup.send("無効なステータスです。`online`, `idle`, `dnd`, `invisible` から選択してください。", ephemeral=True)
+                await interaction.followup.send("無効なステータスです。`online`, `idle`, `dnd`, `dnd`, `invisible` から選択してください。", ephemeral=True) # 修正：dndが重複
                 return
 
         new_activity = None
