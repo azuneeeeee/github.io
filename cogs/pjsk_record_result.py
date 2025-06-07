@@ -9,10 +9,7 @@ import traceback
 import logging
 
 # main.pyからis_not_admin_mode_for_non_ownerをインポート
-# _create_song_data_map は main.py に移動されたため、ここではインポート不要です。
 from main import is_not_admin_mode_for_non_owner 
-
-# songs.py のデータを SONGS_DATA_MAP に変換する関数は main.py に移動されました。
 
 SUPPORT_GUILD_ID = 1376551581423767582
 
@@ -47,7 +44,7 @@ class AccuracyRecordModal(Modal, title="新規記録"):
         super().__init__()
         self.bot = bot
         self.user_id = str(user_id)
-        self.song_data_map = song_data_map
+        self.song_data_map = song_data_map # モーダルは渡されたマップを使用
 
         self.song_name = TextInput(
             label="曲名",
@@ -78,7 +75,6 @@ class AccuracyRecordModal(Modal, title="新規記録"):
             )
             return
 
-        # 楽曲名が存在するかチェック
         if song_name_input.lower() not in self.song_data_map:
             logging.warning(f"Song '{song_name_input}' not found in SONG_DATA_MAP during modal submit for user {interaction.user.name}.")
             await interaction.response.send_message(
@@ -152,7 +148,7 @@ class UpdateRecordModal(Modal, title="記録を更新"):
         self.user_id = str(user_id)
         self.song_name = song_name
         self.difficulty = difficulty
-        self.song_data_map = song_data_map
+        self.song_data_map = song_data_map # モーダルは渡されたマップを使用
 
         self.accuracy = TextInput(
             label="精度 (GREAT-GOOD-BAD-MISS)",
@@ -404,7 +400,8 @@ class ConfirmResetView(View):
                     color=discord.Color.red()
                 )
                 if self.message:
-                    original_command_view = RecordAccuracyView(self.bot, self.user_id, song_data_map=self.song_data_map)
+                    # RecordAccuracyViewの初期化に songs_data_map を渡す
+                    original_command_view = RecordAccuracyView(self.bot, self.user_id, song_data_map=self.song_data_map) 
                     original_command_view.set_button_states(has_record=False)
 
                     try:
@@ -459,7 +456,7 @@ class RecordAccuracyView(View):
         self.current_song = song_name
         self.current_difficulty = difficulty
         self.message = None
-        self.song_data_map = song_data_map
+        self.song_data_map = song_data_map # Viewも渡されたマップを使用
         logging.info("RecordAccuracyView initialized.")
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -538,13 +535,23 @@ class RecordAccuracyView(View):
 
 
 class PjskRecordResult(commands.Cog):
-    # ★修正: songs_data を songs_data_map に変更★
-    def __init__(self, bot: commands.Bot, songs_data_map: dict = None):
+    def __init__(self, bot: commands.Bot): # ★修正: songs_data_map 引数を削除★
         self.bot = bot
-        # グローバル関数 _create_song_data_map は main.py に移動されたため、直接受け取る
-        self.SONG_DATA_MAP = songs_data_map if songs_data_map is not None else {}
+        # 楽曲データはボットインスタンスから取得
+        self.SONG_DATA_MAP = self.bot.SONG_DATA_MAP # ★修正: ここでデータを取得★
+        self.ap_fc_rate_cog = None # setup_hookで設定される予定 (または on_ready)
         logging.info("PjskRecordResult Cog initialized.")
         logging.debug(f"SONG_DATA_MAP created with {len(self.SONG_DATA_MAP)} entries.")
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        # ボットが完全に準備完了したら、クロス参照を設定
+        if not self.ap_fc_rate_cog and self.bot.is_ready():
+            self.ap_fc_rate_cog = self.bot.get_cog('ApFcRate')
+            if self.ap_fc_rate_cog:
+                logging.info("PjskRecordResult: ap_fc_rate_cog reference set via on_ready.")
+            else:
+                logging.warning("PjskRecordResult: ApFcRate cog not found on_ready.")
 
 
     @app_commands.command(name="pjsk_record_result", description="プロセカの精度記録を管理します。")
@@ -556,7 +563,6 @@ class PjskRecordResult(commands.Cog):
     ):
         logging.info(f"Command '/pjsk_record_result' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
 
-        # ボットが完全に準備完了しているかチェック
         if not self.bot.is_bot_ready:
             logging.warning(f"Bot not ready for command '{interaction.command.name}'. User: {interaction.user.name}. Sending 'bot not ready' message.")
             try:
@@ -597,12 +603,14 @@ class PjskRecordResult(commands.Cog):
                 last_song = last_record_data.get("song")
                 last_difficulty = last_record_data.get("difficulty")
 
+        # Viewの初期化に self.SONG_DATA_MAP を渡す
         view = RecordAccuracyView(self.bot, interaction.user.id, last_song, last_difficulty, self.SONG_DATA_MAP)
 
         embed = None
         if has_user_records and last_song and last_difficulty and \
            last_song in user_data["records"] and last_difficulty in user_data["records"][last_song]:
             current_record = user_data["records"][last_song][last_difficulty]
+            # create_display_embed に self.SONG_DATA_MAP を渡す
             embed = UpdateRecordModal.create_display_embed(interaction.user, last_song, last_difficulty, current_record, self.SONG_DATA_MAP)
 
             embed.description = "以下のボタンから操作を選択してください。"
@@ -625,13 +633,11 @@ class PjskRecordResult(commands.Cog):
 
     @pjsk_record_result.error
     async def pjsk_record_result_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        # is_not_admin_mode_for_non_owner からの CheckFailure は main.py で捕捉されるため、ここでは主に guild check を処理
         if isinstance(error, app_commands.CheckFailure):
             logging.warning(f"CheckFailure for /pjsk_record_result by user {interaction.user.name}. Error: {error}")
-            # もしメインのon_app_command_errorで処理されなかった場合、ここでも応答を試みる
             if not interaction.response.is_done():
                 await interaction.response.send_message(
-                    "このコマンドは、特定のサポートサーバーでのみ利用可能です。", # GUILD_ID制限によるCheckFailureの場合
+                    "このコマンドは、特定のサポートサーバーでのみ利用可能です。", 
                     ephemeral=True
                 )
             return
@@ -647,11 +653,8 @@ class PjskRecordResult(commands.Cog):
                     pass
 
 
-async def setup(bot: commands.Bot):
+async def setup(bot: commands.Bot): # ★修正: songs_data_map 引数を削除★
     os.makedirs(DATA_DIR, exist_ok=True)
-    # main.py の setup_hook で SONGS_DATA_MAP が bot オブジェクトに設定されていることを期待
-    # setup_hookの実行順序により、bot.SONG_DATA_MAP は既に設定されているはず
-    songs_data_map = bot.SONG_DATA_MAP if hasattr(bot, 'SONG_DATA_MAP') else {}
-    cog = PjskRecordResult(bot, songs_data_map=songs_data_map) # ★修正: songs_data_map を渡す★
+    cog = PjskRecordResult(bot) # ★修正: songs_data_map を渡さない★
     await bot.add_cog(cog)
     logging.info("PjskRecordResult cog loaded.")
