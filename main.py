@@ -61,29 +61,33 @@ SONGS_FILE = "data.songs"
 JST = timezone(timedelta(hours=9))
 
 # 管理者モードのフラグ（初期値）
-ADMIN_MODE = False
+ADMIN_MODE = False # MyBotインスタンスのis_admin_mode_activeで管理される
 
-# ★修正: 関数名を is_bot_owner に戻す★
+# ボットオーナーであるかをチェックする関数
 def is_bot_owner():
+    """
+    ボットオーナーのみがコマンドを使用できるかをチェックするカスタムデコレータを返します。
+    """
     async def predicate(interaction: discord.Interaction) -> bool:
         if interaction.user.id == OWNER_ID:
-            logging.info(f"Owner {interaction.user.name} (ID: {interaction.user.id}) bypassed admin mode check.")
+            logging.info(f"Owner {interaction.user.name} (ID: {interaction.user.id}) bypassed owner check.")
             return True
         await interaction.response.send_message("このコマンドはボットの製作者のみが使用できます。", ephemeral=True)
         logging.warning(f"Non-owner {interaction.user.name} (ID: {interaction.user.id}) attempted to use owner-only command.")
         return False
     return app_commands.check(predicate)
 
-# ★修正: is_owner_global のエイリアス行を削除 (StatusCommands cogで直接 is_bot_owner をインポートするため)★
-# is_owner_global = is_bot_owner_check
-
 # 非オーナーに対して管理者モードが有効な場合にコマンド実行をブロックする関数
 def is_not_admin_mode_for_non_owner():
+    """
+    ボットが管理者モードの場合、オーナー以外のコマンド実行をブロックするカスタムデコレータを返します。
+    """
     async def predicate(interaction: discord.Interaction) -> bool:
         if interaction.user.id == OWNER_ID:
-            return True
+            return True # オーナーは常に許可
         
-        # MyBotインスタンスからADMIN_MODEの状態を取得
+        # MyBotインスタンスからis_admin_mode_activeの状態を取得
+        # interaction.client は MyBot のインスタンスを参照します
         if hasattr(interaction.client, 'is_admin_mode_active') and interaction.client.is_admin_mode_active:
             await interaction.response.send_message(
                 "現在、ボットはメンテナンスのための**管理者モード**です。一時的にコマンドの使用が制限されています。",
@@ -140,7 +144,7 @@ class MyBot(commands.Bot):
         self.GUILD_ID = GUILD_ID
         self.RANKMATCH_RESULT_CHANNEL_ID = RANKMATCH_RESULT_CHANNEL_ID
         self.is_bot_ready = False 
-        self.is_admin_mode_active = ADMIN_MODE # 新しい管理者モードフラグ
+        self.is_admin_mode_active = ADMIN_MODE # MyBotインスタンスで管理される管理者モードフラグ
 
         self.proseka_songs_data = [] 
         self.SONG_DATA_MAP = {} 
@@ -193,7 +197,7 @@ class MyBot(commands.Bot):
             logging.info("Set record_cog.ap_fc_rate_cog.")
         
         # すべての必須コグが存在する場合のみクロス参照設定完了と判断
-        if general_cog and record_cog and rankmatch_cog and premium_cog and status_cog: 
+        if all(cog is not None for cog in [general_cog, record_cog, rankmatch_cog, premium_cog, ap_fc_rate_cog, status_cog]): 
              logging.info("All essential cross-cog references set.")
         else:
             logging.warning("Some cogs or their references are missing. Cross-cog functionality might be limited.")
@@ -329,7 +333,6 @@ class MyBot(commands.Bot):
                 await interaction.response.send_message(f"予期せぬエラーが発生しました: `{error}`", ephemeral=True)
 
     # set_status コマンドは cogs/status_commands.py に移動しました
-    # debug_status コマンドは cogs/debug_commands.py に残ります (もし存在する場合)
 
 if __name__ == "__main__":
     bot = MyBot()
