@@ -141,7 +141,6 @@ class MyBot(commands.Bot):
         self.GUILD_ID = GUILD_ID
         self.RANKMATCH_RESULT_CHANNEL_ID = RANKMATCH_RESULT_CHANNEL_ID
         self.is_bot_ready = False # ボットの準備完了フラグ
-        # self.admin_mode は直接グローバルなADMIN_MODEを使用するため、インスタンス変数としては不要
         
         self.proseka_songs_data = [] # 楽曲データ全体
         self.SONG_DATA_MAP = {} # 楽曲データをタイトルで検索するためのマップ
@@ -167,50 +166,42 @@ class MyBot(commands.Bot):
             "cogs.pjsk_record_result", 
             "cogs.premium_features",
             "cogs.debug_commands",
-            "cogs.ap_fc_rate", # AP/FCレートコグをロード
+            # "cogs.ap_fc_rate", # ★一時的にコメントアウト (ファイル未提供のため)★
         ]
         
-        # 後でコグインスタンスにアクセスするために変数を定義
-        general_cog = None
-        record_cog = None
-        rankmatch_cog = None
-        premium_cog = None
-        ap_fc_rate_cog = None
-
         for cog_name in cogs_to_load:
             try:
+                # load_extension に引数を直接渡すように修正
                 if cog_name == "cogs.pjsk_record_result":
-                    cog_instance = await self.load_extension(cog_name, cog_kwargs={"songs_data_map": self.SONG_DATA_MAP})
+                    await self.load_extension(cog_name, songs_data_map=self.SONG_DATA_MAP) 
                 elif cog_name == "cogs.proseka_general":
-                    cog_instance = await self.load_extension(cog_name, cog_kwargs={"songs_data": self.proseka_songs_data})
+                    await self.load_extension(cog_name, songs_data=self.proseka_songs_data)
                 else:
-                    cog_instance = await self.load_extension(cog_name)
-                
-                # ロードしたコグインスタンスを対応する変数に代入
-                if isinstance(cog_instance, self.get_cog('ProsekaGeneralCommands')):
-                    general_cog = cog_instance
-                elif isinstance(cog_instance, self.get_cog('PjskRecordResult')):
-                    record_cog = cog_instance
-                elif isinstance(cog_instance, self.get_cog('ProsekaRankMatchCommands')):
-                    rankmatch_cog = cog_instance
-                elif isinstance(cog_instance, self.get_cog('PremiumManagerCog')):
-                    premium_cog = cog_instance
-                elif isinstance(cog_instance, self.get_cog('ApFcRate')):
-                    ap_fc_rate_cog = cog_instance
+                    await self.load_extension(cog_name)
                 logging.info(f"Successfully loaded {cog_name}.")
             except Exception as e:
                 logging.error(f"Failed to load cog {cog_name}: {e}", exc_info=True)
-                
-        # コグ間の参照設定
-        # 全てのコグがロードされていることを確認してから参照を設定する
-        if all(cog_instance is not None for cog_instance in [general_cog, record_cog, rankmatch_cog, premium_cog, ap_fc_rate_cog]):
+        
+        # コグ間の参照設定（全てのコグがロードされた後に行う）
+        general_cog = self.get_cog('ProsekaGeneralCommands')
+        record_cog = self.get_cog('PjskRecordResult')
+        rankmatch_cog = self.get_cog('ProsekaRankMatchCommands')
+        premium_cog = self.get_cog('PremiumManagerCog')
+        ap_fc_rate_cog = self.get_cog('ApFcRate') # コメントアウトされていればNoneになる
+
+        if general_cog and ap_fc_rate_cog:
             general_cog.ap_fc_rate_cog = ap_fc_rate_cog
-            # record_cog.ap_fc_rate_cog = ap_fc_rate_cog # pjsk_record_result は ap_fc_rate_cog を必要としないため削除
+            logging.info("Set general_cog.ap_fc_rate_cog.")
+        
+        if rankmatch_cog and ap_fc_rate_cog:
             rankmatch_cog.ap_fc_rate_cog = ap_fc_rate_cog
-            ap_fc_rate_cog.record_cog = record_cog # AP/FCレートコグにレコードコグを設定
-            logging.info("Cross-cog references set.")
+            logging.info("Set rankmatch_cog.ap_fc_rate_cog.")
+
+        if ap_fc_rate_cog and record_cog:
+            ap_fc_rate_cog.record_cog = record_cog
+            logging.info("Set ap_fc_rate_cog.record_cog.")
         else:
-            logging.warning("One or more cogs are missing, skipping cross-cog reference setup.")
+            logging.warning("AP/FC Rate cog or Record cog not found for cross-reference setup. Skipping.")
 
         # スラッシュコマンドの同期 (開発中は特定のギルドに同期するのが速い)
         if self.GUILD_ID != 0:
@@ -337,7 +328,6 @@ class MyBot(commands.Bot):
                          bot_mode: str = None):
         logging.info(f"Command '/set_status' invoked by {interaction.user.name} (ID: {interaction.user.id}).")
         
-        # ★修正: global ADMIN_MODE を関数の冒頭に移動★
         global ADMIN_MODE 
 
         await interaction.response.defer(ephemeral=True)
