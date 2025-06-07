@@ -57,5 +57,5 @@ class AdminCommands(commands.Cog):
         status = "オン" if is_maintenance_mode else "オフ"
         await interaction.response.send_message(f"現在のメンテナンスモードは **{status}** です。", ephemeral=True)
 
-def setup(bot):
-    bot.add_cog(AdminCommands(bot))
+async def setup(bot):
+    await bot.add_cog(AdminCommands(bot))
