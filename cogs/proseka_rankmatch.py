@@ -7,17 +7,15 @@ import logging
 import asyncio
 
 # main.pyから必要なグローバルチェック関数とGUILD_IDをインポート
-# is_bot_owner は pjsk_rankmatch_settings コマンドで使用されているため追加
-from main import is_not_admin_mode_for_non_owner, is_bot_owner, GUILD_ID 
+# pjsk_rankmatch_settings, pjsk_clear_rankmatch_history コマンドを削除したため、
+# is_bot_owner はこのコグでは不要になります。
+from main import is_not_admin_mode_for_non_owner, GUILD_ID 
 
 # songs.pyからVALID_DIFFICULTIESをインポート (もしsongs.pyに定義されている場合)
-# この行はsongs.pyにVALID_DIFFICULTIESが定義されていればそのまま機能します。
 try:
     from data.songs import VALID_DIFFICULTIES
 except ImportError:
     logging.warning("Failed to import VALID_DIFFICULTIES from data/songs.py. Using default fallback within cog if needed.")
-    # コグ内でVALID_DIFFICULTIESを直接使っている箇所は、songs.pyから取得できない場合、このフォールバックに依存する
-    # このコグのコードでは直接VALID_DIFFICULTIESを使っている箇所は現状ないため、この警告は情報として残す
     pass # このコグのコードには VALID_DIFFICULTIES の直接利用がないため、ここで定義は不要
 
 class ProsekaRankMatchCommands(commands.Cog):
@@ -36,11 +34,10 @@ class ProsekaRankMatchCommands(commands.Cog):
 
         # ★修正: self.songs_data と self.valid_difficulties の初期化を削除★
         # これらのデータは bot.proseka_songs_data と bot.SONG_DATA_MAP から取得します
-
+        
         self.ap_fc_rate_cog = None # main.pyのsetup_hookで設定される予定
 
-        # ユーザーが提供した `should_update_ap_fc_rate_display` はそのまま維持
-        self.should_update_ap_fc_rate_display = False 
+        self.should_update_ap_fc_rate_display = False # ユーザーが提供したこの行は維持
         logging.info(f"AP/FCレート表示の自動更新は現在 {'有効' if self.should_update_ap_fc_rate_display else '無効'} に設定されています。")
 
         self.RANK_LEVEL_MAP = {
@@ -116,7 +113,7 @@ class ProsekaRankMatchCommands(commands.Cog):
             await interaction.followup.send("ボットがまだ起動中です。しばらくお待ちください。", ephemeral=True)
             return
 
-        # ★修正: 楽曲データをボットインスタンスから取得★
+        # ★修正: 楽曲データをボットインスタンスから直接取得★
         songs_data = self.bot.proseka_songs_data
         # song_data_map は pjsk_rankmatch_song では直接使われていないため、ここでは取得しない
 
@@ -124,7 +121,7 @@ class ProsekaRankMatchCommands(commands.Cog):
             logging.warning(f"songs_data is empty for '{interaction.command.name}'. Sending error message.")
             await interaction.followup.send("現在、楽曲データが読み込まれていません。ボットのログを確認してください。", ephemeral=False)
             return
-
+        
         rank_info = self.RANK_LEVEL_MAP.get(rank)
         if not rank_info:
             logging.warning(f"Invalid rank '{rank}' provided for '{interaction.command.name}'.")
@@ -210,44 +207,7 @@ class ProsekaRankMatchCommands(commands.Cog):
         else:
             logging.info("AP/FC rate display update skipped for /pjsk_rankmatch_song (cog not available or auto-update disabled).")
 
-    # ユーザーが提供した pjsk_rankmatch_settings コマンドを維持
-    @app_commands.command(name="pjsk_rankmatch_settings", description="ランクマッチ関連のボット設定を表示・変更します (オーナー限定)。")
-    @app_commands.guilds(discord.Object(id=GUILD_ID)) # GUILD_IDをmain.pyからインポート
-    @is_bot_owner() # is_bot_ownerをmain.pyからインポート
-    async def pjsk_rankmatch_settings(self, interaction: discord.Interaction, auto_update_enabled: bool = None):
-        logging.info(f"Command '/pjsk_rankmatch_settings' invoked by {interaction.user.name}.")
-        await interaction.response.defer(ephemeral=True)
-
-        # このコマンドはユーザーの提供コードに基づき、永続化ロジックは含まれていないと仮定
-        # should_update_ap_fc_rate_display を直接更新する
-        if auto_update_enabled is not None:
-            self.should_update_ap_fc_rate_display = auto_update_enabled
-            message = f"AP/FCレート表示の自動更新を{'有効' if auto_update_enabled else '無効'}にしました。"
-            logging.info(f"Rankmatch auto-update enabled set to {auto_update_enabled} by {interaction.user.name} via command.")
-        else:
-            message = f"現在のAP/FCレート表示の自動更新: {'有効' if self.should_update_ap_fc_rate_display else '無効'}。"
-        
-        embed = discord.Embed(
-            title="ランクマッチ設定",
-            description=message,
-            color=discord.Color.blue()
-        )
-        await interaction.followup.send(embed=embed, ephemeral=True)
-        logging.info(f"Rankmatch settings displayed/updated for {interaction.user.name}.")
-
-
-    # ユーザーが提供した pjsk_clear_rankmatch_history コマンドを維持
-    @app_commands.command(name="pjsk_clear_rankmatch_history", description="ランクマッチの履歴データをクリアします (オーナー限定)。")
-    @app_commands.guilds(discord.Object(id=GUILD_ID)) # GUILD_IDをmain.pyからインポート
-    @is_bot_owner() # is_bot_ownerをmain.pyからインポート
-    async def pjsk_clear_rankmatch_history(self, interaction: discord.Interaction, user_id: str = None):
-        logging.info(f"Command '/pjsk_clear_rankmatch_history' invoked by {interaction.user.name}.")
-        await interaction.response.defer(ephemeral=True)
-
-        # ユーザーの提供コードに基づき、履歴の永続化/クリアロジックはここに含まれないと仮定
-        await interaction.followup.send("このコマンドは履歴クリアのプレースホルダーです。実際にはまだ何もクリアされません。", ephemeral=True)
-        logging.info(f"Placeholder for pjsk_clear_rankmatch_history executed by {interaction.user.name}.")
-
+# ★修正: pjsk_rankmatch_settings コマンドと pjsk_clear_rankmatch_history コマンドを削除★
 
 async def setup(bot):
     cog = ProsekaRankMatchCommands(bot)
