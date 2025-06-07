@@ -3,8 +3,8 @@ from discord.ext import commands
 from discord import app_commands
 import os
 import logging
-# main.pyからis_owner_globalをインポート
-from main import is_owner_global
+# ★修正: is_bot_owner を直接インポートし、is_owner_global は使用しない★
+from main import is_bot_owner 
 
 # .envファイルから環境変数を読み込む (このファイルでは不要ですが、Pythonの規約に従い残します)
 from dotenv import load_dotenv
@@ -13,6 +13,7 @@ load_dotenv()
 class StatusCommands(commands.Cog):
     """
     Commands for managing the bot's status (owner only).
+    ボットのカスタムステータスを設定します (オーナーのみ)。
     """
     def __init__(self, bot):
         self.bot = bot
@@ -28,7 +29,8 @@ class StatusCommands(commands.Cog):
             app_commands.Choice(name="取り込み中", value="dnd"), # 「取り込み中」を選択したら内部的にはdnd (赤い横棒)
         ]
     )
-    @app_commands.check(is_owner_global) # ★修正: set_status自体をオーナー専用にする★
+    # ★修正: is_bot_owner() を直接デコレータとして使用★
+    @app_commands.check(is_bot_owner()) 
     async def set_status(self, interaction: discord.Interaction, status: str):
         """
         Sets the bot's Discord status and, if "dnd", sets a custom activity.
@@ -102,4 +104,3 @@ async def setup(bot):
     cog = StatusCommands(bot)
     await bot.add_cog(cog)
     logging.info("StatusCommands cog loaded.")
-
