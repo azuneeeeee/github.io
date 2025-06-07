@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 import os
 from dotenv import load_dotenv
+import traceback # <-- ここを追加！エラー詳細出力用
+
 # random, unicodedata, re などはデバッグのため一時的にコメントアウトを維持
 # import random
 # import unicodedata
@@ -82,5 +84,32 @@ async def on_ready():
     except Exception as e:
         # on_ready 内で発生するエラーを捕捉
         print(f"!!! on_ready イベント内で予期せぬエラーが発生しました: {e}")
-        import traceback
         traceback.print_exc() # 完全なTracebackを出力
+
+
+# ボットの起動処理
+if __name__ == '__main__':
+    # Flaskサーバーの起動処理も一時的にコメントアウト
+    # if os.getenv('FLASK_ENABLED', 'False').lower() == 'true':
+    #     def run_discord_bot():
+    #         try:
+    #             bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+    #         except Exception as e:
+    #             print(f"Discord Botの実行中にエラーが発生しました: {e}")
+
+    #     discord_thread = threading.Thread(target=run_discord_bot)
+    #     discord_thread.start()
+
+    #     port = int(os.environ.get('PORT', 10000))
+    #     print(f"Flaskサーバーをポート {port} で起動します。")
+    #     app.run(host='0.0.0.0', port=port)
+    # else:
+    print("デバッグ: Flaskは無効。Discord Botを単独で実行します。") # <-- デバッグ用
+    try:
+        print("デバッグ: bot.run() を呼び出し中...") # <-- デバッグ用
+        bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+    except Exception as e:
+        # bot.run() 自体で発生するエラーを捕捉
+        print(f"デバッグ: Discord Botの実行中に致命的なエラーが発生しました: {e}") # <-- デバッグ用
+        traceback.print_exc() # <-- Tracebackを強制的に出力
+    print("デバッグ: bot.run() 呼び出し後（ここまで来たらボットプロセスが意図せず終了）") # <-- デバッグ用
