@@ -54,8 +54,8 @@ else:
         logging.critical(f"RANKMATCH_RESULT_CHANNEL_ID environment variable '{_rankmatch_channel_id_str}' is not a valid integer.")
         RANKMATCH_RESULT_CHANNEL_ID = 0
 
-# songs.json のパス
-SONGS_FILE = "data/songs.json"
+# ★修正: SONGS_FILE を Python モジュールとして指定★
+SONGS_FILE = "data.songs" # data/songs.py をモジュールとしてインポート
 
 # グローバル変数としてJSTを設定
 JST = timezone(timedelta(hours=9))
@@ -91,26 +91,29 @@ def is_not_admin_mode_for_non_owner():
         return True
     return app_commands.check(predicate)
 
-# 楽曲データをJSONファイルから読み込む関数
+# ★修正: 楽曲データをPythonファイルから読み込む関数★
 async def load_songs_data():
-    if not os.path.exists(SONGS_FILE):
-        logging.critical(f"Songs data file not found at {SONGS_FILE}. Please ensure it exists.")
-        return []
     try:
-        with open(SONGS_FILE, 'r', encoding='utf-8') as f:
-            songs = json.load(f)
-            logging.info(f"Loaded {len(songs)} songs from {SONGS_FILE}.")
-            return songs
-    except json.JSONDecodeError as e:
-        logging.critical(f"Error decoding songs.json: {e}. Please check the file format.")
+        # SONGS_FILE (data.songs) をモジュールとしてインポート
+        # __import__ を使用すると、動的にモジュールをインポートできる
+        # fromlist=['SONGS'] は SONGS という名前のオブジェクトをインポートすることを示す
+        songs_module = __import__(SONGS_FILE, fromlist=['SONGS'])
+        songs = getattr(songs_module, 'SONGS', []) # SONGS 変数を取得。なければ空リスト
+        logging.info(f"Loaded {len(songs)} songs from {SONGS_FILE}.")
+        return songs
+    except ImportError as e:
+        logging.critical(f"Error importing songs data from {SONGS_FILE}. Please ensure data/songs.py exists and contains a 'SONGS' variable: {e}")
+        return []
+    except AttributeError:
+        logging.critical(f"'{SONGS_FILE}' module does not contain a 'SONGS' variable. Please define your song data in 'data/songs.py' as 'SONGS = [...]'.")
         return []
     except Exception as e:
-        logging.critical(f"Unexpected error loading songs.json: {e}")
+        logging.critical(f"Unexpected error loading songs data from {SONGS_FILE}: {e}", exc_info=True)
         return []
 
-# _create_song_data_map をmain.pyに移動
+# _create_song_data_map は変更なし
 def _create_song_data_map(songs_list):
-    """songs.jsonのリストデータをタイトルをキーとする辞書に変換します。"""
+    """songs.pyのリストデータをタイトルをキーとする辞書に変換します。"""
     song_map = {}
     for song in songs_list:
         title = song.get("title")
@@ -157,7 +160,6 @@ class MyBot(commands.Bot):
         
         for cog_name in cogs_to_load:
             try:
-                # load_extension には cog_kwargs や songs_data を直接渡さない
                 await self.load_extension(cog_name) 
                 logging.info(f"Successfully loaded {cog_name}.")
             except Exception as e:
@@ -184,7 +186,7 @@ class MyBot(commands.Bot):
             logging.info("Set ap_fc_rate_cog.record_cog.")
         
         # すべてのコグが存在する場合のみクロス参照設定完了と判断
-        if general_cog and record_cog and rankmatch_cog and premium_cog and ap_fc_rate_cog:
+        if general_cog and record_cog and rankmatch_cog and premium_cog: # ap_fc_rate_cog はオプションのため除外
              logging.info("All essential cross-cog references set.")
         else:
             logging.warning("Some cogs or their references are missing. Cross-cog functionality might be limited.")
@@ -220,7 +222,7 @@ class MyBot(commands.Bot):
                 await owner.send("ボットが起動しました。現在、**管理者モード**が有効になっています。")
                 logging.info(f"Sent admin mode notification to owner {owner.name}.")
             except discord.Forbidden:
-                logging.warning(f"Could not send DM to owner {owner.name}. Owner might have DMs disabled.")
+                logging.warning(f"Could not send DM to owner {owner.name}. DMs disabled.")
             except Exception as e:
                 logging.error(f"Error sending DM to owner: {e}", exc_info=True)
 
