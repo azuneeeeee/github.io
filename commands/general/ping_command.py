@@ -1,5 +1,3 @@
-# commands/general/ping_command.py (変更なし)
-
 import discord
 from discord.ext import commands
 import discord.app_commands
@@ -16,14 +14,16 @@ class PingCommand(commands.Cog):
         self.bot = bot
 
     @discord.app_commands.command(name="ping", description="ボットの応答速度を測定します。")
-    @not_in_maintenance() # <-- このデコレーターが、新しいロジックで製作者も制限します
+    @not_in_maintenance() # not_in_maintenanceチェックを適用
     async def ping(self, interaction: discord.Interaction):
         logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /ping コマンドを使用しました。")
 
-        await interaction.response.defer(ephemeral=False, thinking=True) 
+        # not_in_maintenance() 内で既にdeferされているため、ここではdeferは不要です
+        # await interaction.response.defer(ephemeral=False, thinking=True) 
         
         websocket_latency = round(self.bot.latency * 1000, 2) 
         
+        # deferされているためfollowup.sendを使います
         await interaction.followup.send(
             f"Pong! 🏓\n"
             f"ボットのレイテンシ: `{websocket_latency}ms`\n"
