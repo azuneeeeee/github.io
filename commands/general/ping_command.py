@@ -1,22 +1,24 @@
+# commands/general/ping_command.py (変更なし)
+
 import discord
 from discord.ext import commands
 import discord.app_commands
 import time
-import logging # <-- loggingモジュールをインポート
+import logging
 
-# ロガーを取得
-logger = logging.getLogger(__name__) # <-- ロガーを定義
+# admin_commands.py から not_in_maintenance をインポート
+from commands.admin.admin_commands import not_in_maintenance 
+
+logger = logging.getLogger(__name__)
 
 class PingCommand(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     @discord.app_commands.command(name="ping", description="ボットの応答速度を測定します。")
+    @not_in_maintenance() # <-- このデコレーターが、新しいロジックで製作者も制限します
     async def ping(self, interaction: discord.Interaction):
-        # --- ここから追加 ---
-        # コマンド実行ログ
         logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /ping コマンドを使用しました。")
-        # --- ここまで追加 ---
 
         await interaction.response.defer(ephemeral=False, thinking=True) 
         
