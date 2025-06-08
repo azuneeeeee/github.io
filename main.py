@@ -72,11 +72,9 @@ async def on_ready():
 
         # ステータス変更処理（起動準備中ステータス）
         await asyncio.sleep(0.5) 
-        # --- ここを修正：activity と status を別々に設定 ---
-        # まずカスタムアクティビティを設定
-        await bot.change_presence(activity=discord.CustomActivity(name="起動準備中です。"))
-        # その後、短い遅延を置いてステータスを設定
-        await asyncio.sleep(0.5) # 短い遅延
+        # --- ここを修正：CustomActivity から Game に変更 ---
+        await bot.change_presence(activity=discord.Game(name="起動準備中です。")) # Gameに変更
+        await asyncio.sleep(0.5) 
         await bot.change_presence(status=discord.Status.idle) 
         print("デバッグ: 起動準備中のステータス (退席中 + 準備中メッセージ) を設定しました。", file=sys.stdout)
         # --- 修正ここまで ---
@@ -116,11 +114,9 @@ async def on_ready():
         song_count, chart_count = count_songs_and_charts()
         custom_status_message = f"{song_count}曲/{chart_count}譜面が登録済み"
         
-        # --- ここも修正：activity と status を別々に設定 ---
-        # まずカスタムアクティビティを設定
-        await bot.change_presence(activity=discord.CustomActivity(name=custom_status_message))
-        # その後、短い遅延を置いてステータスを設定
-        await asyncio.sleep(0.5) # 短い遅延
+        # --- ここも修正：CustomActivity から Game に変更 ---
+        await bot.change_presence(activity=discord.Game(name=custom_status_message)) # Gameに変更
+        await asyncio.sleep(0.5) 
         await bot.change_presence(status=discord.Status.online)
         print(f"デバッグ: ステータスを '{custom_status_message}' と 'オンライン' に設定しました。", file=sys.stdout)
         # --- 修正ここまで ---
