@@ -3,6 +3,7 @@ from discord.ext import commands
 import discord.app_commands
 import os
 from dotenv import load_dotenv
+import logging # <-- loggingモジュールをインポート
 
 load_dotenv() 
 
@@ -10,7 +11,9 @@ OWNER_ID = int(os.getenv('DISCORD_OWNER_ID')) if os.getenv('DISCORD_OWNER_ID') e
 
 is_maintenance_mode = False 
 
-# is_owner と not_in_maintenance はそのまま維持
+# ロガーを取得
+logger = logging.getLogger(__name__) # <-- ロガーを定義
+
 def is_owner():
     async def predicate(interaction: discord.Interaction):
         if OWNER_ID is None:
@@ -35,14 +38,14 @@ class AdminCommands(commands.Cog):
         self.bot = bot
 
     @discord.app_commands.command(name="maintenance_status", description="現在のメンテナンスモードの状態を表示します。")
-    # @is_owner() # <-- ここからデコレーターを削除！
     async def maintenance_status(self, interaction: discord.Interaction):
-        # --- ここから変更 ---
-        # まず、Discordに処理中であることを通知 (最優先)
+        # --- ここから追加 ---
+        # コマンド実行ログ
+        logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /maintenance_status コマンドを使用しました。")
+        # --- ここまで追加 ---
+
         await interaction.response.defer(ephemeral=True, thinking=True) 
 
-        # その後、権限チェックを実行
-        # is_owner() のロジックをここに直接記述するか、関数を呼び出す
         if OWNER_ID is None:
             await interaction.followup.send("エラー: ボットの製作者IDが設定されていません。環境変数をご確認ください。", ephemeral=True)
             return
@@ -50,10 +53,9 @@ class AdminCommands(commands.Cog):
             await interaction.followup.send("あなたはボットの製作者ではありません。このコマンドは使用できません。", ephemeral=True)
             return
         
-        # 権限チェックを通過したら、通常のコマンド処理
         status = "オン" if is_maintenance_mode else "オフ"
         await interaction.followup.send(f"現在のメンテナンスモードは **{status}** です。", ephemeral=True)
-        # --- ここまで変更 ---
 
+# コグをボットにセットアップするための関数
 async def setup(bot):
     await bot.add_cog(AdminCommands(bot))
