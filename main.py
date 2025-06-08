@@ -8,17 +8,19 @@ import sys
 import asyncio
 
 # admin_commands コグをインポート
+# is_maintenance_mode は admin_commands.py から共有されます
 from admin_commands import is_maintenance_mode 
 
 load_dotenv()
 
 # --- ロギング設定 ---
-logging.basicConfig(level=logging.INFO, 
+# コマンドの詳細なログを表示するため、レベルをDEBUGに変更
+logging.basicConfig(level=logging.DEBUG, # <-- DEBUGに変更
                     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
                     stream=sys.stdout)
 
-logging.getLogger('discord').setLevel(logging.INFO) 
-logging.getLogger('websockets').setLevel(logging.INFO)
+logging.getLogger('discord').setLevel(logging.DEBUG) # <-- DEBUGに変更
+logging.getLogger('websockets').setLevel(logging.DEBUG) # <-- DEBUGに変更
 
 # --- asyncioの未捕捉例外ハンドラ ---
 def handle_exception(loop, context):
@@ -56,13 +58,13 @@ async def on_ready():
         try:
             await bot.load_extension('admin_commands')
             print("admin_commands コグをロードしました。", file=sys.stdout)
+            
             await asyncio.sleep(0.5) 
-            await bot.tree.sync() # スラッシュコマンドをDiscordに同期
+            await bot.tree.sync() 
             print("スラッシュコマンドをDiscordに同期しました。", file=sys.stdout)
             
-            # スラッシュコマンド同期後、Discordのキャッシュが更新されるのを待つ
             print("デバッグ: スラッシュコマンド同期完了。Discordキャッシュの更新を待機中...", file=sys.stdout)
-            await asyncio.sleep(5) # 5秒待機
+            await asyncio.sleep(5) 
             print("デバッグ: スラッシュコマンド同期後待機完了。", file=sys.stdout)
 
         except Exception as e:
@@ -72,13 +74,9 @@ async def on_ready():
         await asyncio.sleep(0.5) 
         print("--- on_ready イベント終了 --- (究極の安定起動版)", file=sys.stdout)
 
-        # --- 新しい追加点 ---
-        # on_ready イベントの終了後、さらに待機する
-        # これにより、ボットが完全に「クールダウン」する時間を確保
         print("デバッグ: ボット起動シーケンス完了。コマンド受付開始前の最終待機中...", file=sys.stdout)
-        await asyncio.sleep(10) # <-- ここでさらに10秒待機
+        await asyncio.sleep(10) 
         print("デバッグ: ボットは全てのコマンドを受け付ける準備ができました。", file=sys.stdout)
-        # -------------------
 
     except Exception as e:
         print(f"!!! on_ready イベント内で予期せぬエラーが発生しました: {e}", file=sys.stderr)
@@ -92,7 +90,7 @@ async def main():
         await bot.login(os.getenv('DISCORD_BOT_TOKEN'))
         print("デバッグ: bot.login() 完了。ゲートウェイ接続待機中...", file=sys.stdout)
 
-        await asyncio.sleep(3) # <-- ログイン後、ゲートウェイ接続前の重要な遅延
+        await asyncio.sleep(3) 
 
         print("デバッグ: bot.connect() を呼び出し中...", file=sys.stdout)
         await bot.connect() 
