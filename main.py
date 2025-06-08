@@ -7,7 +7,7 @@ import logging
 import sys
 import asyncio
 
-# admin_commands コグをインポート
+# admin_commands モジュール全体をインポート
 from commands.admin import admin_commands 
 
 # 楽曲データをインポート
@@ -45,14 +45,11 @@ def count_songs_and_charts():
         song_count = len(proseka_songs) 
         
         for song in proseka_songs:
-            for difficulty_key_upper in VALID_DIFFICULTIES: # VALID_DIFFICULTIES は大文字なので
-                difficulty_key = difficulty_key_upper.lower() # 楽曲辞書内のキーは小文字
+            for difficulty_key_upper in VALID_DIFFICULTIES: 
+                difficulty_key = difficulty_key_upper.lower() 
                 
-                # --- ここを修正 ---
-                # 楽曲辞書に難易度キーが存在し、かつその値が None でない場合にカウント
                 if difficulty_key in song and song[difficulty_key] is not None: 
                     chart_count += 1
-                # --- 修正ここまで ---
     return song_count, chart_count
 
 # --- on_readyイベントハンドラ ---
@@ -69,13 +66,15 @@ async def on_ready():
     print("--- on_ready イベント開始 --- (ログ最小限版)", file=sys.stdout) 
     try:
         print(f'Logged in as {bot.user.name}', file=sys.stdout)
-        print(f'Bot ID: {bot.user.id}', file=sys.stdout) # <-- 修正済み
+        print(f'Bot ID: {bot.user.id}', file=sys.stdout) 
         print('------', file=sys.stdout)
         print("ボットは正常に起動し、Discordに接続しました！", file=sys.stdout)
 
         # ステータス変更処理（起動準備中ステータス）
         await asyncio.sleep(0.5) 
-        await bot.change_presence(activity=discord.Game(name="起動準備中... | !help_proseka")) 
+        # --- ここを修正：ステータスを dnd (取り込み中) に設定 ---
+        await bot.change_presence(activity=discord.Game(name="起動準備中... | !help_proseka"), status=discord.Status.dnd) 
+        # --- 修正ここまで ---
 
         # コグのロードとスラッシュコマンドの同期
         await asyncio.sleep(1) 
@@ -112,9 +111,10 @@ async def on_ready():
         song_count, chart_count = count_songs_and_charts()
         custom_status_message = f"{song_count}曲/{chart_count}譜面が登録済み"
         
-        # カスタムステータスに設定
-        await bot.change_presence(activity=discord.CustomActivity(name=custom_status_message))
-        print(f"デバッグ: ステータスを '{custom_status_message}' に設定しました。", file=sys.stdout)
+        # --- ここを修正：カスタムステータスを設定し、初期ステータスをオンラインにする ---
+        await bot.change_presence(activity=discord.CustomActivity(name=custom_status_message), status=discord.Status.online)
+        print(f"デバッグ: ステータスを '{custom_status_message}' と 'オンライン' に設定しました。", file=sys.stdout)
+        # --- 修正ここまで ---
 
     except Exception as e:
         print(f"!!! on_ready イベント内で予期せぬエラーが発生しました: {e}", file=sys.stderr)
