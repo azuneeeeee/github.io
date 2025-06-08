@@ -50,8 +50,9 @@ def handle_exception(loop, context):
 print("デバッグ: asyncio 例外ハンドラを設定しました。", file=sys.__stdout__) 
 
 # --- Discordクライアントのインテント設定 ---
-# 全てのインテントではなく、最低限のdefault()で試す
-intents = discord.Intents.default() # 必要に応じて後で all() に変更
+# --- Discordクライアントのインテント設定 ---
+# intents = discord.Intents.default() # この行を削除またはコメントアウト
+intents = discord.Intents.all() # この行を有効にする
 print("デバッグ: インテントを設定しました。", file=sys.__stdout__) 
 
 # --- ボットのインスタンス作成 ---
