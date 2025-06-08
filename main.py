@@ -7,26 +7,21 @@ import traceback
 import logging
 import asyncio
 
-print("デバッグ: main.py 実行開始 - Discordボットの初期化を開始します。", file=sys.__stdout__) 
-
-# admin_commands モジュール全体をインポート (まだコメントアウト)
-# from commands.admin import admin_commands 
-# print("デバッグ: admin_commands をインポートしました。", file=sys.__stdout__) 
-
-# 楽曲データをインポート (まだコメントアウト)
-# from data.songs import proseka_songs, VALID_DIFFICULTIES 
-# print("デバッグ: data.songs をインポートしました。", file=sys.__stdout__) 
+# --- デバッグログ設定 ---
+# Render のメインログに出力されるように直接 sys.__stdout__ を使う
+print("デバッグ: main.py 実行開始 - Discordボットの最小限の初期化を開始します。", file=sys.__stdout__) 
 
 # .env ファイルから環境変数をロード
 load_dotenv()
 print("デバッグ: 環境変数をロードしました。", file=sys.__stdout__) 
 
 # --- ロギング設定 ---
-logging.basicConfig(level=logging.WARNING, 
+# 全体のロギングレベルを INFO に変更して、discord.py からの情報をもう少し多く表示させる
+logging.basicConfig(level=logging.INFO, # WARNING から INFO に変更
                     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
-                    stream=sys.__stdout__)
+                    stream=sys.__stdout__) 
 
-logging.getLogger('discord').setLevel(logging.WARNING) 
+logging.getLogger('discord').setLevel(logging.INFO) # WARNING から INFO に変更
 logging.getLogger('websockets').setLevel(logging.WARNING) 
 logging.getLogger('discord.app_commands.tree').setLevel(logging.WARNING) 
 print("デバッグ: ロギングを設定しました。", file=sys.__stdout__) 
@@ -34,13 +29,13 @@ print("デバッグ: ロギングを設定しました。", file=sys.__stdout__)
 # --- asyncioの未捕捉例外ハンドラ ---
 def handle_exception(loop, context):
     msg = context.get("exception", context["message"])
-    logging.error(f"非同期処理で未捕捉の例外が発生しました: {msg}")
+    logging.error(f"非同期処理で未捕捉の例外が発生しました: {msg}", file=sys.__stderr__)
     if "exception" in context:
-        logging.error("トレースバック:", exc_info=context["exception"])
+        logging.error("トレースバック:", exc_info=context["exception"], file=sys.__stderr__)
 print("デバッグ: asyncio 例外ハンドラを設定しました。", file=sys.__stdout__) 
 
 # --- Discordクライアントのインテント設定 ---
-intents = discord.Intents.all() # ここが all() になっていることを確認
+intents = discord.Intents.all() # all() になっていることを再確認
 print("デバッグ: インテントを設定しました。", file=sys.__stdout__) 
 
 # --- ボットのインスタンス作成 ---
@@ -54,8 +49,6 @@ except Exception as e:
 # --- on_readyイベントハンドラ ---
 @bot.event
 async def on_ready():
-    # admin_commands がインポートされていないので、ここでは呼び出さない
-    # admin_commands.is_bot_ready_for_commands = False 
     print("--- on_ready イベント開始 ---", file=sys.__stdout__) 
     try:
         print(f'Logged in as {bot.user.name}', file=sys.__stdout__)
@@ -63,41 +56,12 @@ async def on_ready():
         print('------', file=sys.__stdout__)
         print("デバッグ: ボットは正常に起動し、Discordに接続しました！", file=sys.__stdout__)
 
-        # ステータス変更処理（起動準備中ステータス）
-        await asyncio.sleep(0.5) 
-        await bot.change_presence(activity=discord.Game(name="起動準備中です。")) 
-        await asyncio.sleep(0.5) 
-        await bot.change_presence(status=discord.Status.idle) 
-        print("デバッグ: 起動準備中のステータスを設定しました。", file=sys.__stdout__)
+        # 最低限のステータス変更のみ
+        await asyncio.sleep(1) 
+        await bot.change_presence(activity=discord.Game(name="起動しました！"), status=discord.Status.online) 
+        print("デバッグ: ステータスを '起動しました！' とオンラインに設定しました。", file=sys.__stdout__)
 
-        # コグのロードとスラッシュコマンドの同期 (まだコメントアウト)
-        # await asyncio.sleep(1) 
-        # try:
-        #     await bot.load_extension('commands.admin.admin_commands') 
-        #     await bot.load_extension('commands.general.ping_command') 
-        #     await asyncio.sleep(0.5) 
-        #     await bot.tree.sync() 
-        #     await asyncio.sleep(5) 
-        # except Exception as e:
-        #     print(f"!!! コグのロードまたはコマンド同期中にエラーが発生しました: {e}", file=sys.__stderr__) 
-        #     traceback.print_exc(file=sys.__stderr__)
-
-        await asyncio.sleep(0.5) 
         print("--- on_ready イベント終了 ---", file=sys.__stdout__)
-
-        # ボットが完全に準備できるまでの待機時間（短縮）
-        print("デバッグ: コマンド受付開始前の最終待機中...", file=sys.__stdout__)
-        await asyncio.sleep(5) # 短い時間に変更
-        
-        print("デバッグ: ボットはコマンドを受け付ける準備ができました。", file=sys.__stdout__)
-        
-        # メンテナンスモードの解除などは admin_commands をインポートしてから行う
-        # admin_commands.is_bot_ready_for_commands = True 
-        # admin_commands.is_maintenance_mode = False
-        
-        # ステータスをオンラインにする
-        await bot.change_presence(activity=discord.Game(name="稼働中！"), status=discord.Status.online)
-        print("デバッグ: ステータスをオンラインに設定しました。", file=sys.__stdout__)
 
     except Exception as e: 
         print(f"!!! on_ready イベント内で予期せぬエラーが発生しました: {e}", file=sys.__stderr__)
@@ -105,7 +69,7 @@ async def on_ready():
 
 print("デバッグ: on_ready イベントハンドラを定義しました。", file=sys.__stdout__) 
 
-# --- ボットの起動処理 (段階的起動) ---
+# --- ボットの起動処理 ---
 async def main():
     print("デバッグ: メイン非同期関数 'main()' 開始。", file=sys.__stdout__) 
     try:
@@ -117,10 +81,8 @@ async def main():
         await bot.login(token) 
         print("デバッグ: bot.login() 完了。ゲートウェイ接続待機中...", file=sys.__stdout__) 
 
-        await asyncio.sleep(3) # ログイン後の短い待機
-
         print("デバッグ: bot.connect() を呼び出し中...", file=sys.__stdout__) 
-        await bot.connect() 
+        await bot.connect() # on_ready イベントが発火するのを待つ
         print("デバッグ: bot.connect() 完了。", file=sys.__stdout__) 
 
     except discord.LoginFailure:
