@@ -72,8 +72,8 @@ async def on_ready():
 
         # ステータス変更処理（起動準備中ステータス）
         await asyncio.sleep(0.5) 
-        # --- ここを修正：ステータスを dnd (取り込み中) に設定 ---
-        await bot.change_presence(activity=discord.Game(name="起動準備中... | !help_proseka"), status=discord.Status.dnd) 
+        # --- ここを修正：ステータスを idle (退席中) に、カスタムステータスを「起動準備中です。」に設定 ---
+        await bot.change_presence(activity=discord.CustomActivity(name="起動準備中です。"), status=discord.Status.idle) 
         # --- 修正ここまで ---
 
         # コグのロードとスラッシュコマンドの同期
@@ -111,10 +111,9 @@ async def on_ready():
         song_count, chart_count = count_songs_and_charts()
         custom_status_message = f"{song_count}曲/{chart_count}譜面が登録済み"
         
-        # --- ここを修正：カスタムステータスを設定し、初期ステータスをオンラインにする ---
+        # カスタムステータスを設定し、初期ステータスをオンラインにする
         await bot.change_presence(activity=discord.CustomActivity(name=custom_status_message), status=discord.Status.online)
         print(f"デバッグ: ステータスを '{custom_status_message}' と 'オンライン' に設定しました。", file=sys.stdout)
-        # --- 修正ここまで ---
 
     except Exception as e:
         print(f"!!! on_ready イベント内で予期せぬエラーが発生しました: {e}", file=sys.stderr)
