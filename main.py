@@ -72,7 +72,7 @@ async def on_ready():
         await asyncio.sleep(0.5) 
         print("--- on_ready イベント終了 --- (ログ最小限版)", file=sys.stdout)
 
-        await asyncio.sleep(10) 
+        await asyncio.sleep(20) 
 
     except Exception as e:
         print(f"!!! on_ready イベント内で予期せぬエラーが発生しました: {e}", file=sys.stderr)
