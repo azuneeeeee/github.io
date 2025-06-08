@@ -7,101 +7,74 @@ import traceback
 import logging
 import asyncio
 
-# --- デバッグログ設定 ---
-# Render のメインログに出力されるように直接 sys.__stdout__ を使う
-print("デバッグ: main.py 実行開始 - Discordボットの最小限の初期化を開始します。", file=sys.__stdout__) 
-
-# .env ファイルから環境変数をロード
-load_dotenv()
-print("デバッグ: 環境変数をロードしました。", file=sys.__stdout__) 
-
 # --- ロギング設定 ---
-# 全体のロギングレベルを INFO に変更して、discord.py からの情報をもう少し多く表示させる
-logging.basicConfig(level=logging.INFO, # WARNING から INFO に変更
+# 全体のロギングレベルを INFO に設定し、出力先を標準出力 (Renderのログ) にする
+# ここは残しておくことで、discord.py 内部の接続ログは出力される
+logging.basicConfig(level=logging.INFO, 
                     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
                     stream=sys.__stdout__) 
 
-logging.getLogger('discord').setLevel(logging.INFO) # WARNING から INFO に変更
+# 特定のモジュールのロギングレベルを調整し、不要なデバッグログを減らす
+logging.getLogger('discord').setLevel(logging.INFO) # INFO レベルで接続ログを出す
 logging.getLogger('websockets').setLevel(logging.WARNING) 
 logging.getLogger('discord.app_commands.tree').setLevel(logging.WARNING) 
-print("デバッグ: ロギングを設定しました。", file=sys.__stdout__) 
 
-# --- asyncioの未捕捉例外ハンドラ ---
+# .env ファイルから環境変数をロード (最低限の処理)
+load_dotenv()
+
+# --- asyncioの未捕捉例外ハンドラ --- (これも必要最低限なので残す)
 def handle_exception(loop, context):
     msg = context.get("exception", context["message"])
     logging.error(f"非同期処理で未捕捉の例外が発生しました: {msg}", file=sys.__stderr__)
     if "exception" in context:
         logging.error("トレースバック:", exc_info=context["exception"], file=sys.__stderr__)
-print("デバッグ: asyncio 例外ハンドラを設定しました。", file=sys.__stdout__) 
 
-# --- Discordクライアントのインテント設定 ---
+# --- Discordクライアントのインテント設定 --- (これも必要)
 intents = discord.Intents.all() # all() になっていることを再確認
-print("デバッグ: インテントを設定しました。", file=sys.__stdout__) 
 
-# --- ボットのインスタンス作成 ---
-try:
-    bot = commands.Bot(command_prefix='!', intents=intents)
-    print("デバッグ: ボットインスタンスを作成しました。", file=sys.__stdout__) 
-except Exception as e:
-    print(f"致命的エラー: ボットインスタンスの作成に失敗しました: {e}", file=sys.__stderr__)
-    sys.exit(1)
+# --- ボットのインスタンス作成 --- (これも必要)
+bot = commands.Bot(command_prefix='!', intents=intents)
 
 # --- on_readyイベントハンドラ ---
+# ここだけを重点的にデバッグ
 @bot.event
 async def on_ready():
-    print("--- on_ready イベント開始 --- (超シンプル版)", file=sys.__stdout__) 
+    # on_ready イベントが発火した瞬間のログ
+    print("デバッグ: === on_ready イベントが発火しました！ ===", file=sys.__stdout__) 
     try:
-        print(f'デバッグ: on_ready - ログイン情報: {bot.user.name} ({bot.user.id})', file=sys.__stdout__)
-        print("デバッグ: on_ready - ボットはDiscordに接続済みです。", file=sys.__stdout__)
-
-        # 短いスリープのみ。ステータス変更は行わない。
-        await asyncio.sleep(5) 
-        print("デバッグ: on_ready - 5秒スリープしました。", file=sys.__stdout__)
+        # ここに到達すれば、Discordに接続済み
+        print(f'デバッグ: on_ready: Logged in as {bot.user.name} ({bot.user.id})', file=sys.__stdout__)
         
-        print("--- on_ready イベント終了 --- (超シンプル版)", file=sys.__stdout__)
+        # 短いスリープとシンプルなステータス変更のみ
+        await asyncio.sleep(1) 
+        await bot.change_presence(activity=discord.Game(name="稼働中！"), status=discord.Status.online) 
+        print("デバッグ: on_ready: ステータスを変更しました。", file=sys.__stdout__)
+        
+        # on_ready イベントの終了を示すログ
+        print("デバッグ: === on_ready イベント終了。ボットは完全に稼働中。===", file=sys.__stdout__)
 
     except Exception as e: 
-        print(f"!!! on_ready イベント内で予期せぬエラーが発生しました: {e}", file=sys.__stderr__)
+        print(f"致命的エラー: on_ready イベント内で予期せぬエラーが発生しました: {e}", file=sys.__stderr__)
         traceback.print_exc(file=sys.__stderr__)
 
-print("デバッグ: on_ready イベントハンドラを定義しました。", file=sys.__stdout__)
-# --- ボットの起動処理 ---
+# --- ボットの起動処理 --- (最小限のログに)
 async def main():
-    print("デバッグ: メイン非同期関数 'main()' 開始。", file=sys.__stdout__) 
-    try:
-        print("デバッグ: bot.login() を呼び出し中...", file=sys.__stdout__) 
-        token = os.getenv('DISCORD_BOT_TOKEN')
-        if not token:
-            print("致命的エラー: 環境変数 'DISCORD_BOT_TOKEN' が設定されていません。", file=sys.__stderr__)
-            sys.exit(1)
-        await bot.login(token) 
-        print("デバッグ: bot.login() 完了。ゲートウェイ接続待機中...", file=sys.__stdout__) 
+    token = os.getenv('DISCORD_BOT_TOKEN')
+    if not token:
+        print("致命的エラー: 環境変数 'DISCORD_BOT_TOKEN' が設定されていません。", file=sys.__stderr__)
+        sys.exit(1)
+    
+    await bot.login(token) 
+    await bot.connect() 
 
-        print("デバッグ: bot.connect() を呼び出し中...", file=sys.__stdout__) 
-        await bot.connect() # on_ready イベントが発火するのを待つ
-        print("デバッグ: bot.connect() 完了。", file=sys.__stdout__) 
-
-    except discord.LoginFailure:
-        print("致命的エラー: トークン認証に失敗しました。環境変数 DISCORD_BOT_TOKEN を確認してください。", file=sys.__stderr__)
-        sys.exit(1) 
-    except Exception as e:
-        print(f"致命的エラー: メイン非同期関数内で予期せぬエラーが発生しました: {e}", file=sys.__stderr__)
-        traceback.print_exc(file=sys.__stderr__)
-        sys.exit(1) 
-print("デバッグ: メイン非同期関数 'main' を定義しました。", file=sys.__stdout__) 
-
-# --- プログラムのエントリポイント ---
+# --- プログラムのエントリポイント --- (最小限のログに)
 if __name__ == '__main__':
-    print("デバッグ: プログラムのエントリポイントに入りました。", file=sys.__stdout__) 
+    # ロギング設定の後に、イベントループを設定
     loop = asyncio.get_event_loop()
     loop.set_exception_handler(handle_exception)
-    print("デバッグ: イベントループを設定しました。", file=sys.__stdout__) 
-
-    print("デバッグ: Discord Botを起動します。", file=sys.__stdout__) 
+    
     try:
         asyncio.run(main())
-        print("デバッグ: asyncio.run(main()) 完了。", file=sys.__stdout__) 
     except Exception as e:
-        print(f"デバッグ: asyncio.run(main()) 呼び出し中に致命的なエラーが発生しました: {e}", file=sys.__stdout__)
+        print(f"致命的エラー: asyncio.run(main()) 呼び出し中にエラーが発生しました: {e}", file=sys.__stdout__)
         traceback.print_exc(file=sys.__stdout__)
-    print("デバッグ: asyncio.run(main()) 呼び出し後（ここまで来たらボットプロセスが意図せず終了）", file=sys.__stdout__)
