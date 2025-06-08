@@ -14,13 +14,17 @@ from admin_commands import is_maintenance_mode
 load_dotenv()
 
 # --- ロギング設定 ---
-# コマンドの詳細なログを表示するため、レベルをDEBUGに変更
-logging.basicConfig(level=logging.DEBUG, # <-- DEBUGに変更
+# 全体のロギングレベルをINFOに設定
+logging.basicConfig(level=logging.INFO, 
                     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
                     stream=sys.stdout)
 
-logging.getLogger('discord').setLevel(logging.DEBUG) # <-- DEBUGに変更
-logging.getLogger('websockets').setLevel(logging.DEBUG) # <-- DEBUGに変更
+# discord.pyとwebsocketsのロガーレベルをINFOに戻す（不要な詳細ログを抑制）
+logging.getLogger('discord').setLevel(logging.INFO) 
+logging.getLogger('websockets').setLevel(logging.INFO)
+
+# スラッシュコマンドのログは引き続きDEBUGレベルで表示
+logging.getLogger('discord.app_commands.tree').setLevel(logging.DEBUG) # <-- ここが重要
 
 # --- asyncioの未捕捉例外ハンドラ ---
 def handle_exception(loop, context):
@@ -38,7 +42,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 # --- on_readyイベントハンドラ ---
 @bot.event
 async def on_ready():
-    print("--- on_ready イベント開始 --- (究極の安定起動版)", file=sys.stdout) 
+    print("--- on_ready イベント開始 --- (ログ調整版)", file=sys.stdout) # ログ調整版であることを示す
     try:
         print(f'Logged in as {bot.user.name}', file=sys.stdout)
         print(f'Bot ID: {bot.user.id}', file=sys.stdout)
@@ -72,7 +76,7 @@ async def on_ready():
             traceback.print_exc(file=sys.stderr)
 
         await asyncio.sleep(0.5) 
-        print("--- on_ready イベント終了 --- (究極の安定起動版)", file=sys.stdout)
+        print("--- on_ready イベント終了 --- (ログ調整版)", file=sys.stdout)
 
         print("デバッグ: ボット起動シーケンス完了。コマンド受付開始前の最終待機中...", file=sys.stdout)
         await asyncio.sleep(10) 
