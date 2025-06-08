@@ -72,8 +72,13 @@ async def on_ready():
 
         # ステータス変更処理（起動準備中ステータス）
         await asyncio.sleep(0.5) 
-        # --- ここを修正：ステータスを idle (退席中) に、カスタムステータスを「起動準備中です。」に設定 ---
-        await bot.change_presence(activity=discord.CustomActivity(name="起動準備中です。"), status=discord.Status.idle) 
+        # --- ここを修正：activity と status を別々に設定 ---
+        # まずカスタムアクティビティを設定
+        await bot.change_presence(activity=discord.CustomActivity(name="起動準備中です。"))
+        # その後、短い遅延を置いてステータスを設定
+        await asyncio.sleep(0.5) # 短い遅延
+        await bot.change_presence(status=discord.Status.idle) 
+        print("デバッグ: 起動準備中のステータス (退席中 + 準備中メッセージ) を設定しました。", file=sys.stdout)
         # --- 修正ここまで ---
 
         # コグのロードとスラッシュコマンドの同期
@@ -111,9 +116,14 @@ async def on_ready():
         song_count, chart_count = count_songs_and_charts()
         custom_status_message = f"{song_count}曲/{chart_count}譜面が登録済み"
         
-        # カスタムステータスを設定し、初期ステータスをオンラインにする
-        await bot.change_presence(activity=discord.CustomActivity(name=custom_status_message), status=discord.Status.online)
+        # --- ここも修正：activity と status を別々に設定 ---
+        # まずカスタムアクティビティを設定
+        await bot.change_presence(activity=discord.CustomActivity(name=custom_status_message))
+        # その後、短い遅延を置いてステータスを設定
+        await asyncio.sleep(0.5) # 短い遅延
+        await bot.change_presence(status=discord.Status.online)
         print(f"デバッグ: ステータスを '{custom_status_message}' と 'オンライン' に設定しました。", file=sys.stdout)
+        # --- 修正ここまで ---
 
     except Exception as e:
         print(f"!!! on_ready イベント内で予期せぬエラーが発生しました: {e}", file=sys.stderr)
