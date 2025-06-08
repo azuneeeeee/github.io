@@ -9,20 +9,19 @@ import asyncio
 
 # admin_commands コグをインポート
 # is_maintenance_mode は admin_commands.py から共有されます
-from admin_commands import is_maintenance_mode 
+# フォルダ構造に合わせてドット(.)でパスを繋ぎます
+from commands.admin.admin_commands import is_maintenance_mode 
 
 load_dotenv()
 
 # --- ロギング設定 ---
-# ロギングレベルをWARNINGに設定（最小限のログ）
-logging.basicConfig(level=logging.WARNING, # <-- WARNINGに変更
+logging.basicConfig(level=logging.WARNING, 
                     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
                     stream=sys.stdout)
 
-# discord.pyとwebsocketsのロガーレベルもWARNINGに設定
-logging.getLogger('discord').setLevel(logging.WARNING) # <-- WARNINGに変更
-logging.getLogger('websockets').setLevel(logging.WARNING) # <-- WARNINGに変更
-logging.getLogger('discord.app_commands.tree').setLevel(logging.WARNING) # <-- WARNINGに変更
+logging.getLogger('discord').setLevel(logging.WARNING) 
+logging.getLogger('websockets').setLevel(logging.WARNING) 
+logging.getLogger('discord.app_commands.tree').setLevel(logging.WARNING) 
 
 # --- asyncioの未捕捉例外ハンドラ ---
 def handle_exception(loop, context):
@@ -40,7 +39,6 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 # --- on_readyイベントハンドラ ---
 @bot.event
 async def on_ready():
-    # on_readyのログは維持します。これがボット起動の唯一の確認ポイントとなります。
     print("--- on_ready イベント開始 --- (ログ最小限版)", file=sys.stdout) 
     try:
         print(f'Logged in as {bot.user.name}', file=sys.stdout)
@@ -54,23 +52,19 @@ async def on_ready():
             await bot.change_presence(activity=discord.Game(name="メンテナンス中... | !help_proseka"))
         else:
             await bot.change_presence(activity=discord.Game(name="プロセカ！ | !help_proseka")) 
-        # print("--- ステータス設定後 ---", file=sys.stdout) # このログは消去
 
         # コグのロードとスラッシュコマンドの同期
         await asyncio.sleep(1) 
         try:
-            await bot.load_extension('admin_commands')
-            # print("admin_commands コグをロードしました。", file=sys.stdout) # このログは消去
+            # コグをロードするパスを変更
+            await bot.load_extension('commands.admin.admin_commands') # <-- ここを変更
             
             await asyncio.sleep(0.5) 
             await bot.tree.sync() 
-            # print("スラッシュコマンドをDiscordに同期しました。", file=sys.stdout) # このログは消去
             
             await asyncio.sleep(5) 
-            # print("デバッグ: スラッシュコマンド同期後待機完了。", file=sys.stdout) # このログは消去
 
         except Exception as e:
-            # エラー発生時はログを出力
             print(f"!!! admin_commands コグのロード中またはコマンド同期中にエラーが発生しました: {e}", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
 
@@ -78,16 +72,13 @@ async def on_ready():
         print("--- on_ready イベント終了 --- (ログ最小限版)", file=sys.stdout)
 
         await asyncio.sleep(10) 
-        # print("デバッグ: ボットは全てのコマンドを受け付ける準備ができました。", file=sys.stdout) # このログは消去
 
     except Exception as e:
-        # on_readyイベント自体でエラーが発生した場合
         print(f"!!! on_ready イベント内で予期せぬエラーが発生しました: {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
 
 # --- ボットの起動処理 (段階的起動) ---
 async def main():
-    # これらのデバッグログは起動の確認のため維持
     print("デバッグ: メイン非同期関数 'main()' 開始。", file=sys.stdout)
     try:
         print("デバッグ: bot.login() を呼び出し中...", file=sys.stdout)
