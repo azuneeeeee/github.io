@@ -28,6 +28,7 @@ def is_owner():
 
 def not_in_maintenance():
     async def predicate(interaction: discord.Interaction):
+        # ボットがコマンド受付準備ができていない場合は、全員アクセスを拒否
         if not is_bot_ready_for_commands:
             await interaction.response.send_message(
                 "現在ボットは起動準備中のため、このコマンドは使用できません。\n"
@@ -36,6 +37,8 @@ def not_in_maintenance():
             )
             return False
 
+        # ボットがコマンド受付準備ができていて、かつメンテナンスモードがオンで、
+        # 実行者が製作者でない場合に制限
         if is_maintenance_mode and interaction.user.id != OWNER_ID:
             await interaction.response.send_message(
                 "現在ボットはメンテナンス中のため、このコマンドは使用できません。", 
@@ -51,12 +54,11 @@ class AdminCommands(commands.Cog):
 
     @discord.app_commands.command(name="status_toggle", description="ボットのDiscordステータス（オンライン/取り込み中）を切り替えます。")
     @is_owner() 
+    @not_in_maintenance() # <-- ここを追加
     async def status_toggle(self, interaction: discord.Interaction):
         logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。")
 
-        # --- ここを修正：ephemeral=True に設定 ---
         await interaction.response.defer(ephemeral=True, thinking=True) 
-        # --- 修正ここまで ---
 
         current_status = interaction.guild.me.status 
 
@@ -70,9 +72,7 @@ class AdminCommands(commands.Cog):
         current_activity = interaction.guild.me.activity
         await self.bot.change_presence(status=new_status, activity=current_activity)
 
-        # --- ここを修正：ephemeral=True に設定 ---
         await interaction.followup.send(f"ボットのステータスを **{status_message}** に変更しました。", ephemeral=True)
-        # --- 修正ここまで ---
 
 # コグをボットにセットアップするための関数
 async def setup(bot):
