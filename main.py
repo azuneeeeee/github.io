@@ -11,8 +11,7 @@ import asyncio
 from commands.admin import admin_commands 
 
 # 楽曲データをインポート
-# songs.py 内の proseka_songs と VALID_DIFFICULTIES をインポート
-from data.songs import proseka_songs, VALID_DIFFICULTIES # <-- ここを修正
+from data.songs import proseka_songs, VALID_DIFFICULTIES 
 
 load_dotenv()
 
@@ -42,15 +41,18 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 def count_songs_and_charts():
     song_count = 0
     chart_count = 0
-    if proseka_songs: # proseka_songs が存在する場合のみ処理
-        song_count = len(proseka_songs) # 楽曲数はリストの要素数
+    if proseka_songs: 
+        song_count = len(proseka_songs) 
         
-        # 各楽曲について、VALID_DIFFICULTIES を参照して譜面数をカウント
         for song in proseka_songs:
-            for difficulty_key in VALID_DIFFICULTIES:
-                # 小文字に変換してキーが存在するかチェック（songs.pyのキーは小文字のため）
-                if difficulty_key.lower() in song: 
+            for difficulty_key_upper in VALID_DIFFICULTIES: # VALID_DIFFICULTIES は大文字なので
+                difficulty_key = difficulty_key_upper.lower() # 楽曲辞書内のキーは小文字
+                
+                # --- ここを修正 ---
+                # 楽曲辞書に難易度キーが存在し、かつその値が None でない場合にカウント
+                if difficulty_key in song and song[difficulty_key] is not None: 
                     chart_count += 1
+                # --- 修正ここまで ---
     return song_count, chart_count
 
 # --- on_readyイベントハンドラ ---
@@ -67,7 +69,7 @@ async def on_ready():
     print("--- on_ready イベント開始 --- (ログ最小限版)", file=sys.stdout) 
     try:
         print(f'Logged in as {bot.user.name}', file=sys.stdout)
-        print(f'Bot ID: {bot.user.id}', file=sys.stdout)
+        print(f'Bot ID: {bot.user.id}', file=sys.stdout) # <-- 修正済み
         print('------', file=sys.stdout)
         print("ボットは正常に起動し、Discordに接続しました！", file=sys.stdout)
 
