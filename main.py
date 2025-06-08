@@ -51,24 +51,25 @@ except Exception as e:
 async def on_ready():
     print("--- on_ready イベント開始 ---", file=sys.__stdout__) 
     try:
+        print("デバッグ: on_ready - ログイン情報を取得中...", file=sys.__stdout__)
         print(f'Logged in as {bot.user.name}', file=sys.__stdout__)
         print(f'Bot ID: {bot.user.id}', file=sys.__stdout__) 
         print('------', file=sys.__stdout__)
-        print("デバッグ: ボットは正常に起動し、Discordに接続しました！", file=sys.__stdout__)
+        print("デバッグ: on_ready - ボットは正常に起動し、Discordに接続しました！", file=sys.__stdout__)
 
-        # 最低限のステータス変更のみ
+        # ステータス変更処理（起動しました！＋オンライン）
+        print("デバッグ: on_ready - ステータス変更を開始します...", file=sys.__stdout__)
         await asyncio.sleep(1) 
         await bot.change_presence(activity=discord.Game(name="起動しました！"), status=discord.Status.online) 
-        print("デバッグ: ステータスを '起動しました！' とオンラインに設定しました。", file=sys.__stdout__)
-
+        print("デバッグ: on_ready - ステータスを '起動しました！' とオンラインに設定しました。", file=sys.__stdout__)
+        
         print("--- on_ready イベント終了 ---", file=sys.__stdout__)
 
     except Exception as e: 
         print(f"!!! on_ready イベント内で予期せぬエラーが発生しました: {e}", file=sys.__stderr__)
         traceback.print_exc(file=sys.__stderr__)
 
-print("デバッグ: on_ready イベントハンドラを定義しました。", file=sys.__stdout__) 
-
+print("デバッグ: on_ready イベントハンドラを定義しました。", file=sys.__stdout__)
 # --- ボットの起動処理 ---
 async def main():
     print("デバッグ: メイン非同期関数 'main()' 開始。", file=sys.__stdout__) 
