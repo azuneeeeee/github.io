@@ -67,7 +67,7 @@ async def on_ready():
     print("--- on_ready イベント開始 --- (ログ最小限版)", file=sys.stdout) 
     try:
         print(f'Logged in as {bot.user.name}', file=sys.stdout)
-        print(f'Bot ID: {bot.user.id}', file=sys.user)
+        print(f'Bot ID: {bot.user.id}', file=sys.stdout)
         print('------', file=sys.stdout)
         print("ボットは正常に起動し、Discordに接続しました！", file=sys.stdout)
 
