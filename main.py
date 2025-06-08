@@ -2,25 +2,35 @@ import sys
 import os
 import time
 
-# --- 強制ログファイル出力開始 ---
+# --- 強制ログファイル出力開始 (修正版) ---
 # プロセス開始直後にログファイルを開き、標準出力もそこにリダイレクト
+# ただし、エラーが発生した場合は元々の stdout に出力する
+original_stdout = sys.__stdout__
+original_stderr = sys.__stderr__
+log_file_opened_successfully = False
+
 try:
     log_file_path = "/tmp/bot_startup_debug.log" 
-    # 'a' (追記モード) ではなく 'w' (書き込みモード) を使うことで、毎回ファイルを新規作成
+    # 'w' (書き込みモード) で毎回新規作成
     sys.stdout = open(log_file_path, "w", encoding="utf-8")
     sys.stderr = open(log_file_path, "w", encoding="utf-8")
+    log_file_opened_successfully = True
 
     print("デバッグ: 強制ログファイル出力開始。Pythonの起動テストを行います。", file=sys.stdout)
     print("デバッグ: sys.stdout と sys.stderr がファイルにリダイレクトされました。", file=sys.stdout)
 
 except Exception as e:
-    # ログファイルを開くこと自体に失敗した場合の最終手段。Renderの通常のログに出ることを期待。
-    print(f"致命的エラー: ログファイルを開けませんでした: {e}", file=sys.__stdout__) 
+    # ログファイルを開くこと自体に失敗した場合、元の標準出力に出力
+    print(f"致命的エラー: ログファイルを開けませんでした: {e}", file=original_stderr) 
     sys.exit(1) # プロセスを終了
 
 # --- ここから究極にシンプルなテストコード ---
 try:
-    print("デバッグ: main.py 実行開始 - 究極シンプルテスト。", file=sys.stdout)
+    if log_file_opened_successfully:
+        print("デバッグ: main.py 実行開始 - 究極シンプルテスト。", file=sys.stdout)
+    else:
+        # ここには到達しないはずだが念のため
+        print("デバッグ: main.py 実行開始 - 強制ログファイル開けず。", file=original_stdout)
 
     # 簡単な変数代入と計算
     a = 10
@@ -42,16 +52,17 @@ try:
     print("デバッグ: main.py 実行終了 - 究極シンプルテスト。", file=sys.stdout)
 
 except Exception as e:
+    # テストコード内でエラーが発生した場合
     print(f"致命的エラー: 究極シンプルテスト中にエラーが発生しました: {e}", file=sys.stderr)
     sys.exit(1)
 
 finally:
     # ログファイルクローズ処理
-    if sys.stdout is not sys.__stdout__: 
+    if log_file_opened_successfully: # 正常に開けていればクローズ
         print("デバッグ: 強制ログファイル出力終了。", file=sys.stdout)
         sys.stdout.close()
         sys.stderr.close()
-        # 元の標準出力に戻す (Renderのログに出るようになる)
-        sys.stdout = sys.__stdout__ 
-        sys.stderr = sys.__stderr__ 
-    print("デバッグ: プロセス終了前の最終メッセージ。", file=sys.__stdout__) # 元のstdoutにも出力
+        sys.stdout = original_stdout # 元に戻す
+        sys.stderr = original_stderr
+    # このメッセージは常に元の標準出力に出る
+    print("デバッグ: プロセス終了前の最終メッセージ。", file=original_stdout)
