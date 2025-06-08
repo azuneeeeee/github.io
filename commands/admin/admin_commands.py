@@ -18,9 +18,8 @@ logger = logging.getLogger(__name__)
 
 def is_owner():
     async def predicate(interaction: discord.Interaction):
-        # --- 追加したデバッグ情報 ---
+        # デバッグ用に追加: ユーザーのIDと設定されたオーナーIDを表示
         print(f"デバッグ: is_ownerチェック: ユーザーID={interaction.user.id}, OWNER_ID={OWNER_ID}", file=sys.stdout)
-        # --- 追加ここまで ---
 
         if OWNER_ID is None:
             await interaction.response.send_message("エラー: ボットの製作者IDが設定されていません。環境変数をご確認ください。", ephemeral=True)
@@ -33,10 +32,13 @@ def is_owner():
 
 def not_in_maintenance():
     async def predicate(interaction: discord.Interaction):
-        # defer を実行し、Discord API のタイムアウト (3秒) を回避
+        # まず defer を実行し、Discord API のタイムアウト (3秒) を回避する
+        # ephemeral=True を設定し、一時的な「thinking...」メッセージも実行者のみに見えるようにする
         await interaction.response.defer(ephemeral=True, thinking=True) 
 
+        # ボットがコマンド受付準備ができていない場合は、全員アクセスを拒否
         if not is_bot_ready_for_commands:
+            # defer しているので followup.send を使う
             await interaction.followup.send(
                 "現在ボットは起動準備中のため、このコマンドは使用できません。\n"
                 "しばらく時間をおいてから再度お試しください。", 
@@ -44,13 +46,17 @@ def not_in_maintenance():
             )
             return False
 
+        # ボットがコマンド受付準備ができていて、かつメンテナンスモードがオンで、
+        # 実行者が製作者でない場合に制限
         if is_maintenance_mode and interaction.user.id != OWNER_ID:
+            # defer しているので followup.send を使う
             await interaction.followup.send(
                 "現在ボットはメンテナンス中のため、このコマンドは使用できません。", 
                 ephemeral=True
             )
             return False
         
+        # チェックが成功した場合、コマンド本体が further.send を呼び出す
         return True
     return discord.app_commands.check(predicate)
 
@@ -70,7 +76,7 @@ class AdminCommands(commands.Cog):
         current_status = interaction.guild.me.status 
 
         if current_status == discord.Status.online:
-            new_status = discord.Status.dnd 
+            new_status = discord.Status.dnd # Do Not Disturb (取り込み中)
             status_message = "取り込み中"
         else:
             new_status = discord.Status.online
@@ -79,6 +85,7 @@ class AdminCommands(commands.Cog):
         current_activity = interaction.guild.me.activity
         await self.bot.change_presence(status=new_status, activity=current_activity)
 
+        # defer しているので followup.send を使う
         await interaction.followup.send(f"ボットのステータスを **{status_message}** に変更しました。", ephemeral=True)
 
 # コグをボットにセットアップするための関数
