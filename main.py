@@ -57,7 +57,8 @@ async def on_ready():
         await asyncio.sleep(1) 
         try:
             # コグをロードするパスを変更
-            await bot.load_extension('commands.admin.admin_commands') # <-- ここを変更
+            await bot.load_extension('commands.admin.admin_commands')# admin_commands コグをロード
+            await bot.load_extension('commands.general.ping_command')# 新しいPingコマンドコグをロード
             
             await asyncio.sleep(0.5) 
             await bot.tree.sync() 
