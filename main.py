@@ -46,7 +46,7 @@ except Exception as e:
 # --- on_ready Event Handler ---
 @bot.event
 async def on_ready():
-    print("DEBUG: === on_ready event started! ===", file=sys.__stdout__) # on_ready event began
+    print("DEBUG: on_ready event started!", file=sys.__stdout__) # Event handler started
     try:
         print(f'DEBUG: on_ready: Logged in as {bot.user.name} (ID: {bot.user.id})', file=sys.__stdout__) # Logged in info
         print('------', file=sys.__stdout__) # Separator
@@ -58,7 +58,7 @@ async def on_ready():
         await bot.change_presence(activity=discord.Game(name="Online!"), status=discord.Status.online)
         print("DEBUG: on_ready: Status set to 'Online!'.", file=sys.__stdout__) # Status set
 
-        print("DEBUG: === on_ready event finished. Bot fully operational. ===", file=sys.__stdout__) # on_ready event finished
+        print("DEBUG: on_ready event finished. Bot fully operational.", file=sys.__stdout__) # Event handler finished
 
     except Exception as e:
         print(f"FATAL ERROR: Unexpected error occurred within on_ready event: {e}", file=sys.__stderr__) # Error in on_ready
