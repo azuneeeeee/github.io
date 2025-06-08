@@ -8,8 +8,11 @@ import sys
 import asyncio
 
 # admin_commands コグをインポート
-# is_maintenance_mode と is_bot_ready_for_commands をここで制御するため、モジュール全体をインポート
 from commands.admin import admin_commands 
+
+# 楽曲データをインポート
+# songs.py 内の proseka_songs と VALID_DIFFICULTIES をインポート
+from data.songs import proseka_songs, VALID_DIFFICULTIES # <-- ここを修正
 
 load_dotenv()
 
@@ -35,23 +38,36 @@ intents = discord.Intents.all()
 # --- ボットのインスタンス作成 ---
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+# --- 楽曲数と譜面数をカウントするヘルパー関数 ---
+def count_songs_and_charts():
+    song_count = 0
+    chart_count = 0
+    if proseka_songs: # proseka_songs が存在する場合のみ処理
+        song_count = len(proseka_songs) # 楽曲数はリストの要素数
+        
+        # 各楽曲について、VALID_DIFFICULTIES を参照して譜面数をカウント
+        for song in proseka_songs:
+            for difficulty_key in VALID_DIFFICULTIES:
+                # 小文字に変換してキーが存在するかチェック（songs.pyのキーは小文字のため）
+                if difficulty_key.lower() in song: 
+                    chart_count += 1
+    return song_count, chart_count
+
 # --- on_readyイベントハンドラ ---
 @bot.event
 async def on_ready():
-    # --- ここから変更/追加 ---
     # 起動準備中にコマンド受付を無効化
     admin_commands.is_bot_ready_for_commands = False 
     print("デバッグ: 起動準備中のため、コマンド受付を一時停止しました。", file=sys.stdout)
 
-    # 起動準備中にメンテナンスモードをオンにする（これは以前と同じ）
+    # 起動準備中にメンテナンスモードをオンにする
     admin_commands.is_maintenance_mode = True 
     print("デバッグ: 起動準備中のため、メンテナンスモードをオンにしました。", file=sys.stdout)
-    # --- ここまで変更/追加 ---
 
     print("--- on_ready イベント開始 --- (ログ最小限版)", file=sys.stdout) 
     try:
         print(f'Logged in as {bot.user.name}', file=sys.stdout)
-        print(f'Bot ID: {bot.user.id}', file=sys.stdout)
+        print(f'Bot ID: {bot.user.id}', file=sys.user)
         print('------', file=sys.stdout)
         print("ボットは正常に起動し、Discordに接続しました！", file=sys.stdout)
 
@@ -82,16 +98,21 @@ async def on_ready():
         await asyncio.sleep(20) 
         print("デバッグ: ボットは全てのコマンドを受け付ける準備ができました。", file=sys.stdout)
 
-        # --- ここから変更/追加 ---
         # 待機時間終了後、コマンド受付を有効にする
         admin_commands.is_bot_ready_for_commands = True 
         print("デバッグ: コマンド受付を有効にしました。", file=sys.stdout)
 
-        # メンテナンスモードをオフにする（これは以前と同じ）
+        # メンテナンスモードをオフにする
         admin_commands.is_maintenance_mode = False
-        await bot.change_presence(activity=discord.Game(name="プロセカ！ | !help_proseka")) # 通常ステータスに戻す
         print("デバッグ: メンテナンスモードをオフにしました。通常運用を開始します。", file=sys.stdout)
-        # --- ここまで変更/追加 ---
+        
+        # 楽曲数と譜面数をカウント
+        song_count, chart_count = count_songs_and_charts()
+        custom_status_message = f"{song_count}曲/{chart_count}譜面が登録済み"
+        
+        # カスタムステータスに設定
+        await bot.change_presence(activity=discord.CustomActivity(name=custom_status_message))
+        print(f"デバッグ: ステータスを '{custom_status_message}' に設定しました。", file=sys.stdout)
 
     except Exception as e:
         print(f"!!! on_ready イベント内で予期せぬエラーが発生しました: {e}", file=sys.stderr)
