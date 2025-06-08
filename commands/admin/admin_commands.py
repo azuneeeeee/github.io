@@ -18,48 +18,25 @@ logger = logging.getLogger(__name__)
 
 def is_owner():
     async def predicate(interaction: discord.Interaction):
-        # デバッグ用に追加 (この行は残す)
         print(f"デバッグ: is_ownerチェック: ユーザーID={interaction.user.id}, OWNER_ID={OWNER_ID}", file=sys.stdout)
-
-        # !!! ここを一時的に変更しています (前回の修正) !!!
-        return True # <-- 製作者チェックを一時的に無効化中
-        # !!! 変更ここまで !!!
-        
-        # if OWNER_ID is None:
-        #     await interaction.response.send_message("エラー: ボットの製作者IDが設定されていません。環境変数をご確認ください。", ephemeral=True)
-        #     return False
-        # if interaction.user.id != OWNER_ID:
-        #     await interaction.response.send_message("あなたはボットの製作者ではありません。このコマンドは使用できません。", ephemeral=True)
-        #     return False
-        # return True
+        return True # <-- ここはTrueのままにしておきます
     return discord.app_commands.check(predicate)
 
 def not_in_maintenance():
     async def predicate(interaction: discord.Interaction):
-        # defer は残しておく
+        # --- 追加するデバッグ情報 ---
+        print(f"デバッグ: not_in_maintenanceチェック: defer実行前 (ユーザーID={interaction.user.id}, interaction ID={interaction.id})", file=sys.stdout)
+        # --- 追加ここまで ---
+
         await interaction.response.defer(ephemeral=True, thinking=True) 
 
-        # --- !!! ここを一時的に変更します !!! ---
-        return True # <-- メンテナンスモードチェックを一時的に無効化します
-        # --- !!! 変更ここまで !!!
-
-        # 以下の元のコードはコメントアウトまたは削除します
-        # if not is_bot_ready_for_commands:
-        #     await interaction.followup.send(
-        #         "現在ボットは起動準備中のため、このコマンドは使用できません。\n"
-        #         "しばらく時間をおいてから再度お試しください。", 
-        #         ephemeral=True
-        #     )
-        #     return False
-
-        # if is_maintenance_mode and interaction.user.id != OWNER_ID:
-        #     await interaction.followup.send(
-        #         "現在ボットはメンテナンス中のため、このコマンドは使用できません。", 
-        #         ephemeral=True
-        #     )
-        #     return False
+        # --- 追加するデバッグ情報 ---
+        print(f"デバッグ: not_in_maintenanceチェック: defer実行後", file=sys.stdout)
+        # --- 追加ここまで ---
         
-        # return True
+        # 以下のreturn Trueはそのままにしておきます
+        return True # <-- ここもTrueのままにしておきます
+
     return discord.app_commands.check(predicate)
 
 class AdminCommands(commands.Cog):
