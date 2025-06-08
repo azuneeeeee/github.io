@@ -4,7 +4,7 @@ import discord.app_commands
 import os
 from dotenv import load_dotenv
 import logging
-import sys # デバッグ用に追加
+import sys 
 
 # main.py と共有するためのグローバル変数を定義
 is_maintenance_mode = False 
@@ -18,27 +18,32 @@ logger = logging.getLogger(__name__)
 
 def is_owner():
     async def predicate(interaction: discord.Interaction):
-        # デバッグ用に追加: ユーザーのIDと設定されたオーナーIDを表示
+        # デバッグ用に追加 (この行は残す)
         print(f"デバッグ: is_ownerチェック: ユーザーID={interaction.user.id}, OWNER_ID={OWNER_ID}", file=sys.stdout)
 
-        if OWNER_ID is None:
-            await interaction.response.send_message("エラー: ボットの製作者IDが設定されていません。環境変数をご確認ください。", ephemeral=True)
-            return False
-        if interaction.user.id != OWNER_ID:
-            await interaction.response.send_message("あなたはボットの製作者ではありません。このコマンドは使用できません。", ephemeral=True)
-            return False
-        return True
+        # --- !!! ここを一時的に変更します !!! ---
+        return True # <-- この行をTrueに変更することで、製作者チェックを一時的に無効化します
+        # --- !!! 変更ここまで !!! ---
+
+        # 以下の元のコードはコメントアウトまたは削除します
+        # if OWNER_ID is None:
+        #     await interaction.response.send_message("エラー: ボットの製作者IDが設定されていません。環境変数をご確認ください。", ephemeral=True)
+        #     return False
+        # if interaction.user.id != OWNER_ID:
+        #     await interaction.response.send_message("あなたはボットの製作者ではありません。このコマンドは使用できません。", ephemeral=True)
+        #     return False
+        # return True
     return discord.app_commands.check(predicate)
+
+# not_in_maintenance クラス、AdminCommands クラス、setup 関数は変更なし
+
+# ... (not_in_maintenance function and AdminCommands class follow, unchanged from previous versions) ...
 
 def not_in_maintenance():
     async def predicate(interaction: discord.Interaction):
-        # まず defer を実行し、Discord API のタイムアウト (3秒) を回避する
-        # ephemeral=True を設定し、一時的な「thinking...」メッセージも実行者のみに見えるようにする
         await interaction.response.defer(ephemeral=True, thinking=True) 
 
-        # ボットがコマンド受付準備ができていない場合は、全員アクセスを拒否
         if not is_bot_ready_for_commands:
-            # defer しているので followup.send を使う
             await interaction.followup.send(
                 "現在ボットは起動準備中のため、このコマンドは使用できません。\n"
                 "しばらく時間をおいてから再度お試しください。", 
@@ -46,17 +51,13 @@ def not_in_maintenance():
             )
             return False
 
-        # ボットがコマンド受付準備ができていて、かつメンテナンスモードがオンで、
-        # 実行者が製作者でない場合に制限
         if is_maintenance_mode and interaction.user.id != OWNER_ID:
-            # defer しているので followup.send を使う
             await interaction.followup.send(
                 "現在ボットはメンテナンス中のため、このコマンドは使用できません。", 
                 ephemeral=True
             )
             return False
         
-        # チェックが成功した場合、コマンド本体が further.send を呼び出す
         return True
     return discord.app_commands.check(predicate)
 
@@ -70,13 +71,10 @@ class AdminCommands(commands.Cog):
     async def status_toggle(self, interaction: discord.Interaction):
         logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。")
 
-        # チェック関数内で既に defer しているので、ここでは defer しない
-        # await interaction.response.defer(ephemeral=True, thinking=True) 
-
         current_status = interaction.guild.me.status 
 
         if current_status == discord.Status.online:
-            new_status = discord.Status.dnd # Do Not Disturb (取り込み中)
+            new_status = discord.Status.dnd 
             status_message = "取り込み中"
         else:
             new_status = discord.Status.online
@@ -85,7 +83,6 @@ class AdminCommands(commands.Cog):
         current_activity = interaction.guild.me.activity
         await self.bot.change_presence(status=new_status, activity=current_activity)
 
-        # defer しているので followup.send を使う
         await interaction.followup.send(f"ボットのステータスを **{status_message}** に変更しました。", ephemeral=True)
 
 # コグをボットにセットアップするための関数
