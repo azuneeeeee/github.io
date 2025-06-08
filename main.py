@@ -8,9 +8,8 @@ import sys
 import asyncio
 
 # admin_commands コグをインポート
-# is_maintenance_mode は admin_commands.py から共有されます
-# フォルダ構造に合わせてドット(.)でパスを繋ぎます
-from commands.admin.admin_commands import is_maintenance_mode 
+# is_maintenance_mode と is_bot_ready_for_commands をここで制御するため、モジュール全体をインポート
+from commands.admin import admin_commands 
 
 load_dotenv()
 
@@ -39,6 +38,16 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 # --- on_readyイベントハンドラ ---
 @bot.event
 async def on_ready():
+    # --- ここから変更/追加 ---
+    # 起動準備中にコマンド受付を無効化
+    admin_commands.is_bot_ready_for_commands = False 
+    print("デバッグ: 起動準備中のため、コマンド受付を一時停止しました。", file=sys.stdout)
+
+    # 起動準備中にメンテナンスモードをオンにする（これは以前と同じ）
+    admin_commands.is_maintenance_mode = True 
+    print("デバッグ: 起動準備中のため、メンテナンスモードをオンにしました。", file=sys.stdout)
+    # --- ここまで変更/追加 ---
+
     print("--- on_ready イベント開始 --- (ログ最小限版)", file=sys.stdout) 
     try:
         print(f'Logged in as {bot.user.name}', file=sys.stdout)
@@ -46,19 +55,15 @@ async def on_ready():
         print('------', file=sys.stdout)
         print("ボットは正常に起動し、Discordに接続しました！", file=sys.stdout)
 
-        # ステータス変更処理
+        # ステータス変更処理（起動準備中ステータス）
         await asyncio.sleep(0.5) 
-        if is_maintenance_mode:
-            await bot.change_presence(activity=discord.Game(name="メンテナンス中... | !help_proseka"))
-        else:
-            await bot.change_presence(activity=discord.Game(name="プロセカ！ | !help_proseka")) 
+        await bot.change_presence(activity=discord.Game(name="起動準備中... | !help_proseka")) 
 
         # コグのロードとスラッシュコマンドの同期
         await asyncio.sleep(1) 
         try:
-            # コグをロードするパスを変更
-            await bot.load_extension('commands.admin.admin_commands')# admin_commands コグをロード
-            await bot.load_extension('commands.general.ping_command')# 新しいPingコマンドコグをロード
+            await bot.load_extension('commands.admin.admin_commands') 
+            await bot.load_extension('commands.general.ping_command') 
             
             await asyncio.sleep(0.5) 
             await bot.tree.sync() 
@@ -66,13 +71,27 @@ async def on_ready():
             await asyncio.sleep(5) 
 
         except Exception as e:
-            print(f"!!! admin_commands コグのロード中またはコマンド同期中にエラーが発生しました: {e}", file=sys.stderr)
+            print(f"!!! コグのロードまたはコマンド同期中にエラーが発生しました: {e}", file=sys.stderr) 
             traceback.print_exc(file=sys.stderr)
 
         await asyncio.sleep(0.5) 
         print("--- on_ready イベント終了 --- (ログ最小限版)", file=sys.stdout)
 
+        # 起動後の最終待機
+        print("デバッグ: ボット起動シーケンス完了。コマンド受付開始前の最終待機中...", file=sys.stdout)
         await asyncio.sleep(20) 
+        print("デバッグ: ボットは全てのコマンドを受け付ける準備ができました。", file=sys.stdout)
+
+        # --- ここから変更/追加 ---
+        # 待機時間終了後、コマンド受付を有効にする
+        admin_commands.is_bot_ready_for_commands = True 
+        print("デバッグ: コマンド受付を有効にしました。", file=sys.stdout)
+
+        # メンテナンスモードをオフにする（これは以前と同じ）
+        admin_commands.is_maintenance_mode = False
+        await bot.change_presence(activity=discord.Game(name="プロセカ！ | !help_proseka")) # 通常ステータスに戻す
+        print("デバッグ: メンテナンスモードをオフにしました。通常運用を開始します。", file=sys.stdout)
+        # --- ここまで変更/追加 ---
 
     except Exception as e:
         print(f"!!! on_ready イベント内で予期せぬエラーが発生しました: {e}", file=sys.stderr)
@@ -107,6 +126,6 @@ if __name__ == '__main__':
     try:
         asyncio.run(main())
     except Exception as e:
-        print(f"デバッグ: asyncio.run(main()) 呼び出し中に致命的なエラーが発生しました: {e}", file=sys.stderr)
-        traceback.print_exc(file=sys.stderr)
+        print(f"デバッグ: asyncio.run(main()) 呼び出し中に致命的なエラーが発生しました: {e}", file=sys.stdout)
+        traceback.print_exc(file=sys.stdout)
     print("デバッグ: asyncio.run(main()) 呼び出し後（ここまで来たらボットプロセスが意図せず終了）", file=sys.stdout)
