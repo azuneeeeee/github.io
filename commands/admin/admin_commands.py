@@ -21,11 +21,10 @@ def is_owner():
         # デバッグ用に追加 (この行は残す)
         print(f"デバッグ: is_ownerチェック: ユーザーID={interaction.user.id}, OWNER_ID={OWNER_ID}", file=sys.stdout)
 
-        # --- !!! ここを一時的に変更します !!! ---
-        return True # <-- この行をTrueに変更することで、製作者チェックを一時的に無効化します
-        # --- !!! 変更ここまで !!! ---
-
-        # 以下の元のコードはコメントアウトまたは削除します
+        # !!! ここを一時的に変更しています (前回の修正) !!!
+        return True # <-- 製作者チェックを一時的に無効化中
+        # !!! 変更ここまで !!!
+        
         # if OWNER_ID is None:
         #     await interaction.response.send_message("エラー: ボットの製作者IDが設定されていません。環境変数をご確認ください。", ephemeral=True)
         #     return False
@@ -35,30 +34,32 @@ def is_owner():
         # return True
     return discord.app_commands.check(predicate)
 
-# not_in_maintenance クラス、AdminCommands クラス、setup 関数は変更なし
-
-# ... (not_in_maintenance function and AdminCommands class follow, unchanged from previous versions) ...
-
 def not_in_maintenance():
     async def predicate(interaction: discord.Interaction):
+        # defer は残しておく
         await interaction.response.defer(ephemeral=True, thinking=True) 
 
-        if not is_bot_ready_for_commands:
-            await interaction.followup.send(
-                "現在ボットは起動準備中のため、このコマンドは使用できません。\n"
-                "しばらく時間をおいてから再度お試しください。", 
-                ephemeral=True
-            )
-            return False
+        # --- !!! ここを一時的に変更します !!! ---
+        return True # <-- メンテナンスモードチェックを一時的に無効化します
+        # --- !!! 変更ここまで !!!
 
-        if is_maintenance_mode and interaction.user.id != OWNER_ID:
-            await interaction.followup.send(
-                "現在ボットはメンテナンス中のため、このコマンドは使用できません。", 
-                ephemeral=True
-            )
-            return False
+        # 以下の元のコードはコメントアウトまたは削除します
+        # if not is_bot_ready_for_commands:
+        #     await interaction.followup.send(
+        #         "現在ボットは起動準備中のため、このコマンドは使用できません。\n"
+        #         "しばらく時間をおいてから再度お試しください。", 
+        #         ephemeral=True
+        #     )
+        #     return False
+
+        # if is_maintenance_mode and interaction.user.id != OWNER_ID:
+        #     await interaction.followup.send(
+        #         "現在ボットはメンテナンス中のため、このコマンドは使用できません。", 
+        #         ephemeral=True
+        #     )
+        #     return False
         
-        return True
+        # return True
     return discord.app_commands.check(predicate)
 
 class AdminCommands(commands.Cog):
