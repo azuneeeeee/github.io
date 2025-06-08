@@ -5,16 +5,19 @@ import os
 from dotenv import load_dotenv
 import logging
 
+# main.py と共有するためのグローバル変数を定義
+# is_maintenance_mode も is_bot_ready_for_commands も main.py から直接参照されるため、
+# ここでモジュールスコープで定義し、main.pyからは admin_commands.is_maintenance_mode のようにアクセスします。
+is_maintenance_mode = False 
+is_bot_ready_for_commands = False 
+
 load_dotenv() 
 
 OWNER_ID = int(os.getenv('DISCORD_OWNER_ID')) if os.getenv('DISCORD_OWNER_ID') else None
 
-# is_maintenance_mode は main.py からも更新されるグローバル変数です
-is_maintenance_mode = False 
-# 新しいグローバル変数：ボットがコマンドを受け付ける準備ができているか
-is_bot_ready_for_commands = False # <-- ここを追加。最初はFalse
-
 logger = logging.getLogger(__name__)
+
+# is_owner と not_in_maintenance は変更なし
 
 def is_owner():
     async def predicate(interaction: discord.Interaction):
@@ -27,12 +30,8 @@ def is_owner():
         return True
     return discord.app_commands.check(predicate)
 
-# メンテナンスモード中にコマンドを制限するためのカスタムチェック関数
-# 製作者も初期待機中は実行できないようにロジックを変更
 def not_in_maintenance():
     async def predicate(interaction: discord.Interaction):
-        # --- ここから変更/追加 ---
-        # まず、ボットがコマンド受付準備ができていない場合は、全員アクセスを拒否
         if not is_bot_ready_for_commands:
             await interaction.response.send_message(
                 "現在ボットは起動準備中のため、このコマンドは使用できません。\n"
@@ -41,15 +40,12 @@ def not_in_maintenance():
             )
             return False
 
-        # ボットがコマンド受付準備ができていて、かつメンテナンスモードがオンで、
-        # 実行者が製作者でない場合に制限
         if is_maintenance_mode and interaction.user.id != OWNER_ID:
             await interaction.response.send_message(
                 "現在ボットはメンテナンス中のため、このコマンドは使用できません。", 
                 ephemeral=True
             )
             return False
-        # --- ここまで変更/追加 ---
         return True
     return discord.app_commands.check(predicate)
 
@@ -57,36 +53,31 @@ class AdminCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @discord.app_commands.command(name="maintenance_status", description="現在のメンテナンスモードの状態を表示します。")
-    # /maintenance_status コマンドは、このチェックを適用しない（製作者が常にアクセスできるように）
-    # ※is_owner()は引き続き有効なため、製作者のみが使用可能
-    async def maintenance_status(self, interaction: discord.Interaction):
-        # コマンド実行ログ
-        logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /maintenance_status コマンドを使用しました。")
+    # --- コマンド名を変更し、ステータス切り替え機能を追加 ---
+    @discord.app_commands.command(name="status_toggle", description="ボットのDiscordステータス（オンライン/取り込み中）を切り替えます。")
+    @is_owner() # 製作者のみが使用できるようにする
+    async def status_toggle(self, interaction: discord.Interaction):
+        logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。")
 
-        # 起動待機中であっても、製作者がこのコマンドを使えるようにするための分岐
-        # ただし、deferは必須
         await interaction.response.defer(ephemeral=True, thinking=True) 
 
-        # 起動準備中で製作者がこのコマンドを実行した場合のメッセージ
-        if not is_bot_ready_for_commands and interaction.user.id == OWNER_ID:
-             await interaction.followup.send(
-                "現在ボットは起動準備中です。完了次第、通常のコマンドが利用可能になります。\n"
-                "メンテナンスモードは現在のところ無効です。", 
-                ephemeral=True
-            )
-             return # これで、残りの処理は実行せずに終了
+        # 現在のプレゼンス（ステータス）を取得
+        current_status = interaction.guild.me.status # ボット自身のステータス
 
-        # 通常の権限チェックと処理
-        if OWNER_ID is None:
-            await interaction.followup.send("エラー: ボットの製作者IDが設定されていません。環境変数をご確認ください。", ephemeral=True)
-            return
-        if interaction.user.id != OWNER_ID: # このチェックはnot_in_maintenance()デコレーターがないので、直接行う
-            await interaction.followup.send("あなたはボットの製作者ではありません。このコマンドは使用できません。", ephemeral=True)
-            return
+        # 次のステータスを決定
+        if current_status == discord.Status.online:
+            new_status = discord.Status.dnd # Do Not Disturb (取り込み中)
+            status_message = "取り込み中"
+        else:
+            new_status = discord.Status.online
+            status_message = "オンライン"
         
-        status = "オン" if is_maintenance_mode else "オフ"
-        await interaction.followup.send(f"現在のメンテナンスモードは **{status}** です。", ephemeral=True)
+        # ボットのステータスとカスタムアクティビティを更新
+        # アクティビティは現在のものを引き継ぎ、新しいステータスを設定
+        current_activity = interaction.guild.me.activity
+        await self.bot.change_presence(status=new_status, activity=current_activity)
+
+        await interaction.followup.send(f"ボットのステータスを **{status_message}** に変更しました。", ephemeral=True)
 
 # コグをボットにセットアップするための関数
 async def setup(bot):
