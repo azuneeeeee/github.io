@@ -1,10 +1,31 @@
+import sys
+# --- 追加するデバッグログのファイル出力 ---
+# プロセス開始直後にログファイルを開き、標準出力もそこにリダイレクト
+try:
+    # ログファイル名
+    log_file_path = "/tmp/bot_startup_debug.log" 
+    
+    # ファイルを書き込みモードで開く (毎回新規作成)
+    sys.stdout = open(log_file_path, "w", encoding="utf-8")
+    sys.stderr = open(log_file_path, "w", encoding="utf-8") # エラー出力も同じファイルへ
+
+    print("デバッグ: 強制ログファイル出力開始。", file=sys.stdout)
+    print("デバッグ: sys.stdout がファイルにリダイレクトされました。", file=sys.stdout)
+
+except Exception as e:
+    # もしログファイルを開くこと自体に失敗した場合の最終手段
+    # このメッセージはRenderの通常のログに出ることを期待
+    print(f"致命的エラー: ログファイルを開けませんでした: {e}", file=sys.__stdout__) 
+    sys.exit(1) # プロセスを終了
+
+# --- ここから元の main.py のコード ---
+
 import discord
 from discord.ext import commands
 import os
 from dotenv import load_dotenv
 import traceback
 import logging
-import sys
 import asyncio
 
 # admin_commands モジュール全体をインポート
@@ -22,7 +43,7 @@ load_dotenv()
 # 全体のロギングレベルを WARNING に設定し、出力先を標準出力 (Renderのログ) にする
 logging.basicConfig(level=logging.WARNING, 
                     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
-                    stream=sys.stdout)
+                    stream=sys.stdout) # ファイルにリダイレクトされたsys.stdoutに出力
 
 # 特定のモジュールのロギングレベルを調整し、不要なデバッグログを減らす
 logging.getLogger('discord').setLevel(logging.WARNING) 
@@ -152,13 +173,15 @@ async def main():
     print("デバッグ: メイン非同期関数 'main()' 開始。", file=sys.stdout)
     try:
         print("デバッグ: bot.login() を呼び出し中...", file=sys.stdout)
-        await bot.login(os.getenv('DISCORD_BOT_TOKEN')) # Discordにログイン
+        # Discordにログイン。トークンは環境変数から取得
+        await bot.login(os.getenv('DISCORD_BOT_TOKEN')) 
         print("デバッグ: bot.login() 完了。ゲートウェイ接続待機中...", file=sys.stdout)
 
         await asyncio.sleep(3) # ログイン後の短い待機
 
         print("デバッグ: bot.connect() を呼び出し中...", file=sys.stdout)
-        await bot.connect() # ゲートウェイに接続し、イベントループを開始
+        # ゲートウェイに接続し、イベントループを開始
+        await bot.connect() 
 
     except discord.LoginFailure:
         # トークンが不正な場合の致命的エラーハンドリング
@@ -186,3 +209,13 @@ if __name__ == '__main__':
         traceback.print_exc(file=sys.stdout)
     # ここまで到達した場合、通常はボットプロセスが意図せず終了していることを示す
     print("デバッグ: asyncio.run(main()) 呼び出し後（ここまで来たらボットプロセスが意図せず終了）", file=sys.stdout)
+
+# --- ログファイルクローズ処理 ---
+# sys.stdout がリダイレクトされていた場合にのみクローズ
+if sys.stdout is not sys.__stdout__: 
+    print("デバッグ: 強制ログファイル出力終了。", file=sys.stdout)
+    sys.stdout.close()
+    sys.stderr.close()
+    # 元の標準出力に戻す
+    sys.stdout = sys.__stdout__ 
+    sys.stderr = sys.__stderr__
