@@ -77,13 +77,12 @@ async def on_ready():
     print("--- on_ready イベント開始 --- (ログ最小限版)", file=sys.stdout) 
     try:
         print(f'Logged in as {bot.user.name}', file=sys.stdout)
-        # 修正済み: sys.user -> sys.stdout
         print(f'Bot ID: {bot.user.id}', file=sys.stdout) 
         print('------', file=sys.stdout)
         print("ボットは正常に起動し、Discordに接続しました！", file=sys.stdout)
 
         # ステータス変更処理（起動準備中ステータス）
-        # まずカスタムアクティビティを設定 (discord.CustomActivity から discord.Game に変更)
+        # まずカスタムアクティビティを設定
         await asyncio.sleep(0.5) 
         await bot.change_presence(activity=discord.Game(name="起動準備中です。")) 
         # その後、短い遅延を置いてステータスを「退席中」に設定
@@ -130,7 +129,7 @@ async def on_ready():
             song_count, chart_count = count_songs_and_charts()
             custom_status_message = f"{song_count}曲/{chart_count}譜面が登録済み"
             
-            # カスタムアクティビティを設定 (discord.CustomActivity から discord.Game に変更)
+            # カスタムアクティビティを設定
             await bot.change_presence(activity=discord.Game(name=custom_status_message)) 
             await asyncio.sleep(0.5) # 短い遅延
             # その後、ステータスを「オンライン」に設定
