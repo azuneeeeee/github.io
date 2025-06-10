@@ -1,14 +1,45 @@
 import discord
 from discord.ext import commands
-import discord.app_commands # <-- この行を追加
+import discord.app_commands
 import os
 from dotenv import load_dotenv
 import logging
 import sys
+import json # <-- jsonモジュールをインポート
 
-# main.py と共有するためのグローバル変数を定義
-is_maintenance_mode = False
-is_bot_ready_for_commands = False
+# === グローバル変数（ファイルからのロードに切り替え） ===
+# is_maintenance_mode = False  # <-- この行は削除またはコメントアウト
+# is_bot_ready_for_commands = False # <-- この行は削除またはコメントアウト
+# main.py と共有するためのグローバル変数定義は、ファイルロード/保存に切り替える
+
+# メンテナンスモードの状態を保存するファイル
+MAINTENANCE_FILE = "maintenance_status.json"
+
+# メンテナンスモードの状態をファイルからロードする関数
+def load_maintenance_status():
+    if os.path.exists(MAINTENANCE_FILE):
+        try:
+            with open(MAINTENANCE_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get('is_maintenance_mode', False)
+        except json.JSONDecodeError:
+            # ファイルが破損している場合、デフォルトでFalse
+            logger.error(f"エラー: {MAINTENANCE_FILE} の読み込みに失敗しました。デフォルトの False を使用します。", file=sys.__stderr__)
+            return False
+    return False # ファイルが存在しない場合もFalse
+
+# メンテナンスモードの状態をファイルに保存する関数
+def save_maintenance_status(status: bool):
+    try:
+        with open(MAINTENANCE_FILE, 'w') as f:
+            json.dump({'is_maintenance_mode': status}, f)
+        logger.info(f"デバッグ: メンテナンスモードの状態を {MAINTENANCE_FILE} に保存しました: {status}", file=sys.__stdout__)
+    except Exception as e:
+        logger.error(f"エラー: メンテナンスモードの状態を {MAINTENANCE_FILE} に保存できませんでした: {e}", file=sys.__stderr__)
+
+# 初期ロード
+is_maintenance_mode = load_maintenance_status()
+is_bot_ready_for_commands = False # これは on_ready で設定するのでここではFalseのまま
 
 load_dotenv()
 
@@ -31,6 +62,7 @@ def is_owner():
 
 def not_in_maintenance():
     async def predicate(interaction: discord.Interaction):
+        # ここは変更なし
         if not interaction.response.is_done():
             await interaction.response.defer(ephemeral=False, thinking=True)
             print(f"デバッグ: not_in_maintenanceチェック: defer実行 (ユーザーID={interaction.user.id}, interaction ID={interaction.id})", file=sys.stdout)
@@ -43,6 +75,7 @@ def not_in_maintenance():
             )
             return False
 
+        # ここでファイルからロードした is_maintenance_mode を使う
         if is_maintenance_mode and interaction.user.id != OWNER_ID:
             await interaction.followup.send(
                 "現在ボットはメンテナンス中のため、このコマンドは使用できません。",
@@ -79,12 +112,14 @@ class AdminCommands(commands.Cog):
         
     @discord.app_commands.command(name="maintenance", description="ボットのメンテナンスモードを切り替えます (管理者のみ)。")
     @is_owner()
-    @discord.app_commands.guild_only() # <-- この行のために import が必要でした
+    @discord.app_commands.guild_only()
     async def maintenance(self, interaction: discord.Interaction, mode: bool):
         await interaction.response.defer(ephemeral=True, thinking=True)
         
-        global is_maintenance_mode
-        is_maintenance_mode = mode
+        global is_maintenance_mode # グローバル変数にアクセス
+        is_maintenance_mode = mode # グローバル変数を更新
+        save_maintenance_status(mode) # ファイルに保存
+
         status = "有効" if mode else "無効"
         await interaction.followup.send(f"メンテナンスモードを **{status}** に設定しました。", ephemeral=True)
         logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) がメンテナンスモードを {status} に切り替えました。")
