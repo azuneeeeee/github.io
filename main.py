@@ -81,6 +81,8 @@ async def main():
         await bot.connect()
         print("DEBUG: bot.connect() completed. Bot should be online now.", file=sys.__stdout__) # Connect completed
 
+        print("DEBUG: main() function reached end of bot.connect() call. This process should now be managed by discord.py's event loop.", file=sys.__stdout__)
+
     except discord.LoginFailure:
         print("FATAL ERROR: Token authentication failed. Please check DISCORD_BOT_TOKEN.", file=sys.__stderr__) # Login failure
         sys.exit(1)
