@@ -25,6 +25,9 @@ except ImportError:
 # ここではまだ admin_module を使わないが、モジュール自体はロードされる
 import commands.admin.admin_commands as admin_module # ここは元々正しかったので変更なし
 
+# ルートロガーを取得して、以降はそれを使用する
+logger = logging.getLogger(__name__)
+
 # === 設定とセットアップ ===
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
@@ -32,9 +35,6 @@ logging.basicConfig(level=logging.INFO,
                          logging.StreamHandler(sys.stdout)
                     ],
                     encoding='utf-8')
-
-# ルートロガーを取得して、以降はそれを使用する
-logger = logging.getLogger(__name__)
 
 logging.getLogger('discord').setLevel(logging.INFO)
 
