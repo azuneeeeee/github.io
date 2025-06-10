@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-import discord.app_commands
+import discord.app_commands # <-- この行を追加
 import os
 from dotenv import load_dotenv
 import logging
@@ -31,41 +31,26 @@ def is_owner():
 
 def not_in_maintenance():
     async def predicate(interaction: discord.Interaction):
-        # deferはここで一度だけ、必要に応じて行う
-        # このデコレータが適用される全てのコマンドがdeferを必要とするわけではないため、
-        # deferの判断をより柔軟にするか、コマンド内でdeferするかを検討
-        # ただし、現在のping_command.pyがdefer前提のfollowup.sendを使っているので、
-        # ここでdeferを実行し、ephemeral=Falseを設定することでping_commandの動作を保証します。
-
-        # 既にresponseが送信されているか、defer済みでないか確認
         if not interaction.response.is_done():
-            # pingコマンドはephemeral=Falseを意図しているので、ここではephemeral=Falseでdeferする
-            # thinking=Trueはメッセージが表示されるまでの「ボットが考えている」表示
             await interaction.response.defer(ephemeral=False, thinking=True)
             print(f"デバッグ: not_in_maintenanceチェック: defer実行 (ユーザーID={interaction.user.id}, interaction ID={interaction.id})", file=sys.stdout)
 
-
-        # ボットがまだコマンドを受け付ける準備ができていない場合は、全員アクセスを拒否
         if not is_bot_ready_for_commands:
-            # defer済みなのでfollowup.sendを使う
             await interaction.followup.send(
                 "現在ボットは起動準備中のため、このコマンドは使用できません。\n"
                 "しばらく時間をおいてから再度お試しください。",
-                ephemeral=True # エラーメッセージは通常エフェメラル
+                ephemeral=True
             )
             return False
 
-        # ボットがコマンド受付準備ができていて、かつメンテナンスモードがオンで、
-        # 実行者が製作者でない場合にコマンドを制限
         if is_maintenance_mode and interaction.user.id != OWNER_ID:
-            # defer済みなのでfollowup.sendを使う
             await interaction.followup.send(
                 "現在ボットはメンテナンス中のため、このコマンドは使用できません。",
-                ephemeral=True # エラーメッセージは通常エフェメラル
+                ephemeral=True
             )
             return False
         
-        return True # すべてのチェックを通過した場合、Trueを返します
+        return True
     return discord.app_commands.check(predicate)
 
 class AdminCommands(commands.Cog):
@@ -78,14 +63,10 @@ class AdminCommands(commands.Cog):
     async def status_toggle(self, interaction: discord.Interaction):
         logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。")
 
-        # not_in_maintenance() で既に defer されているため、ここでは defer は不要です。
-        # defer が ephemeral=False で行われているため、このメッセージは公開されます。
-        # await interaction.response.defer(ephemeral=True, thinking=True) # <= この行は削除
-
         current_status = interaction.guild.me.status
 
         if current_status == discord.Status.online:
-            new_status = discord.Status.dnd # Do Not Disturb (取り込み中)
+            new_status = discord.Status.dnd
             status_message = "取り込み中"
         else:
             new_status = discord.Status.online
@@ -94,19 +75,15 @@ class AdminCommands(commands.Cog):
         current_activity = interaction.guild.me.activity
         await self.bot.change_presence(status=new_status, activity=current_activity)
 
-        # deferしているのでfollowup.sendを使います
-        await interaction.followup.send(f"ボットのステータスを **{status_message}** に変更しました。", ephemeral=True) # ステータス変更通知はephemeralで
+        await interaction.followup.send(f"ボットのステータスを **{status_message}** に変更しました。", ephemeral=True)
         
     @discord.app_commands.command(name="maintenance", description="ボットのメンテナンスモードを切り替えます (管理者のみ)。")
     @is_owner()
-    @app_commands.guild_only() # DMでは実行不可
+    @discord.app_commands.guild_only() # <-- この行のために import が必要でした
     async def maintenance(self, interaction: discord.Interaction, mode: bool):
-        # maintenance コマンド自体は not_in_maintenance() チェックを回避するため、
-        # このコマンドには not_in_maintenance() を適用しません。
-        # そのため、このコマンド内で defer を実行する必要があります。
         await interaction.response.defer(ephemeral=True, thinking=True)
         
-        global is_maintenance_mode # グローバル変数にアクセス
+        global is_maintenance_mode
         is_maintenance_mode = mode
         status = "有効" if mode else "無効"
         await interaction.followup.send(f"メンテナンスモードを **{status}** に設定しました。", ephemeral=True)
