@@ -5,7 +5,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import logging
 import asyncio
-import traceback # エラー時に詳細な情報を表示するためにインポート
+import traceback
 
 # data/songs.py から情報をインポート
 try:
@@ -50,10 +50,9 @@ async def on_ready():
             
             total_charts = 0
             for song in songs.proseka_songs:
-                # VALID_DIFFICULTIES に定義されている難易度のみを数える
-                # または、辞書の 'easy', 'normal', 'hard', 'expert', 'master', 'append' キーの存在を確認して数える
                 for diff_key in ['easy', 'normal', 'hard', 'expert', 'master', 'append']:
-                    if diff_key in song:
+                    # 難易度キーが存在し、かつその値が None でない場合にのみカウントする
+                    if diff_key in song and song[diff_key] is not None:
                         total_charts += 1
 
             status_message = f"{total_songs}曲/{total_charts}譜面が登録済み"
