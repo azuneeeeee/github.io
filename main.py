@@ -30,7 +30,8 @@ except ImportError:
     logger.critical("致命的なエラー: GitHubリポジトリのルートに 'data' フォルダがあり、その中に 'songs.py' が存在するか確認してください。")
     sys.exit(1)
 
-# commands.admin.admin_commands からグローバル変数をインポート
+# commands.admin.admin_commands からグローバル変数とセッター関数をインポート
+# admin_module をインポートし、そこから関数にアクセスする
 import commands.admin.admin_commands as admin_module
 
 logger.info("デバッグ: 環境変数のロードを試みます。")
@@ -69,8 +70,6 @@ async def on_ready():
             logger.error(f"エラー: コグのロード中にエラーが発生しました: {e}")
             traceback.print_exc(file=sys.__stderr__)
 
-        # ボットがコマンドを受け付ける準備ができたことをフラグに設定 (この時点ではまだ False のまま)
-        # admin_module.is_bot_ready_for_commands = True # <-- これは後で設定する
         logger.info("デバッグ: is_bot_ready_for_commands フラグはまだ設定されていません。")
 
 
@@ -79,8 +78,7 @@ async def on_ready():
         
         # === 同期前にメンテナンスモードを有効にする ===
         logger.info("デバッグ: スラッシュコマンド同期のため、メンテナンスモードを有効にします。")
-        admin_module.is_maintenance_mode = True
-        admin_module.save_maintenance_status(True) # ファイルにも保存
+        admin_module.set_maintenance_mode(True) # セッター関数を使用
 
         try:
             synced = await bot.tree.sync() # 全ての登録済みスラッシュコマンドを同期
@@ -91,12 +89,11 @@ async def on_ready():
         finally:
             # === 同期後にメンテナンスモードを無効にする ===
             logger.info("デバッグ: スラッシュコマンド同期完了のため、メンテナンスモードを無効にします。")
-            admin_module.is_maintenance_mode = False
-            admin_module.save_maintenance_status(False) # ファイルにも保存
+            admin_module.set_maintenance_mode(False) # セッター関数を使用
 
         # ボットがコマンドを受け付ける準備ができたことをフラグに設定
-        admin_module.is_bot_ready_for_commands = True
-        logger.info(f"デバッグ: is_bot_ready_for_commands が {admin_module.is_bot_ready_for_commands} に設定されました。")
+        admin_module.set_bot_ready_status(True) # セッター関数を使用
+        logger.info(f"デバッグ: is_bot_ready_for_commands が {admin_module._is_bot_ready_for_commands} に設定されました。") # _is_bot_ready_for_commands を参照
 
 
         # カスタムステータスの設定
