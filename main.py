@@ -28,7 +28,9 @@ import commands.admin.admin_commands as admin_module # ここは元々正しか�
 # === 設定とセットアップ ===
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
-                    # stream=sys.__stdout__, # ここを削除。デフォルトで標準出力に出るため
+                    handlers=[
+                         logging.StreamHandler(sys.stdout)
+                    ],
                     encoding='utf-8')
 
 # ルートロガーを取得して、以降はそれを使用する
