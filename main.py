@@ -3,18 +3,18 @@ import os
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
-import logging # logging モジュールをインポート
+import logging
 import asyncio
 import traceback
 
-# ロガーの取得をここで行う
-logger = logging.getLogger(__name__) # <-- この行はここにあることを確認
+# ロガーの取得
+logger = logging.getLogger(__name__)
 
 # === 設定とセットアップ ===
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
                     handlers=[
-                        logging.StreamHandler(sys.stdout) # <-- これを確実に含める
+                        logging.StreamHandler(sys.stdout)
                     ],
                     encoding='utf-8')
 
@@ -31,7 +31,6 @@ except ImportError:
     sys.exit(1)
 
 # commands.admin.admin_commands からグローバル変数をインポート
-# import の際にコードが実行されるため、先にインポートしておく
 import commands.admin.admin_commands as admin_module
 
 logger.info("デバッグ: 環境変数のロードを試みます。")
@@ -70,23 +69,35 @@ async def on_ready():
             logger.error(f"エラー: コグのロード中にエラーが発生しました: {e}")
             traceback.print_exc(file=sys.__stderr__)
 
-        logger.info("デバッグ: is_bot_ready_for_commands フラグを設定します。")
-        # ボットがコマンドを受け付ける準備ができたことをフラグに設定
-        # これにより、not_in_maintenance デコレータのチェックをパスできるようになります
-        # ここで admin_commands.py のグローバル変数にアクセスする
-        import commands.admin.admin_commands as admin_module # ここを修正済み
-        admin_module.is_bot_ready_for_commands = True
-        logger.info(f"デバッグ: is_bot_ready_for_commands が {admin_module.is_bot_ready_for_commands} に設定されました。")
+        # ボットがコマンドを受け付ける準備ができたことをフラグに設定 (この時点ではまだ False のまま)
+        # admin_module.is_bot_ready_for_commands = True # <-- これは後で設定する
+        logger.info("デバッグ: is_bot_ready_for_commands フラグはまだ設定されていません。")
 
 
         # スラッシュコマンドを同期する
         logger.info("デバッグ: スラッシュコマンドの同期を開始します。")
+        
+        # === 同期前にメンテナンスモードを有効にする ===
+        logger.info("デバッグ: スラッシュコマンド同期のため、メンテナンスモードを有効にします。")
+        admin_module.is_maintenance_mode = True
+        admin_module.save_maintenance_status(True) # ファイルにも保存
+
         try:
             synced = await bot.tree.sync() # 全ての登録済みスラッシュコマンドを同期
             logger.info(f"デバッグ: スラッシュコマンドが {len(synced)} 件同期されました。")
         except Exception as e:
             logger.error(f"エラー: スラッシュコマンドの同期中にエラーが発生しました: {e}")
             traceback.print_exc(file=sys.__stderr__)
+        finally:
+            # === 同期後にメンテナンスモードを無効にする ===
+            logger.info("デバッグ: スラッシュコマンド同期完了のため、メンテナンスモードを無効にします。")
+            admin_module.is_maintenance_mode = False
+            admin_module.save_maintenance_status(False) # ファイルにも保存
+
+        # ボットがコマンドを受け付ける準備ができたことをフラグに設定
+        admin_module.is_bot_ready_for_commands = True
+        logger.info(f"デバッグ: is_bot_ready_for_commands が {admin_module.is_bot_ready_for_commands} に設定されました。")
+
 
         # カスタムステータスの設定
         logger.info("デバッグ: カスタムステータスの設定を開始します。")
@@ -135,5 +146,5 @@ if __name__ == '__main__':
         sys.exit(1)
     except Exception as e:
         logger.critical(f"致命的なエラー: asyncio.run()中に重大なエラーが発生しました: {e}")
-        traceback.print_exc(file=sys.__stdout__) # ここは stdout に出力
+        traceback.print_exc(file=sys.__stdout__)
     logger.info("デバッグ: プログラムの実行が終了しました。")
