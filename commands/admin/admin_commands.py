@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 MAINTENANCE_FILE = "maintenance_status.json"
 
 # メンテナンスモードの状態をファイルからロードする関数
+# この関数はモジュールがインポートされたときに一度だけ実行される
 def load_maintenance_status():
     if os.path.exists(MAINTENANCE_FILE):
         try:
@@ -40,26 +41,13 @@ def save_maintenance_status(status: bool):
     except Exception as e:
         logger.error(f"エラー: メンテナンスモードの状態を {MAINTENANCE_FILE} に保存できませんでした: {e}")
 
-# 初期ロード
-_is_maintenance_mode = load_maintenance_status() # グローバル変数をアンダースコア付きに変更
-_is_bot_ready_for_commands = False # グローバル変数をアンダースコア付きに変更
+# 初期ロードされたメンテナンスモードの状態を保持する（on_readyでbotオブジェクトに引き継がれる）
+_is_maintenance_mode = load_maintenance_status() # これはファイルロード時の初期値
 
 load_dotenv()
 
 OWNER_ID = int(os.getenv('DISCORD_OWNER_ID')) if os.getenv('DISCORD_OWNER_ID') else None
 
-
-# === グローバル変数を操作するためのセッター関数 ===
-def set_maintenance_mode(status: bool):
-    global _is_maintenance_mode
-    _is_maintenance_mode = status
-    save_maintenance_status(status)
-    logger.info(f"デバッグ: set_maintenance_mode が呼び出され、_is_maintenance_mode が {status} に設定されました。")
-
-def set_bot_ready_status(status: bool):
-    global _is_bot_ready_for_commands
-    _is_bot_ready_for_commands = status
-    logger.info(f"デバッグ: set_bot_ready_status が呼び出され、_is_bot_ready_for_commands が {status} に設定されました。")
 
 # === チェック関数 ===
 def is_owner():
@@ -81,23 +69,23 @@ def not_in_maintenance():
             await interaction.response.defer(ephemeral=False, thinking=True)
             logger.info(f"デバッグ: not_in_maintenanceチェック: defer実行 (ユーザーID={interaction.user.id}, interaction ID={interaction.id})")
 
-        # グローバル変数 _is_bot_ready_for_commands を直接参照
-        if not _is_bot_ready_for_commands:
+        # bot オブジェクトの属性を参照する
+        if not interaction.client.is_bot_ready_for_commands:
             await interaction.followup.send(
                 "現在ボットは起動準備中のため、このコマンドは使用できません。\n"
                 "しばらく時間をおいてから再度お試しください。",
                 ephemeral=True
             )
-            logger.info("デバッグ: not_in_maintenanceチェック: _is_bot_ready_for_commands が False のため失敗。")
+            logger.info("デバッグ: not_in_maintenanceチェック: bot.is_bot_ready_for_commands が False のため失敗。")
             return False
 
-        # グローバル変数 _is_maintenance_mode を直接参照
-        if _is_maintenance_mode and interaction.user.id != OWNER_ID:
+        # bot オブジェクトの属性を参照する
+        if interaction.client.is_maintenance_mode and interaction.user.id != OWNER_ID:
             await interaction.followup.send(
                 "現在ボットはメンテナンス中のため、このコマンドは使用できません。",
                 ephemeral=True
             )
-            logger.info("デバッグ: not_in_maintenanceチェック: _is_maintenance_mode が True かつオーナーではないため失敗。")
+            logger.info("デバッグ: not_in_maintenanceチェック: bot.is_maintenance_mode が True かつオーナーではないため失敗。")
             return False
         
         logger.info("デバッグ: not_in_maintenanceチェック: 全ての条件をパス。")
@@ -134,7 +122,9 @@ class AdminCommands(commands.Cog):
     async def maintenance(self, interaction: discord.Interaction, mode: bool):
         await interaction.response.defer(ephemeral=True, thinking=True)
         
-        set_maintenance_mode(mode) # セッター関数を使用
+        # bot オブジェクトの属性を直接更新する
+        interaction.client.is_maintenance_mode = mode 
+        save_maintenance_status(mode) # ファイルにも保存
 
         status = "有効" if mode else "無効"
         await interaction.followup.send(f"メンテナンスモードを **{status}** に設定しました。", ephemeral=True)
