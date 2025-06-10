@@ -4,32 +4,39 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import logging
-import asyncio # asyncio.sleepのため
+import asyncio
+import traceback # エラー時に詳細な情報を表示するためにインポート
+
+# data/songs.py から情報をインポート
+try:
+    from data import songs
+    print("デバッグ: data/songs.py を正常にインポートしました。", file=sys.__stdout__)
+except ImportError:
+    print("致命的なエラー: data/songs.py が見つからないか、インポートできませんでした。", file=sys.__stderr__)
+    print("致命的なエラー: GitHubリポジトリのルートに 'data' フォルダがあり、その中に 'songs.py' が存在するか確認してください。", file=sys.__stderr__)
+    sys.exit(1)
+
 
 # === 設定とセットアップ ===
-# ロギング設定をシンプルにする
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
                     stream=sys.__stdout__,
                     encoding='utf-8')
-logging.getLogger('discord').setLevel(logging.INFO) # DiscordログレベルをINFOに設定
+logging.getLogger('discord').setLevel(logging.INFO)
 
-# .env ファイルから環境変数をロード
 load_dotenv()
 print("デバッグ: 環境変数がロードされました。", file=sys.__stdout__)
 
-# インテントの設定 (必須)
-intents = discord.Intents.all() # 全てのインテントを有効にする
+intents = discord.Intents.all()
 print("デバッグ: インテントが設定されました (discord.Intents.all())。", file=sys.__stdout__)
 
-# ボットインスタンスの作成
-bot = commands.Bot(command_prefix='!', intents=intents) # プレフィックスコマンドも使えるようにしておく
+bot = commands.Bot(command_prefix='!', intents=intents)
 print("デバッグ: ボットインスタンスが作成されました。", file=sys.__stdout__)
 
 # === on_ready イベントハンドラ ===
 @bot.event
 async def on_ready():
-    print("デバッグ: on_readyイベントが開始されました！", file=sys.__stdout__) # on_readyの先頭ログ
+    print("デバッグ: on_readyイベントが開始されました！", file=sys.__stdout__)
     try:
         if bot.user:
             print(f'デバッグ: on_ready: {bot.user.name} (ID: {bot.user.id}) としてログインしました', file=sys.__stdout__)
@@ -37,16 +44,30 @@ async def on_ready():
             print("デバッグ: on_ready: ボットユーザーがNoneです。", file=sys.__stdout__)
         print("デバッグ: on_ready: ボットはDiscordに正常に接続し、準備が完了しました！", file=sys.__stdout__)
 
-        # 最小限のステータス変更
-        await asyncio.sleep(1) # 念のため非同期処理を挟む
-        await bot.change_presence(activity=discord.Game(name="Online!"), status=discord.Status.online)
-        print("デバッグ: on_ready: ステータスが 'Online!' に設定されました。", file=sys.__stdout__)
+        # ここで data/songs.py から読み込んだ情報を使ってステータスを設定
+        try:
+            total_songs = songs.TOTAL_SONGS
+            total_charts = songs.TOTAL_CHARTS
+            status_message = f"{total_songs}曲/{total_charts}譜面が登録済み"
+            
+            print(f"デバッグ: on_ready: 設定するカスタムステータス: '{status_message}'", file=sys.__stdout__)
+            await asyncio.sleep(1) # 念のため待機
+            await bot.change_presence(activity=discord.Game(name=status_message), status=discord.Status.online)
+            print("デバッグ: on_ready: カスタムステータスが設定されました。", file=sys.__stdout__)
+
+        except AttributeError as ae:
+            print(f"エラー: data/songs.py から必要な変数を読み込めませんでした: {ae}", file=sys.__stderr__)
+            print("エラー: songs.py に TOTAL_SONGS と TOTAL_CHARTS が定義されているか確認してください。", file=sys.__stderr__)
+            traceback.print_exc(file=sys.__stderr__)
+        except Exception as status_e:
+            print(f"エラー: カスタムステータスの設定中にエラーが発生しました: {status_e}", file=sys.__stderr__)
+            traceback.print_exc(file=sys.__stderr__)
 
         print("デバッグ: on_readyイベントが終了しました。ボットは完全に稼働中です。", file=sys.__stdout__)
 
     except Exception as e:
         print(f"致命的なエラー: on_readyイベント内で予期せぬエラーが発生しました: {e}", file=sys.__stderr__)
-        # traceback.print_exc(file=sys.__stderr__) # エラーログはDiscord.pyが出すので省略
+        traceback.print_exc(file=sys.__stderr__)
 print("デバッグ: on_readyイベントハンドラが定義されました。", file=sys.__stdout__)
 
 # === プログラムのエントリポイント ===
@@ -58,7 +79,6 @@ if __name__ == '__main__':
         sys.exit(1)
     
     try:
-        # bot.run() はボットが停止するまでイベントループをブロックし続ける
         bot.run(token) 
         print("デバッグ: bot.run() が戻りました。これはボットが切断または停止したことを意味します。", file=sys.__stdout__)
     except discord.LoginFailure:
@@ -66,5 +86,5 @@ if __name__ == '__main__':
         sys.exit(1)
     except Exception as e:
         print(f"致命的なエラー: asyncio.run()中に重大なエラーが発生しました: {e}", file=sys.__stdout__)
-        # traceback.print_exc(file=sys.__stdout__) # エラーログはDiscord.pyが出すので省略
+        traceback.print_exc(file=sys.__stdout__)
     print("デバッグ: プログラムの実行が終了しました。", file=sys.__stdout__)
