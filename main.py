@@ -64,7 +64,7 @@ async def on_ready():
 
         # ボットがコマンドを受け付ける準備ができたことをフラグに設定
         # これにより、not_in_maintenance デコレータのチェックをパスできるようになります
-        import commands.admin.admin_commands as
+        import commands.admin.admin_commands as admin_module
         admin_module.is_bot_ready_for_commands = True
         print(f"デバッグ: is_bot_ready_for_commands が {admin_module.is_bot_ready_for_commands} に設定されました。", file=sys.__stdout__)
 
