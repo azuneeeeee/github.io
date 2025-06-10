@@ -7,106 +7,89 @@ import logging # logging モジュールをインポート
 import asyncio
 import traceback
 
-# data/songs.py から情報をインポート
-try:
-    from data import songs
-    # print("デバッグ: data/songs.py を正常にインポートしました。", file=sys.__stdout__) # 削除
-    # logging に変更
-    logging.info("デバッグ: data/songs.py を正常にインポートしました。")
-except ImportError:
-    # print("致命的なエラー: data/songs.py が見つからないか、インポートできませんでした。", file=sys.__stderr__) # 削除
-    logging.critical("致命的なエラー: data/songs.py が見つからないか、インポートできませんでした。") # logging に変更
-    # print("致命的なエラー: GitHubリポジトリのルートに 'data' フォルダがあり、その中に 'songs.py' が存在するか確認してください。", file=sys.__stderr__) # 削除
-    logging.critical("致命的なエラー: GitHubリポジトリのルートに 'data' フォルダがあり、その中に 'songs.py' が存在するか確認してください。") # logging に変更
-    sys.exit(1)
-
-# commands.admin.admin_commands からグローバル変数をインポート
-# import の際にコードが実行されるため、先にインポートしておく
-# ここではまだ admin_module を使わないが、モジュール自体はロードされる
-import commands.admin.admin_commands as admin_module # ここは元々正しかったので変更なし
-
-# ルートロガーを取得して、以降はそれを使用する
-logger = logging.getLogger(__name__)
+# ロガーの取得をここで行う
+logger = logging.getLogger(__name__) # <-- この行はここにあることを確認
 
 # === 設定とセットアップ ===
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
                     handlers=[
-                         logging.StreamHandler(sys.stdout)
+                        logging.StreamHandler(sys.stdout) # <-- これを確実に含める
                     ],
                     encoding='utf-8')
 
-logging.getLogger('discord').setLevel(logging.INFO)
+logger.info("デバッグ: ボットスクリプトの実行を開始しました。")
 
+# data/songs.py から情報をインポート
+try:
+    logger.info("デバッグ: data/songs.py のインポートを試みます。")
+    from data import songs
+    logger.info("デバッグ: data/songs.py を正常にインポートしました。")
+except ImportError:
+    logger.critical("致命的なエラー: data/songs.py が見つからないか、インポートできませんでした。")
+    logger.critical("致命的なエラー: GitHubリポジトリのルートに 'data' フォルダがあり、その中に 'songs.py' が存在するか確認してください。")
+    sys.exit(1)
+
+# commands.admin.admin_commands からグローバル変数をインポート
+# import の際にコードが実行されるため、先にインポートしておく
+import commands.admin.admin_commands as admin_module
+
+logger.info("デバッグ: 環境変数のロードを試みます。")
 load_dotenv()
-# print("デバッグ: 環境変数がロードされました。", file=sys.__stdout__) # 削除
 logger.info("デバッグ: 環境変数がロードされました。")
 
 intents = discord.Intents.all()
-# print("デバッグ: インテントが設定されました (discord.Intents.all())。", file=sys.__stdout__) # 削除
 logger.info("デバッグ: インテントが設定されました (discord.Intents.all())。")
 
 bot = commands.Bot(command_prefix='!', intents=intents)
-# print("デバッグ: ボットインスタンスが作成されました。", file=sys.__stdout__) # 削除
 logger.info("デバッグ: ボットインスタンスが作成されました。")
 
 # === on_ready イベントハンドラ ===
 @bot.event
 async def on_ready():
-    # print("デバッグ: on_readyイベントが開始されました！", file=sys.__stdout__) # 削除
     logger.info("デバッグ: on_readyイベントが開始されました！")
     try:
         if bot.user:
-            # print(f'デバッグ: on_ready: {bot.user.name} (ID: {bot.user.id}) としてログインしました', file=sys.__stdout__) # 削除
             logger.info(f'デバッグ: on_ready: {bot.user.name} (ID: {bot.user.id}) としてログインしました')
         else:
-            # print("デバッグ: on_ready: ボットユーザーがNoneです。", file=sys.__stdout__) # 削除
             logger.info("デバッグ: on_ready: ボットユーザーがNoneです。")
-        # print("デバッグ: on_ready: ボットはDiscordに正常に接続し、準備が完了しました！", file=sys.__stdout__) # 削除
         logger.info("デバッグ: on_ready: ボットはDiscordに正常に接続し、準備が完了しました！")
 
         # コグをロードする (順序が重要: admin_commands -> ping_command)
-        # print("デバッグ: コグのロードを開始します。", file=sys.__stdout__) # 削除
         logger.info("デバッグ: コグのロードを開始します。")
         try:
-            # commands.admin.admin_commands をロード
+            logger.info("デバッグ: commands.admin.admin_commands のロードを試みます。")
             await bot.load_extension("commands.admin.admin_commands") 
-            # print("デバッグ: commands.admin.admin_commands がロードされました。", file=sys.__stdout__) # 削除
             logger.info("デバッグ: commands.admin.admin_commands がロードされました。")
             
-            # commands.general.ping_command をロード
+            logger.info("デバッグ: commands.general.ping_command のロードを試みます。")
             await bot.load_extension("commands.general.ping_command") 
-            # print("デバッグ: commands.general.ping_command がロードされました。", file=sys.__stdout__) # 削除
             logger.info("デバッグ: commands.general.ping_command がロードされました。")
             
         except Exception as e:
-            # print(f"エラー: コグのロード中にエラーが発生しました: {e}", file=sys.__stderr__) # 削除
             logger.error(f"エラー: コグのロード中にエラーが発生しました: {e}")
-            traceback.print_exc(file=sys.__stderr__) # これは stderr に出力する
+            traceback.print_exc(file=sys.__stderr__)
 
+        logger.info("デバッグ: is_bot_ready_for_commands フラグを設定します。")
         # ボットがコマンドを受け付ける準備ができたことをフラグに設定
         # これにより、not_in_maintenance デコレータのチェックをパスできるようになります
         # ここで admin_commands.py のグローバル変数にアクセスする
-        # このインポート文が不完全でした
         import commands.admin.admin_commands as admin_module # ここを修正済み
         admin_module.is_bot_ready_for_commands = True
-        # print(f"デバッグ: is_bot_ready_for_commands が {admin_module.is_bot_ready_for_commands} に設定されました。", file=sys.__stdout__) # 削除
         logger.info(f"デバッグ: is_bot_ready_for_commands が {admin_module.is_bot_ready_for_commands} に設定されました。")
 
 
         # スラッシュコマンドを同期する
-        # print("デバッグ: スラッシュコマンドの同期を開始します。", file=sys.__stdout__) # 削除
         logger.info("デバッグ: スラッシュコマンドの同期を開始します。")
         try:
             synced = await bot.tree.sync() # 全ての登録済みスラッシュコマンドを同期
-            # print(f"デバッグ: スラッシュコマンドが {len(synced)} 件同期されました。", file=sys.__stdout__) # 削除
             logger.info(f"デバッグ: スラッシュコマンドが {len(synced)} 件同期されました。")
         except Exception as e:
-            # print(f"エラー: スラッシュコマンドの同期中にエラーが発生しました: {e}", file=sys.__stderr__) # 削除
             logger.error(f"エラー: スラッシュコマンドの同期中にエラーが発生しました: {e}")
             traceback.print_exc(file=sys.__stderr__)
 
         # カスタムステータスの設定
+        logger.info("デバッグ: カスタムステータスの設定を開始します。")
         try:
             total_songs = len(songs.proseka_songs)
             total_charts = 0
@@ -119,50 +102,38 @@ async def on_ready():
             
             await asyncio.sleep(1)
             await bot.change_presence(activity=discord.CustomActivity(name=status_message_text), status=discord.Status.online)
-            # print(f"デバッグ: on_ready: カスタムステータス '{status_message_text}' が設定されました。", file=sys.__stdout__) # 削除
             logger.info(f"デバッグ: on_ready: カスタムステータス '{status_message_text}' が設定されました。")
 
         except AttributeError as ae:
-            # print(f"エラー: data/songs.py から必要なデータ構造 (proseka_songs) を読み込めませんでした: {ae}", file=sys.__stderr__) # 削除
             logger.error(f"エラー: data/songs.py から必要なデータ構造 (proseka_songs) を読み込めませんでした: {ae}")
             traceback.print_exc(file=sys.__stderr__)
         except Exception as status_e:
-            # print(f"エラー: カスタムステータスの設定中にエラーが発生しました: {status_e}", file=sys.__stderr__) # 削除
             logger.error(f"エラー: カスタムステータスの設定中にエラーが発生しました: {status_e}")
             traceback.print_exc(file=sys.__stderr__)
 
-        # print("デバッグ: on_readyイベントが終了しました。ボットは完全に稼働中です。", file=sys.__stdout__) # 削除
         logger.info("デバッグ: on_readyイベントが終了しました。ボットは完全に稼働中です。")
 
     except Exception as e:
-        # print(f"致命的なエラー: on_readyイベント内で予期せぬエラーが発生しました: {e}", file=sys.__stderr__) # 削除
         logger.critical(f"致命的なエラー: on_readyイベント内で予期せぬエラーが発生しました: {e}")
-        traceback.print_exc(file=sys.__stderr__) # ここは stderr に出力する
-# print("デバッグ: on_readyイベントハンドラが定義されました。", file=sys.__stdout__) # 削除
+        traceback.print_exc(file=sys.__stderr__) 
 logger.info("デバッグ: on_readyイベントハンドラが定義されました。")
 
 
 # === プログラムのエントリポイント ===
 if __name__ == '__main__':
-    # print("デバッグ: プログラムのエントリポイントに入りました。bot.run()でボットを起動します。", file=sys.__stdout__) # 削除
-    logger.info("デバッグ: プログラムのエントryポイントに入りました。bot.run()でボットを起動します。")
+    logger.info("デバッグ: プログラムのエントリポイントに入りました。bot.run()でボットを起動します。")
     token = os.getenv('DISCORD_BOT_TOKEN')
     if not token:
-        # print("致命的なエラー: 'DISCORD_BOT_TOKEN' 環境変数が設定されていません。終了します。", file=sys.__stderr__) # 削除
         logger.critical("致命的なエラー: 'DISCORD_BOT_TOKEN' 環境変数が設定されていません。終了します。")
         sys.exit(1)
     
     try:
         bot.run(token) 
-        # print("デバッグ: bot.run() が戻りました。これはボットが切断または停止したことを意味します。", file=sys.__stdout__) # 削除
         logger.info("デバッグ: bot.run() が戻りました。これはボットが切断または停止したことを意味します。")
     except discord.LoginFailure:
-        # print("致命的なエラー: トークン認証に失敗しました。DISCORD_BOT_TOKEN を確認してください。", file=sys.__stderr__) # 削除
         logger.critical("致命的なエラー: トークン認証に失敗しました。DISCORD_BOT_TOKEN を確認してください。")
         sys.exit(1)
     except Exception as e:
-        # print(f"致命的なエラー: asyncio.run()中に重大なエラーが発生しました: {e}", file=sys.__stdout__) # 削除
         logger.critical(f"致命的なエラー: asyncio.run()中に重大なエラーが発生しました: {e}")
-        traceback.print_exc(file=sys.__stdout__) # ここは stdout に出力する
-# print("デバッグ: プログラムの実行が終了しました。", file=sys.__stdout__) # 削除
-logger.info("デバッグ: プログラムの実行が終了しました。")
+        traceback.print_exc(file=sys.__stdout__) # ここは stdout に出力
+    logger.info("デバッグ: プログラムの実行が終了しました。")
