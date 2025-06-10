@@ -46,21 +46,20 @@ async def on_ready():
 
         # ここで data/songs.py から読み込んだ情報を使ってステータスを設定
         try:
-            total_songs = len(songs.proseka_songs) # proseka_songs リストの要素数＝曲数
+            total_songs = len(songs.proseka_songs)
             
             total_charts = 0
             for song in songs.proseka_songs:
                 for diff_key in ['easy', 'normal', 'hard', 'expert', 'master', 'append']:
-                    # 難易度キーが存在し、かつその値が None でない場合にのみカウントする
                     if diff_key in song and song[diff_key] is not None:
                         total_charts += 1
 
-            status_message = f"{total_songs}曲/{total_charts}譜面が登録済み"
+            status_message_text = f"{total_songs}曲/{total_charts}譜面が登録済み" # 変数名を変更
             
-            print(f"デバッグ: on_ready: 設定するカスタムステータス: '{status_message}'", file=sys.__stdout__)
+            # ここを discord.CustomActivity に変更
             await asyncio.sleep(1) # 念のため待機
-            await bot.change_presence(activity=discord.Game(name=status_message), status=discord.Status.online)
-            print("デバッグ: on_ready: カスタムステータスが設定されました。", file=sys.__stdout__)
+            await bot.change_presence(activity=discord.CustomActivity(name=status_message_text), status=discord.Status.online)
+            print(f"デバッグ: on_ready: カスタムステータス '{status_message_text}' が設定されました。", file=sys.__stdout__)
 
         except AttributeError as ae:
             print(f"エラー: data/songs.py から必要なデータ構造 (proseka_songs) を読み込めませんでした: {ae}", file=sys.__stderr__)
@@ -77,7 +76,7 @@ async def on_ready():
         traceback.print_exc(file=sys.__stderr__)
 print("デバッグ: on_readyイベントハンドラが定義されました。", file=sys.__stdout__)
 
-# === プログラムのエントリポイント ===
+# === プログラムのエントryポイント ===
 if __name__ == '__main__':
     print("デバッグ: プログラムのエントリポイントに入りました。bot.run()でボットを起動します。", file=sys.__stdout__)
     token = os.getenv('DISCORD_BOT_TOKEN')
