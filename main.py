@@ -10,7 +10,8 @@ import asyncio # asyncio.sleepのため
 # ロギング設定をシンプルにする
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s:%(levelname)s:%(name)s: %(message)s',
-                    stream=sys.__stdout__)
+                    stream=sys.__stdout__,
+                    encoding='utf-8')
 logging.getLogger('discord').setLevel(logging.INFO) # DiscordログレベルをINFOに設定
 
 # .env ファイルから環境変数をロード
