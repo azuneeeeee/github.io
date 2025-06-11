@@ -1,7 +1,7 @@
 import sys
 import os
 import discord
-from discord.ext import commands, tasks # tasks をインポート
+from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import logging
 import asyncio
@@ -52,17 +52,16 @@ logger.info("デバッグ: 環境変数がロードされました。")
 # === メンテナンスモード時のステータス切り替えループ ===
 @tasks.loop(seconds=10)
 async def maintenance_status_loop():
-    if not bot.is_maintenance_mode:
-        # メンテナンスモードでない場合はループを停止
-        if maintenance_status_loop.is_running():
-            maintenance_status_loop.cancel()
-            logger.info("デバッグ: メンテナンスモードではないため、maintenance_status_loop を停止しました。")
-        return
-
-    # メンテナンスモード時のメッセージ定義
-    maintenance_message = "メンテナンス中... 🛠️"
+    maintenance_message = "メンテナンス中... 🛠️" # ループ内で定義
 
     try:
+        # bot.is_maintenance_mode が True でない場合は、before_loop で処理されるはずだが、
+        # 万が一のためここでもチェックする (ただし、理論上は before_loop で阻止される)
+        if not bot.is_maintenance_mode:
+            logger.warning("警告: maintenance_status_loop がメンテナンスモードではない状態で実行されました。停止します。")
+            maintenance_status_loop.cancel()
+            return
+            
         current_activity_name = bot.guilds[0].me.activity.name if bot.guilds and bot.guilds[0].me.activity else ""
 
         if current_activity_name == bot.original_status_message:
@@ -76,6 +75,20 @@ async def maintenance_status_loop():
     except Exception as e:
         logger.error(f"エラー: メンテナンスステータスループ中にエラーが発生しました: {e}")
         traceback.print_exc(file=sys.__stderr__)
+
+@maintenance_status_loop.before_loop
+async def before_maintenance_status_loop():
+    # ループが開始される直前に実行
+    if not bot.is_maintenance_mode:
+        logger.warning("警告: maintenance_status_loop.before_loop: bot.is_maintenance_mode が False のためループ開始を阻止します。")
+        # ここで例外を発生させることでループの開始を停止できる
+        raise RuntimeError("Maintenance loop attempted to start when not in maintenance mode.")
+    
+    # ループが開始される際に、まず「メンテナンス中」のステータスを設定する
+    maintenance_message = "メンテナンス中... 🛠️"
+    await bot.change_presence(activity=discord.CustomActivity(name=maintenance_message), status=discord.Status.dnd)
+    logger.info(f"デバッグ: maintenance_status_loop.before_loop: 初期ステータスを '{maintenance_message}' に設定しました。")
+    await asyncio.sleep(1) # 変更が反映されるのを少し待つ
 
 
 # === on_ready イベントハンドラ ===
@@ -126,7 +139,7 @@ async def on_ready():
 
         # ボットがコマンドを受け付ける準備ができたことをフラグに設定
         bot.is_bot_ready_for_commands = True
-        logger.info(f"デバッグ: is_bot_ready_for_commands が {bot.is_bot_ready_for_commands} に設定されました。")
+        logger.info(デバッグ: is_bot_ready_for_commands が {bot.is_bot_ready_for_commands} に設定されました。)
 
 
         # カスタムステータスの設定
