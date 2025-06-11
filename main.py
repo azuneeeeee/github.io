@@ -49,12 +49,16 @@ logger.info("デバッグ: 環境変数のロードを試みます。")
 logger.info("デバッグ: 環境変数がロードされました。")
 
 # === メンテナンスモード時のステータス切り替えループ ===
-# before_loop を削除し、ループ内で状態を管理するように変更
 @tasks.loop(seconds=10)
 async def maintenance_status_loop():
     maintenance_message = "メンテナンス中... 🛠️" 
 
     try:
+        # ボットがDiscordに完全に接続されているか確認
+        if not bot.is_ready():
+            logger.warning("警告: maintenance_status_loop: ボットがまだ準備できていないため、ステータス変更をスキップします。")
+            return # ループは続行するが、処理はスキップ
+
         # bot.is_maintenance_mode が True の場合のみステータスを切り替える
         if bot.is_maintenance_mode:
             if not bot.guilds:
@@ -72,19 +76,16 @@ async def maintenance_status_loop():
             logger.debug(f"デバッグ: maintenance_status_loop: メンテナンスモード有効。現在のアクティビティ名: '{current_activity_name}', 比較対象: '{bot.original_status_message}'")
             
             # ここでステータスを切り替える
-            # 現在のステータスが元のメッセージならメンテナンスメッセージに
             if current_activity_name == bot.original_status_message:
                 await bot.change_presence(activity=discord.CustomActivity(name=maintenance_message), status=discord.Status.dnd)
                 logger.info(f"デバッグ: ステータスを '{maintenance_message}' に切り替えました。")
             else:
-                # 現在がメンテナンスメッセージなら元のステータスに
                 await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.dnd)
                 logger.info(f"デバッグ: ステータスを '{bot.original_status_message}' に切り替えました。")
         else:
-            # bot.is_maintenance_mode が False なら、ループは動いているが何もせず、
-            # 次のループで停止するか、管理者コマンドで停止されるのを待つ
+            # bot.is_maintenance_mode が False なら
             logger.debug("デバッグ: maintenance_status_loop: メンテナンスモードが無効なため、ステータス変更をスキップします。")
-            # メンテナンスモードが無効になったら、ステータスを元の状態に戻す（念のため）
+            # メンテナンスモードが無効になったら、ステータスを元の状態に戻す
             await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.online)
             # そしてループを停止させる
             maintenance_status_loop.cancel()
@@ -96,12 +97,6 @@ async def maintenance_status_loop():
     except Exception as e:
         logger.error(f"エラー: メンテナンスステータスループ中に予期せぬエラーが発生しました: {e}")
         traceback.print_exc(file=sys.__stderr__)
-
-# on_ready イベント内で maintenance_status_loop.start() を直接呼び出さない
-# before_loop も削除したため、ここでの処理は不要
-# @maintenance_status_loop.before_loop
-# async def before_maintenance_status_loop():
-#     ... (このブロックは削除)
 
 
 # === on_ready イベントハンドラ ===
@@ -132,7 +127,6 @@ async def on_ready():
         logger.info("デバッグ: スラッシュコマンドの同期を開始します。")
         
         # === 同期前にメンテナンスモードを有効にする（起動時の同期用） ===
-        # on_readyでの一時的なメンテナンスモード有効化は維持
         logger.info("デバッグ: スラッシュコマンド同期のため、一時的にメンテナンスモードを有効にします。")
         bot.is_maintenance_mode = True 
         import commands.admin.admin_commands as admin_module_for_save
