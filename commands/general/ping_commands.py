@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 # commands/admin/admin_commands.py から not_in_maintenance チェックをインポート
 # パスはあなたのプロジェクト構造に合わせてください。
 # ここは同じ general ディレクトリ内ではないため、commands.admin からインポート
-from commands.admin.admin_commands import not_in_maintenance, is_owner
+from commands.admin.admin_commands import not_in_maintenance, is_owner_check
 
 class PingCommands(commands.Cog):
     def __init__(self, bot):
