@@ -53,11 +53,11 @@ class PjskRandomSongCommands(commands.Cog):
                 difficulty_info = "情報なし" # どの難易度情報もない場合
 
             # 曲のサムネイルURLを安全に取得
-            thumbnail_url = random_song.get("thumbnail", None)
+            thumbnail_url = random_song.get("image_url", None)
 
             # Embedの作成
             embed = discord.Embed(
-                title=f"🎧 {random_song.get('name', 'タイトル情報なし')}",
+                title=f"🎧 {random_song.get('title', 'タイトル情報なし')}",
                 color=discord.Color.blue() # プロセカっぽい色 (任意)
             )
 
