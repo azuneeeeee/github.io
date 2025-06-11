@@ -111,9 +111,9 @@ async def on_ready():
             status_message_text = f"{total_songs}曲/{total_charts}譜面が登録済み"
             
             await asyncio.sleep(1)
-            # 起動時は「退席中（idle）」ステータスに設定
-            await bot.change_presence(activity=discord.CustomActivity(name=status_message_text), status=discord.Status.idle)
-            logger.info(f"デバッグ: on_ready: カスタムステータス '{status_message_text}' とステータス '退席中' が設定されました。")
+            # 起動時は「オンライン（online）」ステータスに設定
+            await bot.change_presence(activity=discord.CustomActivity(name=status_message_text), status=discord.Status.online)
+            logger.info(f"デバッグ: on_ready: カスタムステータス '{status_message_text}' とステータス 'オンライン' が設定されました。")
 
         except AttributeError as ae:
             logger.error(f"エラー: data/songs.py から必要なデータ構造 (proseka_songs) を読み込めませんでした: {ae}")
@@ -132,7 +132,7 @@ logger.info("デバッグ: on_readyイベントハンドラが定義されまし
 
 # === プログラムのエントリポイント ===
 if __name__ == '__main__':
-    logger.info("デバッグ: プログラムのエントリポイントに入りました。bot.run()でボットを起動します。")
+    logger.info("デバッグ: プログラムのエントryポイントに入りました。bot.run()でボットを起動します。")
     token = os.getenv('DISCORD_BOT_TOKEN')
     if not token:
         logger.critical("致命的なエラー: 'DISCORD_BOT_TOKEN' 環境変数が設定されていません。終了します。")
