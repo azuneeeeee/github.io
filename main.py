@@ -39,9 +39,10 @@ logger.info("デバッグ: ボットインスタンスが作成されました�
 
 # === ボットにカスタム属性を追加して状態を管理する ===
 # メンテナンスモードの初期状態は、commands/admin/admin_commands.py で読み込まれるファイルから。
-# しかし、bot.is_maintenance_mode はこの時点ではまだファイルから読み込まれないため、初期値は False にしておく。
+# ただし、bot.is_maintenance_mode はこの時点ではまだファイルから読み込まれないため、初期値は False にしておく。
 # on_readyでファイルからロードした値をセットする。
-bot.is_maintenance_mode = False
+# 今回の要件により、起動時はデフォルトでメンテナンスモードではない状態にする
+bot.is_maintenance_mode = False 
 bot.is_bot_ready_for_commands = False
 logger.info(f"デバッグ: ボットのカスタム属性が初期化されました: is_maintenance_mode={bot.is_maintenance_mode}, is_bot_ready_for_commands={bot.is_bot_ready_for_commands}")
 
@@ -64,19 +65,9 @@ async def on_ready():
         # コグをロードする
         logger.info("デバッグ: コグのロードを開始します。")
         try:
-            # commands.admin.admin_commands をロードする
-            # このコグがロードされると、そのモジュールレベルのコードが実行され、
-            # maintenance_status.json から is_maintenance_mode の初期値が読み込まれる
             await bot.load_extension("commands.admin.admin_commands") 
             logger.info("デバッグ: commands.admin.admin_commands がロードされました。")
             
-            # ロード後、admin_module を参照して初期のメンテナンス状態を bot オブジェクトに設定
-            # (これは、admin_commands.py がグローバル変数 _is_maintenance_mode に初期値をロードした後に行う)
-            # ここでadmin_moduleをインポートし、そのモジュールから直接値を読み取る
-            import commands.admin.admin_commands as admin_module
-            bot.is_maintenance_mode = admin_module._is_maintenance_mode # アンダースコア付きのグローバル変数を参照
-            logger.info(f"デバッグ: ボット初期起動時のメンテナンスモード状態を {bot.is_maintenance_mode} に設定しました (ファイルからロード)。")
-
             await bot.load_extension("commands.general.ping_command") 
             logger.info("デバッグ: commands.general.ping_command がロードされました。")
             
@@ -87,10 +78,10 @@ async def on_ready():
         # スラッシュコマンドを同期する
         logger.info("デバッグ: スラッシュコマンドの同期を開始します。")
         
-        # === 同期前にメンテナンスモードを有効にする ===
-        logger.info("デバッグ: スラッシュコマンド同期のため、メンテナンスモードを有効にします。")
-        bot.is_maintenance_mode = True # bot オブジェクトの状態を更新
-        # ファイルにも保存するために、admin_module の save_maintenance_status を使う
+        # === 同期前にメンテナンスモードを有効にする（起動時の同期用） ===
+        logger.info("デバッグ: スラッシュコマンド同期のため、一時的にメンテナンスモードを有効にします。")
+        bot.is_maintenance_mode = True 
+        # save_maintenance_status を使うため、admin_module を参照
         import commands.admin.admin_commands as admin_module_for_save
         admin_module_for_save.save_maintenance_status(True)
 
@@ -101,10 +92,10 @@ async def on_ready():
             logger.error(f"エラー: スラッシュコマンドの同期中にエラーが発生しました: {e}")
             traceback.print_exc(file=sys.__stderr__)
         finally:
-            # === 同期後にメンテナンスモードを無効にする ===
+            # === 同期後にメンテナンスモードを無効にする（起動時の同期完了用） ===
             logger.info("デバッグ: スラッシュコマンド同期完了のため、メンテナンスモードを無効にします。")
-            bot.is_maintenance_mode = False # bot オブジェクトの状態を更新
-            admin_module_for_save.save_maintenance_status(False) # ファイルにも保存
+            bot.is_maintenance_mode = False 
+            admin_module_for_save.save_maintenance_status(False)
 
         # ボットがコマンドを受け付ける準備ができたことをフラグに設定
         bot.is_bot_ready_for_commands = True
