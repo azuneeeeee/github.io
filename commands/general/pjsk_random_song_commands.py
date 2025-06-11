@@ -1,4 +1,4 @@
-# commands/general/pjsk_random_song_commands.py (新規作成ファイル)
+# commands/general/pjsk_random_song_commands.py
 
 import discord
 from discord.ext import commands
@@ -11,10 +11,10 @@ from data import songs # data/songs.py を直接インポート
 logger = logging.getLogger(__name__)
 
 # commands/admin/admin_commands.py から not_in_maintenance チェックをインポート
-# 同じディレクトリ階層なのでパスは変わらずこれでOK
+# 同じディレクトリ階層ではないため、commands.admin からインポート
 from commands.admin.admin_commands import not_in_maintenance, is_owner
 
-class PjskRandomSongCommands(commands.Cog): # クラス名も変更 (PjskRandomSongCommands)
+class PjskRandomSongCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
@@ -25,7 +25,7 @@ class PjskRandomSongCommands(commands.Cog): # クラス名も変更 (PjskRandomS
     @discord.app_commands.command(name="random_song", description="プロセカの登録曲の中からランダムに1曲選曲します。")
     @not_in_maintenance() # メンテナンスモード中は使用不可
     async def random_song(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=False)
+        await interaction.response.defer(ephemeral=False) # コマンド応答が遅れる可能性があるため defer
         logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /random_song コマンドを使用しました。")
 
         try:
@@ -34,8 +34,9 @@ class PjskRandomSongCommands(commands.Cog): # クラス名も変更 (PjskRandomS
                 logger.warning("警告: data/songs.py の proseka_songs リストが空です。")
                 return
 
-            selected_song = random.choice(songs.proseka_songs)
+            selected_song = random.choice(songs.proseka_songs) # リストからランダムに1曲選択
 
+            # 埋め込みメッセージ用に曲情報を整形
             title = selected_song.get("title", "不明な曲名")
             image_url = selected_song.get("image_url") # 画像URLはオプション
 
@@ -73,7 +74,7 @@ class PjskRandomSongCommands(commands.Cog): # クラス名も変更 (PjskRandomS
             logger.info(f"ランダム選曲: '{title}' をユーザー {interaction.user.name} に送信しました。")
 
         except ImportError:
-            logger.error("エラー: data/songs.py が見つからないか、インポートできませんでした。")
+            logger.error("エラー: data/songs.py が見つからないか、インポートできませんでした。", exc_info=True)
             await interaction.followup.send("曲データを読み込めませんでした。ボットの管理者に連絡してください。")
         except Exception as e:
             logger.error(f"エラー: ランダム選曲中に予期せぬエラーが発生しました: {e}", exc_info=True)
