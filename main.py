@@ -106,14 +106,13 @@ async def maintenance_status_loop():
                 (maintenance_message, discord.Status.dnd)          # オプション2: メンテナンスメッセージ + DND
             ]
 
-            # 現在のステータスがどちらかのオプションと一致するか確認
-            is_currently_option1 = (isinstance(current_activity, discord.CustomActivity) and current_activity.name == status_options[0][0] and current_status_raw == status_options[0][1])
-            is_currently_option2 = (isinstance(current_activity, discord.CustomActivity) and current_activity.name == status_options[1][0] and current_status_raw == status_options[1][1])
-
             next_activity_name = ""
             next_status = discord.Status.dnd # メンテナンスモード中は常にDND
 
             # 現在のステータスがオプション1なら、次のループでオプション2へ切り替える
+            is_currently_option1 = (isinstance(current_activity, discord.CustomActivity) and current_activity.name == status_options[0][0] and current_status_raw == status_options[0][1])
+            is_currently_option2 = (isinstance(current_activity, discord.CustomActivity) and current_activity.name == status_options[1][0] and current_status_raw == status_options[1][1])
+
             if is_currently_option1:
                 next_activity_name = status_options[1][0] # メンテナンスメッセージ
                 logger.debug(f"デバッグ: maintenance_status_loop: 現在は元のステータス (DND)。次をメンテナンスメッセージに切り替えます。")
@@ -191,13 +190,14 @@ async def on_ready():
         # スラッシュコマンドを同期する
         logger.info("デバッグ: スラッシュコマンドの同期を開始します。")
 
-        # 同期前にメンテナンスモードを有効にする（起動時の同期用）
-        try:
-            bot.is_maintenance_mode = True
-            config_manager_module.save_maintenance_status(True)
-            logger.info("デバッグ: スラッシュコマンド同期のため、一時的にメンテナンスモードを有効にしました。")
-        except Exception as e:
-            logger.error(f"エラー: 起動時のメンテナンスモード有効化中にエラーが発生しました: {e}", exc_info=True)
+        # ★★★ 変更点: ここからスラッシュコマンド同期時のメンテナンスモード操作を削除 ★★★
+        # try:
+        #     bot.is_maintenance_mode = True
+        #     config_manager_module.save_maintenance_status(True)
+        #     logger.info("デバッグ: スラッシュコマンド同期のため、一時的にメンテナンスモードを有効にしました。")
+        # except Exception as e:
+        #     logger.error(f"エラー: 起動時のメンテナンスモード有効化中にエラーが発生しました: {e}", exc_info=True)
+        # ★★★ 変更点ここまで ★★★
 
 
         try:
@@ -205,14 +205,15 @@ async def on_ready():
             logger.info(f"デバッグ: スラッシュコマンドが {len(synced)} 件同期されました。")
         except Exception as e:
             logger.error(f"エラー: スラッシュコマンドの同期中にエラーが発生しました: {e}", exc_info=True)
-        finally:
-            # 同期後にメンテナンスモードを無効にする（起動時の同期完了用）
-            try:
-                bot.is_maintenance_mode = False
-                config_manager_module.save_maintenance_status(False)
-                logger.info("デバッグ: スラッシュコマンド同期完了のため、メンテナンスモードを無効にしました。")
-            except Exception as e:
-                logger.error(f"エラー: 起動時のメンテナンスモード無効化中にエラーが発生しました: {e}", exc_info=True)
+        # ★★★ 変更点: ここからスラッシュコマンド同期後のメンテナンスモード操作を削除 ★★★
+        # finally:
+        #     try:
+        #         bot.is_maintenance_mode = False
+        #         config_manager_module.save_maintenance_status(False)
+        #         logger.info("デバッグ: スラッシュコマンド同期完了のため、メンテナンスモードを無効にしました。")
+        #     except Exception as e:
+        #         logger.error(f"エラー: 起動時のメンテナンスモード無効化中にエラーが発生しました: {e}", exc_info=True)
+        # ★★★ 変更点ここまで ★★★
 
 
         bot.is_bot_ready_for_commands = True
@@ -235,9 +236,25 @@ async def on_ready():
             bot.original_status_message = status_message_text
             logger.info(f"デバッグ: on_ready: original_status_message を '{bot.original_status_message}' に設定しました。")
 
+            # on_ready イベントで、最初のステータス設定を行う
+            # ここでは config_manager_module.load_maintenance_status() の結果を反映させる
+            # admin_commands コグがロードされた後に bot.is_maintenance_mode が更新されているはずなので、
+            # その状態に基づいて最初のステータスを設定する
+            if bot.is_maintenance_mode:
+                # メンテナンスモードがロードされていれば、最初のステータスはDNDとメンテナンスメッセージにする
+                initial_activity_name = "メンテナンス中... 🛠️"
+                initial_status = discord.Status.dnd
+                logger.info(f"デバッグ: on_ready: 起動時にメンテナンスモードが有効なため、初期ステータスを '{initial_activity_name}' (DND) に設定します。")
+            else:
+                # メンテナンスモードが無効であれば、通常のオンラインステータスにする
+                initial_activity_name = bot.original_status_message
+                initial_status = discord.Status.online
+                logger.info(f"デバッグ: on_ready: 起動時にメンテナンスモードが無効なため、初期ステータスを '{initial_activity_name}' (オンライン) に設定します。")
+            
             await asyncio.sleep(1) # Discord APIへのリクエスト間隔を空ける
-            await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.online)
-            logger.info(f"デバッグ: on_ready: カスタムステータス '{bot.original_status_message}' とステータス 'オンライン' が設定されました。")
+            await bot.change_presence(activity=discord.CustomActivity(name=initial_activity_name), status=initial_status)
+            logger.info(f"デバッグ: on_ready: カスタムステータス '{initial_activity_name}' とステータス '{initial_status.name}' が設定されました。")
+
 
         except AttributeError as ae:
             logger.error(f"エラー: data/songs.py から必要なデータ構造 (proseka_songs) を読み込めませんでした: {ae}", exc_info=True)
