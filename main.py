@@ -44,7 +44,6 @@ except ImportError:
 load_dotenv() # .env ファイルから環境変数をロード
 logger.info("デバッグ: 環境変数のロードを試みます。")
 
-# --- ★ここから修正・追加★ ---
 # OWNER_ID を環境変数から取得し、ボットの初期化時に渡す
 # bot.owner_id はこの値で設定される
 OWNER_ID = os.getenv('DISCORD_OWNER_ID')
@@ -58,7 +57,6 @@ if OWNER_ID:
 else:
     logger.critical("致命的なエラー: DISCORD_OWNER_ID 環境変数が設定されていません。ボットは起動できません。")
     sys.exit(1)
-# --- ★ここまで修正・追加★ ---
 
 
 # ボットインスタンスの作成
@@ -66,7 +64,7 @@ intents = discord.Intents.all()
 logger.info("デバッグ: インテントが設定されました (discord.Intents.all())。")
 
 # botを初期化する際に owner_id を明示的に渡す
-bot = commands.Bot(command_prefix='!', intents=intents, owner_id=OWNER_ID) # ★ここを修正★
+bot = commands.Bot(command_prefix='!', intents=intents, owner_id=OWNER_ID)
 logger.info("デバッグ: ボットインスタンスが作成されました。")
 
 # === ボットにカスタム属性を追加して状態を管理する ===
@@ -277,7 +275,7 @@ logger.info("デバッグ: on_readyイベントハンドラが定義されまし
 
 # === プログラムのエントリポイント ===
 if __name__ == '__main__':
-    logger.info("デバッグ: プログラムのエントリポイントに入りました。bot.run()でボットを起動します。")
+    logger.info("デバッグ: プログラムのエントriポイントに入りました。bot.run()でボットを起動します。")
     token = os.getenv('DISCORD_BOT_TOKEN')
     if not token:
         logger.critical("致命的なエラー: 'DISCORD_BOT_TOKEN' 環境変数が設定されていません。終了します。")
@@ -285,4 +283,10 @@ if __name__ == '__main__':
 
     try:
         bot.run(token)
-        logger.info("デバッグ: bot.run() が戻りました。これはボットが切断または停止したことを意味します。")
+        logger.info("デバッグ: bot.run() が戻りました。これはボットが切断または停止したことを意味します。") # ★ここを修正しました★
+    except discord.LoginFailure:
+        logger.critical("致命的なエラー: トークン認証に失敗しました。DISCORD_BOT_TOKEN を確認してください。")
+        sys.exit(1)
+    except Exception as e:
+        logger.critical(f"致命的なエラー: asyncio.run()中に重大なエラーが発生しました: {e}", exc_info=True)
+    logger.info("デバッグ: プログラムの実行が終了しました。")
