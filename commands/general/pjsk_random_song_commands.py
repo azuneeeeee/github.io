@@ -21,18 +21,23 @@ class PjskRandomSongCommands(commands.Cog):
         self.bot = bot
         logger.info("PjskRandomSongCommandsコグが初期化されています。")
 
+    # 利用可能な難易度タイプを定義 (小文字で内部処理、大文字で表示)
+    ALL_DIFFICULTY_TYPES = ["easy", "normal", "hard", "expert", "master", "append"]
+    DISPLAY_DIFFICULTY_TYPES = {
+        "easy": "EASY",
+        "normal": "NORMAL",
+        "hard": "HARD",
+        "expert": "EXPERT",
+        "master": "MASTER",
+        "append": "APPEND"
+    }
+    
     # コマンド名を 'pjsk_random_song' に変更し、新しいオプションを追加
     @discord.app_commands.command(name="pjsk_random_song", description="プロセカのランダムな曲を提示します。")
     @discord.app_commands.describe(
         min_level="最小レベル (1-37)",
         max_level="最大レベル (1-37)",
-        # 各難易度タイプをブーリアンオプションとして追加
-        easy="EASY譜面を含めるか",
-        normal="NORMAL譜面を含めるか",
-        hard="HARD譜面を含めるか",
-        expert="EXPERT譜面を含めるか",
-        master="MASTER譜面を含めるか",
-        append="APPEND譜面を含めるか"
+        difficulties="選曲する難易度タイプ (カンマ区切りで複数指定可例: MASTER,EXPERT)"
     )
     @not_in_maintenance() # メンテナンスモード中は利用不可
     async def pjsk_random_song(
@@ -40,13 +45,7 @@ class PjskRandomSongCommands(commands.Cog):
         interaction: discord.Interaction,
         min_level: discord.app_commands.Range[int, 1, 37] = None, # 最小レベル
         max_level: discord.app_commands.Range[int, 1, 37] = None, # 最大レベル
-        # 各難易度タイプをブーリアン引数として受け取る
-        easy: bool = False,
-        normal: bool = False,
-        hard: bool = False,
-        expert: bool = False,
-        master: bool = False,
-        append: bool = False
+        difficulties: str = None # カンマ区切りの文字列として受け取る
     ):
         await interaction.response.defer() # 処理に時間がかかる可能性があるため、deferで応答を保留
 
@@ -58,20 +57,30 @@ class PjskRandomSongCommands(commands.Cog):
         try:
             available_songs = []
             
-            # 選択された難易度タイプをリストに変換 (Trueが指定されたもののみ)
+            # 選択された難易度タイプをパース
             selected_difficulty_types = []
-            if easy: selected_difficulty_types.append("easy")
-            if normal: selected_difficulty_types.append("normal")
-            if hard: selected_difficulty_types.append("hard")
-            if expert: selected_difficulty_types.append("expert")
-            if master: selected_difficulty_types.append("master")
-            if append: selected_difficulty_types.append("append")
+            if difficulties:
+                # カンマ区切りで分割し、空白を除去、小文字に変換
+                raw_difficulties = [d.strip().lower() for d in difficulties.split(',') if d.strip()]
+                
+                # 有効な難易度タイプのみをフィルタリング
+                selected_difficulty_types = [
+                    d for d in raw_difficulties if d in self.ALL_DIFFICULTY_TYPES
+                ]
+                
+                # もし不正な難易度タイプが指定された場合は警告
+                if len(raw_difficulties) != len(selected_difficulty_types):
+                    invalid_types = set(raw_difficulties) - set(selected_difficulty_types)
+                    await interaction.followup.send(
+                        f"警告: 不正な難易度タイプが指定されました: {', '.join(invalid_types)}。無視して処理を続行します。",
+                        ephemeral=True
+                    )
             
-            # どの難易度タイプも選択されていない場合は、全ての難易度タイプを対象とする
+            # どの難易度タイプも選択されていない（または不正な値のみだった）場合は、全ての難易度タイプを対象とする
             if not selected_difficulty_types:
-                selected_difficulty_types = ["easy", "normal", "hard", "expert", "master", "append"]
+                selected_difficulty_types = self.ALL_DIFFICULTY_TYPES
             
-            logger.debug(f"デバッグ: 選択された難易度タイプ: {selected_difficulty_types}")
+            logger.debug(f"デバッグ: 選択された難易度タイプ (処理用): {selected_difficulty_types}")
             logger.debug(f"デバッグ: min_level={min_level}, max_level={max_level}")
 
             # フィルタリングロジック
@@ -138,7 +147,8 @@ class PjskRandomSongCommands(commands.Cog):
 
             if display_difficulty_type:
                 # 難易度表記を全て大文字にする
-                difficulty_info = f"{display_difficulty_type.upper()}: {random_song[display_difficulty_type]}"
+                # ALL_DIFFICULTY_TYPESではなくDISPLAY_DIFFICULTY_TYPESから大文字名を取得
+                difficulty_info = f"{self.DISPLAY_DIFFICULTY_TYPES.get(display_difficulty_type, display_difficulty_type.upper())}: {random_song[display_difficulty_type]}"
             
             logger.debug(f"デバッグ: 最終的に表示する難易度情報: {difficulty_info}")
 
@@ -170,6 +180,28 @@ class PjskRandomSongCommands(commands.Cog):
             await interaction.followup.send(f"曲の選曲中にエラーが発生しました: {e}", ephemeral=True)
             logger.error(f"エラー: /pjsk_random_song コマンドの実行中に予期せぬエラーが発生しました: {e}", exc_info=True)
 
+    # Autocompleteの実装
+    @pjsk_random_song.autocomplete('difficulties')
+    async def difficulties_autocomplete(self, interaction: discord.Interaction, current: str):
+        """難易度タイプの入力補完を提供します。"""
+        # 既にユーザーが入力しているカンマ区切りの文字列をパース
+        entered_parts = [p.strip().lower() for p in current.split(',') if p.strip()]
+        
+        # 最後の部分が補完の対象
+        last_part = entered_parts[-1] if entered_parts else ""
+
+        # まだ選択されていない、かつ現在の入力と一致する難易度を候補として返す
+        options = []
+        for diff_type in self.ALL_DIFFICULTY_TYPES:
+            if diff_type not in entered_parts[:-1] and diff_type.startswith(last_part):
+                # ユーザーへの表示は大文字にする
+                options.append(self.DISPLAY_DIFFICULTY_TYPES[diff_type])
+        
+        # 最大25件の候補を返す
+        return [
+            discord.app_commands.Choice(name=opt, value=opt)
+            for opt in options[:25]
+        ]
 
     async def cog_load(self):
         logger.info("PjskRandomSongCommandsコグがロードされました。")
