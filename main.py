@@ -7,6 +7,10 @@ import logging
 import asyncio
 import traceback
 
+# === 新しいインポート ===
+import utils.config_manager as config_manager_module # ここを変更
+# ========================
+
 # ロガーの取得
 logger = logging.getLogger(__name__)
 
@@ -38,7 +42,6 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 logger.info("デバッグ: ボットインスタンスが作成されました。")
 
 # === ボットにカスタム属性を追加して状態を管理する ===
-# 初期化の時点ではFalseにしておく
 bot.is_maintenance_mode = False 
 bot.is_bot_ready_for_commands = False
 bot.original_status_message = ""
@@ -49,16 +52,10 @@ load_dotenv()
 logger.info("デバッグ: 環境変数のロードを試みます。")
 logger.info("デバッグ: 環境変数がロードされました。")
 
-# --- 追加する部分 ---
-# commands.admin.admin_commands をインポートして、メンテナンス状態をロード
-try:
-    import commands.admin.admin_commands as admin_commands_module
-    # ロードしたメンテナンス状態を bot.is_maintenance_mode に設定
-    bot.is_maintenance_mode = admin_commands_module.load_maintenance_status()
-    logger.info(f"デバッグ: 起動時に maintenance_status.json からメンテナンスモード状態をロードしました: {bot.is_maintenance_mode}")
-except ImportError:
-    logger.critical("致命的なエラー: commands/admin/admin_commands.py が見つからないか、インポートできませんでした。")
-    sys.exit(1)
+# --- 変更する部分 ---
+# commands.admin.admin_commands をインポートする代わりに config_manager を使う
+bot.is_maintenance_mode = config_manager_module.load_maintenance_status() # ここを変更
+logger.info(f"デバッグ: 起動時に maintenance_status.json からメンテナンスモード状態をロードしました: {bot.is_maintenance_mode}")
 # -------------------
 
 # === メンテナンスモード時のステータス切り替えループ ===
@@ -142,14 +139,7 @@ async def on_ready():
         # スラッシュコマンドを同期する
         logger.info("デバッグ: スラッシュコマンドの同期を開始します。")
 
-        # === 同期前にメンテナンスモードを有効にする（起動時の同期用） ===
-        # ただし、今回は起動時のロードを優先するため、この部分は一時的に無効化
-        # 起動時にメンテナンスモードだった場合、再度上書きしないようにする
-        # logger.info("デバッグ: スラッシュコマンド同期のため、一時的にメンテナンスモードを有効にします。")
-        # bot.is_maintenance_mode = True # この時点でTrueに設定
-        # import commands.admin.admin_commands as admin_module_for_save
-        # admin_module_for_save.save_maintenance_status(True)
-
+        # === 同期時のメンテナンスモード一時有効化ロジックは引き続き削除したまま ===
         try:
             synced = await bot.tree.sync()
             logger.info(f"デバッグ: スラッシュコマンドが {len(synced)} 件同期されました。")
@@ -157,11 +147,6 @@ async def on_ready():
             logger.error(f"エラー: スラッシュコマンドの同期中にエラーが発生しました: {e}")
             traceback.print_exc(file=sys.__stderr__)
         finally:
-            # === 同期後にメンテナンスモードを無効にする（起動時の同期完了用） ===
-            # ここも起動時のロードを優先するため、一時的に無効化
-            # logger.info("デバッグ: スラッシュコマンド同期完了のため、メンテナンスモードを無効にします。")
-            # bot.is_maintenance_mode = False # この時点でFalseに戻す
-            # admin_module_for_save.save_maintenance_status(False)
             pass # 何もしない
 
         bot.is_bot_ready_for_commands = True
@@ -184,7 +169,6 @@ async def on_ready():
             logger.info(f"デバッグ: on_ready: original_status_message を '{bot.original_status_message}' に設定しました。")
 
             # 起動時の初期ステータスを設定。もしメンテナンスモードであれば、ループがそれを処理する
-            # そうでなければ通常のオンラインステータス
             if not bot.is_maintenance_mode: # 起動時にメンテナンスモードでなければ、オンラインに設定
                 await asyncio.sleep(1)
                 await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.online)
