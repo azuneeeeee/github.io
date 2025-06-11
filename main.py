@@ -54,6 +54,7 @@ async def maintenance_status_loop():
     maintenance_message = "メンテナンス中... 🛠️" 
 
     try:
+        # このフォールバックチェックは通常 before_loop で処理されるが、念のため残す
         if not bot.is_maintenance_mode:
             logger.warning("警告: maintenance_status_loop がメンテナンスモードではない状態で実行されました。(フォールバック) 停止します。")
             maintenance_status_loop.cancel()
@@ -69,9 +70,11 @@ async def maintenance_status_loop():
             return
 
         current_activity = me_member.activity
+        # CustomActivity型でない場合も考慮し、name属性アクセスを安全に
         current_activity_name = current_activity.name if current_activity and isinstance(current_activity, discord.CustomActivity) else ""
 
         logger.debug(f"デバッグ: maintenance_status_loop: 現在のアクティビティ名: '{current_activity_name}', 比較対象: '{bot.original_status_message}'")
+        logger.debug(f"デバッグ: maintenance_status_loop: bot.is_maintenance_mode: {bot.is_maintenance_mode}") # 現在の状態をログに出力
 
         if current_activity_name == bot.original_status_message:
             await bot.change_presence(activity=discord.CustomActivity(name=maintenance_message), status=discord.Status.dnd)
@@ -89,8 +92,9 @@ async def maintenance_status_loop():
 @maintenance_status_loop.before_loop
 async def before_maintenance_status_loop():
     logger.info("デバッグ: maintenance_status_loop.before_loop が実行されました。")
-    # 最大待機時間を少し長くする
-    max_wait_time = 10 # <-- 5秒から10秒に延長
+    # 最大待機時間をさらに長くする (例: 30秒)
+    # これでもうまくいかない場合は、何らかの根本的な問題（複数プロセス起動など）を疑う
+    max_wait_time = 30 # <-- 10秒から30秒に延長
     interval = 0.1 
     waited_time = 0
 
@@ -101,7 +105,6 @@ async def before_maintenance_status_loop():
     
     if not bot.is_maintenance_mode:
         logger.critical(f"致命的なエラー: maintenance_status_loop.before_loop: {max_wait_time}秒待ってもメンテナンスモードが有効になりませんでした。ループ開始を阻止します。")
-        # ログメッセージが途切れないように、完全なメッセージを渡す
         raise RuntimeError(f"Maintenance loop attempted to start when not in maintenance mode (timeout after {max_wait_time}s).")
     
     maintenance_message = "メンテナンス中... 🛠️"
@@ -139,12 +142,14 @@ async def on_ready():
         
         # === 同期前にメンテナンスモードを有効にする（起動時の同期用） ===
         logger.info("デバッグ: スラッシュコマンド同期のため、一時的にメンテナンスモードを有効にします。")
+        # bot.is_maintenance_mode を一時的に True に設定
         bot.is_maintenance_mode = True 
+        # save_maintenance_status を使うため、admin_module を参照
         import commands.admin.admin_commands as admin_module_for_save
-        admin_module_for_save.save_maintenance_status(True)
+        admin_module_for_save.save_maintenance_status(True) # ファイルにも保存
 
         try:
-            synced = await bot.tree.sync() 
+            synced = await bot.tree.sync() # 全ての登録済みスラッシュコマンドを同期
             logger.info(f"デバッグ: スラッシュコマンドが {len(synced)} 件同期されました。")
         except Exception as e:
             logger.error(f"エラー: スラッシュコマンドの同期中にエラーが発生しました: {e}")
@@ -152,8 +157,9 @@ async def on_ready():
         finally:
             # === 同期後にメンテナンスモードを無効にする（起動時の同期完了用） ===
             logger.info("デバッグ: スラッシュコマンド同期完了のため、メンテナンスモードを無効にします。")
+            # bot.is_maintenance_mode を False に戻す
             bot.is_maintenance_mode = False 
-            admin_module_for_save.save_maintenance_status(False)
+            admin_module_for_save.save_maintenance_status(False) # ファイルにも保存
 
         bot.is_bot_ready_for_commands = True
         logger.info(f"デバッグ: is_bot_ready_for_commands が {bot.is_bot_ready_for_commands} に設定されました。")
