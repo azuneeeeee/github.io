@@ -1,7 +1,7 @@
 import sys
 import os
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks # tasks をインポート
 from dotenv import load_dotenv
 import logging
 import asyncio
@@ -40,12 +40,43 @@ logger.info("デバッグ: ボットインスタンスが作成されました�
 # === ボットにカスタム属性を追加して状態を管理する ===
 bot.is_maintenance_mode = False
 bot.is_bot_ready_for_commands = False
-logger.info(f"デバッグ: ボットのカスタム属性が初期化されました: is_maintenance_mode={bot.is_maintenance_mode}, is_bot_ready_for_commands={bot.is_bot_ready_for_commands}")
+# カスタムステータスのメッセージを保持する属性を追加
+bot.original_status_message = "" 
+logger.info(f"デバッグ: ボットのカスタム属性が初期化されました: is_maintenance_mode={bot.is_maintenance_mode}, is_bot_ready_for_commands={bot.is_bot_ready_for_commands}, original_status_message='{bot.original_status_message}'")
 
 
 load_dotenv()
 logger.info("デバッグ: 環境変数のロードを試みます。")
 logger.info("デバッグ: 環境変数がロードされました。")
+
+# === メンテナンスモード時のステータス切り替えループ ===
+@tasks.loop(seconds=10)
+async def maintenance_status_loop():
+    if not bot.is_maintenance_mode:
+        # メンテナンスモードでない場合はループを停止
+        if maintenance_status_loop.is_running():
+            maintenance_status_loop.cancel()
+            logger.info("デバッグ: メンテナンスモードではないため、maintenance_status_loop を停止しました。")
+        return
+
+    # メンテナンスモード時のメッセージ定義
+    maintenance_message = "メンテナンス中... 🛠️"
+
+    try:
+        current_activity_name = bot.guilds[0].me.activity.name if bot.guilds and bot.guilds[0].me.activity else ""
+
+        if current_activity_name == bot.original_status_message:
+            # 現在が元のステータスなら、メンテナンスメッセージに切り替える
+            await bot.change_presence(activity=discord.CustomActivity(name=maintenance_message), status=discord.Status.dnd)
+            logger.debug(f"デバッグ: ステータスを '{maintenance_message}' に切り替えました。")
+        else:
+            # 現在がメンテナンスメッセージなら、元のステータスに切り替える
+            await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.dnd)
+            logger.debug(f"デバッグ: ステータスを '{bot.original_status_message}' に切り替えました。")
+    except Exception as e:
+        logger.error(f"エラー: メンテナンスステータスループ中にエラーが発生しました: {e}")
+        traceback.print_exc(file=sys.__stderr__)
+
 
 # === on_ready イベントハンドラ ===
 @bot.event
@@ -110,10 +141,13 @@ async def on_ready():
 
             status_message_text = f"{total_songs}曲/{total_charts}譜面が登録済み"
             
+            # bot オブジェクトに元のカスタムステータスを保存
+            bot.original_status_message = status_message_text
+
             await asyncio.sleep(1)
             # 起動時は「オンライン（online）」ステータスに設定
-            await bot.change_presence(activity=discord.CustomActivity(name=status_message_text), status=discord.Status.online)
-            logger.info(f"デバッグ: on_ready: カスタムステータス '{status_message_text}' とステータス 'オンライン' が設定されました。")
+            await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.online)
+            logger.info(f"デバッグ: on_ready: カスタムステータス '{bot.original_status_message}' とステータス 'オンライン' が設定されました。")
 
         except AttributeError as ae:
             logger.error(f"エラー: data/songs.py から必要なデータ構造 (proseka_songs) を読み込めませんでした: {ae}")
@@ -132,7 +166,7 @@ logger.info("デバッグ: on_readyイベントハンドラが定義されまし
 
 # === プログラムのエントリポイント ===
 if __name__ == '__main__':
-    logger.info("デバッグ: プログラムのエントryポイントに入りました。bot.run()でボットを起動します。")
+    logger.info("デバッグ: プログラムのエントリポイントに入りました。bot.run()でボットを起動します。")
     token = os.getenv('DISCORD_BOT_TOKEN')
     if not token:
         logger.critical("致命的なエラー: 'DISCORD_BOT_TOKEN' 環境変数が設定されていません。終了します。")
