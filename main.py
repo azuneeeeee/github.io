@@ -81,9 +81,10 @@ async def maintenance_status_loop():
             return
 
         # ギルド情報の取得とログ追加
+        # ボットが参加しているギルドがない場合、me_memberは取得できないので return
         if not bot.guilds:
             logger.warning("警告: maintenance_status_loop: ボットが参加しているギルドが見つかりません。ステータスを変更できません。")
-            return # ギルドがないとme_memberも取得できないのでここで終了
+            return
 
         me_member = bot.guilds[0].me
         if not me_member:
@@ -99,32 +100,44 @@ async def maintenance_status_loop():
         if bot.is_maintenance_mode:
             logger.debug("デバッグ: maintenance_status_loop: メンテナンスモードが有効です。ステータス変更を試みます。")
             
-            # 目的のステータスと現在のステータスを比較
-            target_activity_name = maintenance_message
-            target_status = discord.Status.dnd
+            # メンテナンスモード時に切り替わる2つのステータスオプション
+            status_options = [
+                (bot.original_status_message, discord.Status.dnd), # オプション1: 元のカスタムステータス + DND
+                (maintenance_message, discord.Status.dnd)          # オプション2: メンテナンスメッセージ + DND
+            ]
 
-            should_change_status = False
-            if current_status_raw != target_status:
-                logger.debug(f"デバッグ: maintenance_status_loop: ステータスが異なる ({current_status_raw.name} != {target_status.name})")
-                should_change_status = True
-            
-            if not (isinstance(current_activity, discord.CustomActivity) and current_activity.name == target_activity_name):
-                logger.debug(f"デバッグ: maintenance_status_loop: アクティビティが異なる ('{current_activity_name}' != '{target_activity_name}')")
-                should_change_status = True
+            # 現在のステータスがどちらかのオプションと一致するか確認
+            is_currently_option1 = (isinstance(current_activity, discord.CustomActivity) and current_activity.name == status_options[0][0] and current_status_raw == status_options[0][1])
+            is_currently_option2 = (isinstance(current_activity, discord.CustomActivity) and current_activity.name == status_options[1][0] and current_status_raw == status_options[1][1])
 
-            if should_change_status:
-                await bot.change_presence(activity=discord.CustomActivity(name=target_activity_name), status=target_status)
-                logger.info(f"デバッグ: ステータスを '{target_activity_name}' (DND) に切り替えました。")
+            next_activity_name = ""
+            next_status = discord.Status.dnd # メンテナンスモード中は常にDND
+
+            # 現在のステータスがオプション1なら、次のループでオプション2へ切り替える
+            if is_currently_option1:
+                next_activity_name = status_options[1][0] # メンテナンスメッセージ
+                logger.debug(f"デバッグ: maintenance_status_loop: 現在は元のステータス (DND)。次をメンテナンスメッセージに切り替えます。")
+            # 現在のステータスがオプション2なら、次のループでオプション1へ切り替える
+            elif is_currently_option2:
+                next_activity_name = status_options[0][0] # 元のカスタムステータス
+                logger.debug(f"デバッグ: maintenance_status_loop: 現在はメンテナンスメッセージ (DND)。次を元のステータスに切り替えます。")
+            # どちらでもない場合（初回の切り替えなど）、オプション1へ切り替える
             else:
-                logger.debug("デバッグ: maintenance_status_loop: すでにメンテナンスステータスに設定済みです。")
+                next_activity_name = status_options[0][0] # 元のカスタムステータス
+                logger.debug(f"デバッグ: maintenance_status_loop: 初回または不正な状態。元のステータス (DND) に切り替えます。")
+            
+            # change_presence は常に実行し、10秒ごとに必ず切り替わるようにする
+            await bot.change_presence(activity=discord.CustomActivity(name=next_activity_name), status=next_status)
+            logger.info(f"デバッグ: メンテナンスモード中のステータスを '{next_activity_name}' ({next_status.name}) に切り替えました。")
 
-        else: # bot.is_maintenance_mode が False の場合
+        else: # bot.is_maintenance_mode が False (メンテナンスモード無効) の場合
             logger.debug("デバッグ: maintenance_status_loop: メンテナンスモードが無効です。ステータスをオンラインに戻します。")
             
-            # 目的のステータスと現在のステータスを比較
+            # 目的のステータス
             target_activity_name = bot.original_status_message
             target_status = discord.Status.online
 
+            # 現在のステータスが目的のステータスと異なる場合にのみ変更する
             should_change_status = False
             if current_status_raw != target_status:
                 logger.debug(f"デバッグ: maintenance_status_loop: ステータスが異なる ({current_status_raw.name} != {target_status.name})")
@@ -206,7 +219,7 @@ async def on_ready():
         logger.info(f"デバッグ: is_bot_ready_for_commands が {bot.is_bot_ready_for_commands} に設定されました。")
 
 
-        # カスタムステータスの設定
+        # カスタムステータスの設定 (初回起動時のみ実行)
         logger.info("デバッグ: カスタムステータスの設定を開始します。")
         try:
             total_songs = len(songs.proseka_songs)
@@ -222,7 +235,7 @@ async def on_ready():
             bot.original_status_message = status_message_text
             logger.info(f"デバッグ: on_ready: original_status_message を '{bot.original_status_message}' に設定しました。")
 
-            await asyncio.sleep(1)
+            await asyncio.sleep(1) # Discord APIへのリクエスト間隔を空ける
             await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.online)
             logger.info(f"デバッグ: on_ready: カスタムステータス '{bot.original_status_message}' とステータス 'オンライン' が設定されました。")
 
