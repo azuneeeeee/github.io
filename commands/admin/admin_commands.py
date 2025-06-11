@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import logging
 import sys
 import json
-import asyncio # <-- 追加
+import asyncio 
 
 # main モジュールをインポートして、bot オブジェクトと maintenance_status_loop にアクセスできるようにする
 import main 
@@ -117,9 +117,12 @@ class AdminCommands(commands.Cog):
             save_maintenance_status(True) # ファイルにも保存
             logger.info(f"デバッグ: /status_toggle によりメンテナンスモードが有効になりました。")
             
-            # ステータス変更が反映されるのを少し待つ
-            await asyncio.sleep(0.5) # <-- 追加
+            # Discord APIへの反映を少し待つ（これは主にステータス表示の変更に影響）
+            await asyncio.sleep(0.5) 
             
+            # ループ開始前にさらに短い間隔で待つことで、before_loopがフラグ変更を認識する可能性を高める
+            await asyncio.sleep(0.1) # <-- ここに追加
+
             # メンテナンスステータスループを開始
             # before_loop でのチェックがあるため、bot.is_maintenance_mode が確実にTrueになってからstart()を呼び出す
             if not main.maintenance_status_loop.is_running():
@@ -154,7 +157,7 @@ class AdminCommands(commands.Cog):
         # ステータス変更とメッセージ送信（オンラインへの切り替え時以外）
         # ここでは、メンテナンスモード中に切り替わる場合にのみ実行される
         # maintenance_status_loop.before_loop が最初にDNDステータスを設定するため、
-        # ここでは activity の変更は不要だが、念のため status の変更は残す
+        # ここでは activity の変更は不要だが、status の変更は残す
         await self.bot.change_presence(status=new_status) # activity はループに任せる
         await interaction.followup.send(f"ボットのステータスを **{status_message}** に変更しました。\nメンテナンスモードは**{'有効' if self.bot.is_maintenance_mode else '無効'}**になりました。", ephemeral=True)
         logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。ステータス: {status_message}, メンテモード: {'有効' if self.bot.is_maintenance_mode else '無効'}")
