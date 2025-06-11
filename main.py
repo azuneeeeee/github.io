@@ -41,8 +41,11 @@ logger.info("デバッグ: ボットインスタンスが作成されました�
 bot.is_maintenance_mode = False
 bot.is_bot_ready_for_commands = False
 bot.original_status_message = ""
-# bot.maintenance_loop_started_once = False # このフラグは不要になります
-logger.info(f"デバッグ: ボットのカスタム属性が初期化されました: is_maintenance_mode={bot.is_maintenance_mode}, is_bot_ready_for_commands={bot.is_bot_ready_for_commands}, original_status_message='{bot.original_status_message}'")
+# === 新しく追加するフラグ ===
+# maintenance_status_loop がステータス変更を実行しても安全な状態かを示す
+bot.maintenance_loop_ready_check_passed = False
+# ========================
+logger.info(f"デバッグ: ボットのカスタム属性が初期化されました: is_maintenance_mode={bot.is_maintenance_mode}, is_bot_ready_for_commands={bot.is_bot_ready_for_commands}, original_status_message='{bot.original_status_message}', maintenance_loop_ready_check_passed={bot.maintenance_loop_ready_check_passed}")
 
 
 load_dotenv()
@@ -56,10 +59,19 @@ async def maintenance_status_loop():
 
     try:
         # ボットがDiscordに完全に接続されているか確認
-        # ここで await bot.wait_until_ready() は削除
         if not bot.is_ready():
             logger.warning("警告: maintenance_status_loop: ボットがまだ準備できていないため、ステータス変更をスキップします。")
+            bot.maintenance_loop_ready_check_passed = False # ready でなければフラグをリセット
             return # ループは続行するが、処理はスキップ
+
+        # === 最も重要な変更点 ===
+        # bot.is_ready() が True でも、まだこのループでのステータス変更が安全でない場合
+        if not bot.maintenance_loop_ready_check_passed:
+            logger.info("デバッグ: maintenance_status_loop: ボットが ready ですが、ステータス変更実行の準備が完了していません。次サイクルで確認します。")
+            # 次のサイクルで再度確認できるようにフラグを True にする
+            # これにより、最低1回は ready 状態であることを確認してから実際に処理に入る
+            bot.maintenance_loop_ready_check_passed = True
+            return # このサイクルはスキップ
 
         # bot.is_maintenance_mode が True の場合のみステータスを切り替える
         if bot.is_maintenance_mode:
@@ -98,9 +110,9 @@ async def maintenance_status_loop():
             await asyncio.sleep(1) # ステータス変更が反映されるのを少し待つ
             maintenance_status_loop.cancel()
             logger.info("デバッグ: maintenance_status_loop をメンテナンスモード無効のため停止しました。")
-            # 初回実行フラグのリセットも不要になります
-            # bot.maintenance_loop_started_once = False
-            # logger.info("デバッグ: maintenance_status_loop を停止し、初回実行フラグをリセットしました。")
+            # ループ停止時にフラグをリセット
+            bot.maintenance_loop_ready_check_passed = False
+            logger.info("デバッグ: maintenance_status_loop を停止し、準備完了チェックフラグをリセットしました。")
 
 
     except discord.HTTPException as http_e:
@@ -179,6 +191,7 @@ async def on_ready():
             logger.info(f"デバッグ: on_ready: カスタムステータス '{bot.original_status_message}' とステータス 'オンライン' が設定されました。")
 
         except AttributeError as ae:
+        # ... (中略、変更なし) ...
             logger.error(f"エラー: data/songs.py から必要なデータ構造 (proseka_songs) を読み込めませんでした: {ae}")
             traceback.print_exc(file=sys.__stderr__)
         except Exception as status_e:
