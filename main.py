@@ -41,11 +41,8 @@ logger.info("デバッグ: ボットインスタンスが作成されました�
 bot.is_maintenance_mode = False
 bot.is_bot_ready_for_commands = False
 bot.original_status_message = ""
-# === 新しく追加するフラグ ===
-# maintenance_status_loop が一度でも安全に実行されたかを示すフラグ
-bot.maintenance_loop_has_run_safely = False 
-# ========================
-logger.info(f"デバッグ: ボットのカスタム属性が初期化されました: is_maintenance_mode={bot.is_maintenance_mode}, is_bot_ready_for_commands={bot.is_bot_ready_for_commands}, original_status_message='{bot.original_status_message}', maintenance_loop_has_run_safely={bot.maintenance_loop_has_run_safely}")
+# bot.maintenance_loop_has_run_safely は削除
+logger.info(f"デバッグ: ボットのカスタム属性が初期化されました: is_maintenance_mode={bot.is_maintenance_mode}, is_bot_ready_for_commands={bot.is_bot_ready_for_commands}, original_status_message='{bot.original_status_message}'")
 
 
 load_dotenv()
@@ -58,26 +55,12 @@ async def maintenance_status_loop():
     maintenance_message = "メンテナンス中... 🛠️"
 
     try:
-        # === 最も重要な変更点 ===
-        # ループがまだ一度も安全に実行されていない場合
-        if not bot.maintenance_loop_has_run_safely:
-            # ここで bot.is_ready() を再度確認し、もし ready でなければ待機する
-            # これは、タスクループが開始された直後の不安定な期間に対応するためのもの
-            if not bot.is_ready():
-                logger.info("デバッグ: maintenance_status_loop: 初回実行時、ボットが ready でないため待機します。")
-                # ここで待機することで、Client not initialized エラーを回避できることを期待
-                await bot.wait_until_ready()
-                logger.info("デバッグ: maintenance_status_loop: ボットが ready になりました。")
-            bot.maintenance_loop_has_run_safely = True # 安全な初回実行をマーク
-            logger.info("デバッグ: maintenance_status_loop: 初回安全チェックを完了しました。")
-            # 初回実行後も念のためすぐにステータス変更処理に移らず、次のサイクルに委ねる
-            return 
-        # ========================
-
-        # ボットがDiscordに完全に接続されているか確認
+        # === 変更点 ===
+        # bot.wait_until_ready() と関連ロジックを削除し、is_ready() のみでスキップ
         if not bot.is_ready():
-            logger.warning("警告: maintenance_status_loop: ボットがまだ準備できていないため、ステータス変更をスキップします。")
+            logger.info("デバッグ: maintenance_status_loop: ボットがまだ準備できていないため、ステータス変更をスキップします。")
             return # ループは続行するが、処理はスキップ
+        # ========================
 
         # bot.is_maintenance_mode が True の場合のみステータスを切り替える
         if bot.is_maintenance_mode:
@@ -93,13 +76,13 @@ async def maintenance_status_loop():
             current_activity = me_member.activity
             current_activity_name = current_activity.name if current_activity and isinstance(current_activity, discord.CustomActivity) else ""
 
-            logger.debug(f"デバッグ: maintenance_status_loop: メンテナンスモード有効。現在のアクティビティ名: '{current_activity_name}', 比較対象: '{bot.original_status_message}'")
-
+            logger.debug(f"デバッグ: maintenance_status_loop: メンテナンスモード有効。現在のアクティビティ名: '{current_activity_name}', 比較対象: '{current_activity_name}'") # 比較対象を修正
+            
             # ここでステータスを切り替える
-            if current_activity_name == bot.original_status_message:
+            if current_activity_name != maintenance_message: # 現在のステータスがメンテ中メッセージでなければメンテ中に
                 await bot.change_presence(activity=discord.CustomActivity(name=maintenance_message), status=discord.Status.dnd)
                 logger.info(f"デバッグ: ステータスを '{maintenance_message}' に切り替えました。")
-            else:
+            else: # メンテ中メッセージであれば元のステータスに戻す
                 await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.dnd)
                 logger.info(f"デバッグ: ステータスを '{bot.original_status_message}' に切り替えました。")
         else:
@@ -116,9 +99,6 @@ async def maintenance_status_loop():
             await asyncio.sleep(1) # ステータス変更が反映されるのを少し待つ
             maintenance_status_loop.cancel()
             logger.info("デバッグ: maintenance_status_loop をメンテナンスモード無効のため停止しました。")
-            # ループ停止時にフラグをリセット
-            bot.maintenance_loop_has_run_safely = False
-            logger.info("デバッグ: maintenance_status_loop を停止し、初回安全実行フラグをリセットしました。")
 
 
     except discord.HTTPException as http_e:
