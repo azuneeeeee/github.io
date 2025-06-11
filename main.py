@@ -41,10 +41,8 @@ logger.info("デバッグ: ボットインスタンスが作成されました�
 bot.is_maintenance_mode = False
 bot.is_bot_ready_for_commands = False
 bot.original_status_message = ""
-# === 新しく追加するフラグ ===
-bot.maintenance_loop_started_once = False # maintenance_status_loop が一度でも実行されたかを示す
-# ========================
-logger.info(f"デバッグ: ボットのカスタム属性が初期化されました: is_maintenance_mode={bot.is_maintenance_mode}, is_bot_ready_for_commands={bot.is_bot_ready_for_commands}, original_status_message='{bot.original_status_message}', maintenance_loop_started_once={bot.maintenance_loop_started_once}")
+# bot.maintenance_loop_started_once = False # このフラグは不要になります
+logger.info(f"デバッグ: ボットのカスタム属性が初期化されました: is_maintenance_mode={bot.is_maintenance_mode}, is_bot_ready_for_commands={bot.is_bot_ready_for_commands}, original_status_message='{bot.original_status_message}'")
 
 
 load_dotenv()
@@ -57,19 +55,8 @@ async def maintenance_status_loop():
     maintenance_message = "メンテナンス中... 🛠️"
 
     try:
-        # === 最も重要な変更点 ===
-        # ループがまだ一度も実行されておらず、かつボットが ready 状態でない場合は、
-        # ready 状態になるまで待機する。
-        # これにより、bot.is_ready() の評価のタイミング問題を回避する。
-        if not bot.maintenance_loop_started_once:
-            if not bot.is_ready():
-                logger.info("デバッグ: maintenance_status_loop: 初回実行時、ボットが ready でないため待機します。")
-                await bot.wait_until_ready() # 確実に ready になるまで待機
-                logger.info("デバッグ: maintenance_status_loop: ボットが ready になりました。")
-            bot.maintenance_loop_started_once = True # 初回実行をマーク
-            logger.info("デバッグ: maintenance_status_loop: 初回実行時の待機が完了しました。")
-
-        # ボットがDiscordに完全に接続されているか確認 (初回実行後は通常のチェック)
+        # ボットがDiscordに完全に接続されているか確認
+        # ここで await bot.wait_until_ready() は削除
         if not bot.is_ready():
             logger.warning("警告: maintenance_status_loop: ボットがまだ準備できていないため、ステータス変更をスキップします。")
             return # ループは続行するが、処理はスキップ
@@ -111,9 +98,9 @@ async def maintenance_status_loop():
             await asyncio.sleep(1) # ステータス変更が反映されるのを少し待つ
             maintenance_status_loop.cancel()
             logger.info("デバッグ: maintenance_status_loop をメンテナンスモード無効のため停止しました。")
-            # ループ停止時にフラグをリセット
-            bot.maintenance_loop_started_once = False
-            logger.info("デバッグ: maintenance_status_loop を停止し、初回実行フラグをリセットしました。")
+            # 初回実行フラグのリセットも不要になります
+            # bot.maintenance_loop_started_once = False
+            # logger.info("デバッグ: maintenance_status_loop を停止し、初回実行フラグをリセットしました。")
 
 
     except discord.HTTPException as http_e:
