@@ -139,7 +139,7 @@ async def on_ready():
 
         # ボットがコマンドを受け付ける準備ができたことをフラグに設定
         bot.is_bot_ready_for_commands = True
-        logger.info(デバッグ: is_bot_ready_for_commands が {bot.is_bot_ready_for_commands} に設定されました。)
+        logger.info(f"デバッグ: is_bot_ready_for_commands が {bot.is_bot_ready_for_commands} に設定されました。")
 
 
         # カスタムステータスの設定
