@@ -8,40 +8,26 @@ import sys
 import json
 import asyncio
 
-# mainモジュール全体をインポート。ここで循環参照に注意が必要だが、
-# 今回はmain.maintenance_status_loopを直接触らないため問題ないはず
+# mainモジュール全体をインポート (bot.is_maintenance_mode の更新のため残す)
 import main 
+
+# === 新しいインポート ===
+import utils.config_manager as config_manager_module # ここを変更
+# ========================
 
 logger = logging.getLogger(__name__)
 
-MAINTENANCE_FILE = "maintenance_status.json"
-
-def load_maintenance_status():
-    if os.path.exists(MAINTENANCE_FILE):
-        try:
-            with open(MAINTENANCE_FILE, 'r') as f:
-                data = json.load(f)
-                if 'is_maintenance_mode' in data and isinstance(data['is_maintenance_mode'], bool):
-                    logger.info(f"デバッグ: メンテナンスモードの状態を {MAINTENANCE_FILE} からロードしました: {data['is_maintenance_mode']}")
-                    return data['is_maintenance_mode']
-                else:
-                    logger.warning(f"警告: {MAINTENANCE_FILE} の形式が不正です。デフォルトの False を使用します。")
-                    return False
-        except json.JSONDecodeError:
-            logger.error(f"エラー: {MAINTENANCE_FILE} の読み込みに失敗しました。デフォルトの False を使用します。")
-            return False
-    logger.info(f"デバッグ: {MAINTENANCE_FILE} が存在しないため、デフォルトの False を使用します。")
-    return False
-
-def save_maintenance_status(status: bool):
-    try:
-        with open(MAINTENANCE_FILE, 'w') as f:
-            json.dump({'is_maintenance_mode': status}, f)
-        logger.info(f"デバッグ: メンテナンスモードの状態を {MAINTENANCE_FILE} に保存しました: {status}")
-    except Exception as e:
-        logger.error(f"エラー: メンテナンスモードの状態を {MAINTENANCE_FILE} に保存できませんでした: {e}")
-
-_is_maintenance_mode = load_maintenance_status()
+# --- 削除する部分 ---
+# MAINTENANCE_FILE = "maintenance_status.json"
+#
+# def load_maintenance_status():
+#     # ... 削除 ...
+#
+# def save_maintenance_status(status: bool):
+#     # ... 削除 ...
+#
+# _is_maintenance_mode = load_maintenance_status() # これも削除
+# -------------------
 
 load_dotenv()
 
@@ -111,18 +97,16 @@ class AdminCommands(commands.Cog):
         # main.py の bot.is_maintenance_mode を直接更新する
         if self.bot.is_maintenance_mode: # 現在メンテナンスモードが有効なら無効に
             self.bot.is_maintenance_mode = False
-            save_maintenance_status(False)
+            config_manager_module.save_maintenance_status(False) # ここを変更
             status_message = "オンライン"
             logger.info(f"デバッグ: /status_toggle によりメンテナンスモードが無効になりました。")
         else: # 現在メンテナンスモードが無効なら有効に
             self.bot.is_maintenance_mode = True
-            save_maintenance_status(True)
+            config_manager_module.save_maintenance_status(True) # ここを変更
             status_message = "取り込み中"
             logger.info(f"デバッグ: /status_toggle によりメンテナンスモードが有効になりました。")
 
         # ここではステータス変更を直接行わず、maintenance_status_loopに任せる
-        # ただし、即座にメッセージを返すために、念のため現在のステータス情報を取得
-        # (これは表示のためだけであり、実際のステータス変更はループが行う)
         current_bot_status = interaction.guild.me.status if interaction.guild and interaction.guild.me else discord.Status.unknown
         current_activity_name = interaction.guild.me.activity.name if interaction.guild and interaction.guild.me and interaction.guild.me.activity else ""
 
