@@ -6,9 +6,11 @@ from dotenv import load_dotenv
 import logging
 import sys
 import json
-import asyncio # asyncioをインポート
+import asyncio
 
-import main
+# mainモジュール全体をインポート。ここで循環参照に注意が必要だが、
+# 今回はmain.maintenance_status_loopを直接触らないため問題ないはず
+import main 
 
 logger = logging.getLogger(__name__)
 
@@ -95,61 +97,43 @@ class AdminCommands(commands.Cog):
         await interaction.response.defer(ephemeral=True, thinking=True)
         logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。")
 
-        # bot.is_ready() が False の場合、準備できるまで待機
+        # ボットが完全に準備できるまで待機
         if not self.bot.is_ready():
             logger.info("デバッグ: /status_toggle: ボットがまだ準備できていません。準備できるまで待機します。")
             await self.bot.wait_until_ready()
             logger.info("デバッグ: /status_toggle: ボットが準備できました。")
         
         # 準備完了後、さらに短い時間待機して内部状態の安定を待つ
-        await asyncio.sleep(1) # 遅延時間を0.5秒から1秒に延長
+        await asyncio.sleep(1) # 遅延時間を延長（前回の修正から変更なし）
         logger.info("デバッグ: /status_toggle: wait_until_ready() 後に短い遅延を追加しました。")
 
 
-        current_status = interaction.guild.me.status
-
-        if current_status == discord.Status.online: # 起動モード（オンライン）から切り替える場合
-            new_status = discord.Status.dnd # 取り込み中に変更
-            status_message = "取り込み中"
-
-            self.bot.is_maintenance_mode = True
-            save_maintenance_status(True)
-            logger.info(f"デバッグ: /status_toggle によりメンテナンスモードが有効になりました。")
-
-            # maintenance_status_loop がまだ実行中でない場合に開始
-            if not main.maintenance_status_loop.is_running():
-                try:
-                    main.maintenance_status_loop.start()
-                    logger.info("デバッグ: maintenance_status_loop を開始しました。")
-                except RuntimeError as e:
-                    logger.error(f"エラー: maintenance_status_loop の開始に失敗しました: {e}")
-                    await interaction.followup.send("エラー: メンテナンスステータスループの開始に失敗しました。", ephemeral=True)
-                    return
-            else:
-                logger.info("デバッグ: maintenance_status_loop はすでに実行中です。")
-
-            # ステータス変更とメッセージ送信
-            await self.bot.change_presence(status=new_status)
-            await interaction.followup.send(f"ボットのステータスを **{status_message}** に変更しました。\nメンテナンスモードは**{'有効' if self.bot.is_maintenance_mode else '無効'}**になりました。", ephemeral=True)
-            logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。ステータス: {status_message}, メンテモード: {'有効' if self.bot.is_maintenance_mode else '無効'}")
-
-        else: # current_status == discord.Status.dnd （取り込み中）から切り替える場合
-            new_status = discord.Status.online # オンラインに変更
-            status_message = "オンライン"
-
+        # main.py の bot.is_maintenance_mode を直接更新する
+        if self.bot.is_maintenance_mode: # 現在メンテナンスモードが有効なら無効に
             self.bot.is_maintenance_mode = False
             save_maintenance_status(False)
+            status_message = "オンライン"
             logger.info(f"デバッグ: /status_toggle によりメンテナンスモードが無効になりました。")
+        else: # 現在メンテナンスモードが無効なら有効に
+            self.bot.is_maintenance_mode = True
+            save_maintenance_status(True)
+            status_message = "取り込み中"
+            logger.info(f"デバッグ: /status_toggle によりメンテナンスモードが有効になりました。")
 
-            # maintenance_status_loop が実行中なら停止させる
-            if main.maintenance_status_loop.is_running():
-                main.maintenance_status_loop.cancel()
-                logger.info("デバッグ: maintenance_status_loop を停止しました。")
+        # ここではステータス変更を直接行わず、maintenance_status_loopに任せる
+        # ただし、即座にメッセージを返すために、念のため現在のステータス情報を取得
+        # (これは表示のためだけであり、実際のステータス変更はループが行う)
+        current_bot_status = interaction.guild.me.status if interaction.guild and interaction.guild.me else discord.Status.unknown
+        current_activity_name = interaction.guild.me.activity.name if interaction.guild and interaction.guild.me and interaction.guild.me.activity else ""
 
-            # ループ停止後、元のカスタムステータスに戻す
-            await self.bot.change_presence(activity=discord.CustomActivity(name=self.bot.original_status_message), status=new_status)
-            await interaction.followup.send(f"ボットのステータスを **{status_message}** に変更しました。\nメンテナンスモードは**{'有効' if self.bot.is_maintenance_mode else '無効'}**になりました。", ephemeral=True)
-            logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。ステータス: {status_message}, メンテモード: {'有効' if self.bot.is_maintenance_mode else '無効'}")
+        await interaction.followup.send(
+            f"ボットのステータスを **{status_message}** に変更するよう要求しました。\n"
+            f"メンテナンスモードは**{'有効' if self.bot.is_maintenance_mode else '無効'}**になりました。\n"
+            f"(現在のボットの状態: {current_bot_status.name}, 活動: {current_activity_name})", # デバッグ情報として現在の状態を追加
+            ephemeral=True
+        )
+        logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。メンテモード: {'有効' if self.bot.is_maintenance_mode else '無効'}")
+
 
 # コグをボットにセットアップするための関数
 async def setup(bot):
