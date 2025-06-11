@@ -27,7 +27,7 @@ try:
     logger.info("デバッグ: data/songs.py を正常にインポートしました。")
 except ImportError:
     logger.critical("致命的なエラー: data/songs.py が見つからないか、インポートできませんでした。")
-    logger.critical("致命的なエラー: GitHubリポジトリのルートに 'data' フォルダがあり、その中に 'songs.py' が存在するか確認してください。")
+    logger.critical("致命的なエラー: GitHubリポジリのルートに 'data' フォルダがあり、その中に 'songs.py' が存在するか確認してください。")
     sys.exit(1)
 
 # ボットインスタンスの作成
@@ -55,23 +55,29 @@ async def maintenance_status_loop():
     maintenance_message = "メンテナンス中... 🛠️" # ループ内で定義
 
     try:
-        # bot.is_maintenance_mode が True でない場合は、before_loop で処理されるはずだが、
-        # 万が一のためここでもチェックする (ただし、理論上は before_loop で阻止される)
+        # このチェックは before_loop で阻止されるはずなので、保険的なものとして残す
         if not bot.is_maintenance_mode:
-            logger.warning("警告: maintenance_status_loop がメンテナンスモードではない状態で実行されました。停止します。")
+            logger.warning("警告: maintenance_status_loop がメンテナンスモードではない状態で実行されました。(フォールバック) 停止します。")
             maintenance_status_loop.cancel()
             return
             
-        current_activity_name = bot.guilds[0].me.activity.name if bot.guilds and bot.guilds[0].me.activity else ""
+        # 実際にステータスを変更するロジック
+        # ギルドが存在し、ボットがそのギルドのメンバーであるか確認
+        if bot.guilds and bot.guilds[0].me:
+            current_activity = bot.guilds[0].me.activity
+            current_activity_name = current_activity.name if current_activity else ""
 
-        if current_activity_name == bot.original_status_message:
-            # 現在が元のステータスなら、メンテナンスメッセージに切り替える
-            await bot.change_presence(activity=discord.CustomActivity(name=maintenance_message), status=discord.Status.dnd)
-            logger.debug(f"デバッグ: ステータスを '{maintenance_message}' に切り替えました。")
+            if current_activity_name == bot.original_status_message:
+                # 現在が元のステータスなら、メンテナンスメッセージに切り替える
+                await bot.change_presence(activity=discord.CustomActivity(name=maintenance_message), status=discord.Status.dnd)
+                logger.debug(f"デバッグ: ステータスを '{maintenance_message}' に切り替えました。")
+            else:
+                # 現在がメンテナンスメッセージなら、元のステータスに切り替える
+                await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.dnd)
+                logger.debug(f"デバッグ: ステータスを '{bot.original_status_message}' に切り替えました。")
         else:
-            # 現在がメンテナンスメッセージなら、元のステータスに切り替える
-            await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.dnd)
-            logger.debug(f"デバッグ: ステータスを '{bot.original_status_message}' に切り替えました。")
+            logger.warning("警告: ギルド情報またはボットのメンバー情報が利用できないため、ステータスを変更できませんでした。")
+
     except Exception as e:
         logger.error(f"エラー: メンテナンスステータスループ中にエラーが発生しました: {e}")
         traceback.print_exc(file=sys.__stderr__)
@@ -79,10 +85,20 @@ async def maintenance_status_loop():
 @maintenance_status_loop.before_loop
 async def before_maintenance_status_loop():
     # ループが開始される直前に実行
+    logger.info("デバッグ: maintenance_status_loop.before_loop が実行されました。")
+    # bot.is_maintenance_mode が True になるまで待機する
+    max_wait_time = 5 # 最大5秒待つ
+    interval = 0.1 # 0.1秒ごとにチェック
+    waited_time = 0
+
+    while not bot.is_maintenance_mode and waited_time < max_wait_time:
+        logger.debug(f"デバッグ: before_loop: メンテナンスモード待ち... 現在: {bot.is_maintenance_mode}, 経過時間: {waited_time:.1f}秒")
+        await asyncio.sleep(interval)
+        waited_time += interval
+    
     if not bot.is_maintenance_mode:
-        logger.warning("警告: maintenance_status_loop.before_loop: bot.is_maintenance_mode が False のためループ開始を阻止します。")
-        # ここで例外を発生させることでループの開始を停止できる
-        raise RuntimeError("Maintenance loop attempted to start when not in maintenance mode.")
+        logger.critical(f"致命的なエラー: maintenance_status_loop.before_loop: {max_wait_time}秒待ってもメンテナンスモードが有効になりませんでした。ループ開始を阻止します。")
+        raise RuntimeError("Maintenance loop attempted to start when not in maintenance mode (timeout).")
     
     # ループが開始される際に、まず「メンテナンス中」のステータスを設定する
     maintenance_message = "メンテナンス中... 🛠️"
