@@ -105,11 +105,15 @@ class AdminCommands(commands.Cog):
             save_maintenance_status(True)
             logger.info(f"デバッグ: /status_toggle によりメンテナンスモードが有効になりました。")
             
-            # ここで maintenance_status_loop を開始する（初めて起動するなら）
+            # === ここに、ボットが準備できるまで待つロジックを追加 ===
+            if not self.bot.is_ready():
+                logger.info("デバッグ: /status_toggle: ボットがまだ準備できていません。準備できるまで待機します。")
+                await self.bot.wait_until_ready()
+                logger.info("デバッグ: /status_toggle: ボットが準備できました。")
+
+            # maintenance_status_loop がまだ実行中でない場合に開始
             if not main.maintenance_status_loop.is_running():
                 try:
-                    # maintenance_status_loop が bot.is_ready() を待つようになったため、
-                    # ここでの async_sleep は不要
                     main.maintenance_status_loop.start() 
                     logger.info("デバッグ: maintenance_status_loop を開始しました。")
                 except RuntimeError as e:
@@ -118,7 +122,7 @@ class AdminCommands(commands.Cog):
                 logger.info("デバッグ: maintenance_status_loop はすでに実行中です。")
 
             # ステータス変更とメッセージ送信
-            await self.bot.change_presence(status=new_status) # まずはステータスのみ変更
+            await self.bot.change_presence(status=new_status)
             await interaction.followup.send(f"ボットのステータスを **{status_message}** に変更しました。\nメンテナンスモードは**{'有効' if self.bot.is_maintenance_mode else '無効'}**になりました。", ephemeral=True)
             logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。ステータス: {status_message}, メンテモード: {'有効' if self.bot.is_maintenance_mode else '無効'}")
 
@@ -130,12 +134,18 @@ class AdminCommands(commands.Cog):
             save_maintenance_status(False)
             logger.info(f"デバッグ: /status_toggle によりメンテナンスモードが無効になりました。")
 
-            # maintenance_status_loop が実行中なら、即座に停止させる（main.pyで自動的に停止するが念のため）
+            # maintenance_status_loop が実行中なら停止させる
             if main.maintenance_status_loop.is_running():
                 main.maintenance_status_loop.cancel()
                 logger.info("デバッグ: maintenance_status_loop を停止しました。")
             
             # ループ停止後、元のカスタムステータスに戻す
+            # ここでも bot.is_ready() を確認
+            if not self.bot.is_ready():
+                logger.info("デバッグ: /status_toggle (無効化): ボットがまだ準備できていません。準備できるまで待機します。")
+                await self.bot.wait_until_ready()
+                logger.info("デバッグ: /status_toggle (無効化): ボットが準備できました。")
+
             await self.bot.change_presence(activity=discord.CustomActivity(name=self.bot.original_status_message), status=new_status)
             await interaction.followup.send(f"ボットのステータスを **{status_message}** に変更しました。\nメンテナンスモードは**{'有効' if self.bot.is_maintenance_mode else '無効'}**になりました。", ephemeral=True)
             logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。ステータス: {status_message}, メンテモード: {'有効' if self.bot.is_maintenance_mode else '無効'}")
