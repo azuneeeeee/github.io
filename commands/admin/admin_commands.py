@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import logging
 import sys
 import json
-import asyncio
+import asyncio # asyncioをインポート
 
 import main
 
@@ -95,12 +95,16 @@ class AdminCommands(commands.Cog):
         await interaction.response.defer(ephemeral=True, thinking=True)
         logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。")
 
-        # === ここに await self.bot.wait_until_ready() を戻す ===
+        # bot.is_ready() が False の場合、準備できるまで待機
         if not self.bot.is_ready():
             logger.info("デバッグ: /status_toggle: ボットがまだ準備できていません。準備できるまで待機します。")
             await self.bot.wait_until_ready()
             logger.info("デバッグ: /status_toggle: ボットが準備できました。")
-        # ===============================================
+        
+        # 準備完了後、さらに短い時間待機して内部状態の安定を待つ
+        await asyncio.sleep(1) # 遅延時間を0.5秒から1秒に延長
+        logger.info("デバッグ: /status_toggle: wait_until_ready() 後に短い遅延を追加しました。")
+
 
         current_status = interaction.guild.me.status
 
