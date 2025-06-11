@@ -38,11 +38,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 logger.info("デバッグ: ボットインスタンスが作成されました。")
 
 # === ボットにカスタム属性を追加して状態を管理する ===
-# メンテナンスモードの初期状態は、commands/admin/admin_commands.py で読み込まれるファイルから。
-# ただし、bot.is_maintenance_mode はこの時点ではまだファイルから読み込まれないため、初期値は False にしておく。
-# on_readyでファイルからロードした値をセットする。
-# 今回の要件により、起動時はデフォルトでメンテナンスモードではない状態にする
-bot.is_maintenance_mode = False 
+bot.is_maintenance_mode = False
 bot.is_bot_ready_for_commands = False
 logger.info(f"デバッグ: ボットのカスタム属性が初期化されました: is_maintenance_mode={bot.is_maintenance_mode}, is_bot_ready_for_commands={bot.is_bot_ready_for_commands}")
 
@@ -115,8 +111,9 @@ async def on_ready():
             status_message_text = f"{total_songs}曲/{total_charts}譜面が登録済み"
             
             await asyncio.sleep(1)
-            await bot.change_presence(activity=discord.CustomActivity(name=status_message_text), status=discord.Status.online)
-            logger.info(f"デバッグ: on_ready: カスタムステータス '{status_message_text}' が設定されました。")
+            # 起動時は「退席中（idle）」ステータスに設定
+            await bot.change_presence(activity=discord.CustomActivity(name=status_message_text), status=discord.Status.idle)
+            logger.info(f"デバッグ: on_ready: カスタムステータス '{status_message_text}' とステータス '退席中' が設定されました。")
 
         except AttributeError as ae:
             logger.error(f"エラー: data/songs.py から必要なデータ構造 (proseka_songs) を読み込めませんでした: {ae}")
