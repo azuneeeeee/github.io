@@ -30,6 +30,17 @@ except ImportError:
     logger.critical("致命的なエラー: GitHubリポジトリのルートに 'data' フォルダがあり、その中に 'songs.py' が存在するか確認してください。")
     sys.exit(1)
 
+# utils/config_manager.py から情報をインポート
+try:
+    logger.info("デバッグ: utils/config_manager.py のインポートを試みます。")
+    import utils.config_manager as config_manager_module
+    logger.info("デバッグ: utils/config_manager.py を正常にインポートしました。")
+except ImportError:
+    logger.critical("致命的なエラー: utils/config_manager.py が見つからないか、インポートできませんでした。")
+    logger.critical("致命的なエラー: 'utils' フォルダがあり、その中に 'config_manager.py' が存在するか確認してください。")
+    sys.exit(1)
+
+
 # ボットインスタンスの作成
 intents = discord.Intents.all()
 logger.info("デバッグ: インテントが設定されました (discord.Intents.all())。")
@@ -38,7 +49,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 logger.info("デバッグ: ボットインスタンスが作成されました。")
 
 # === ボットにカスタム属性を追加して状態を管理する ===
-bot.is_maintenance_mode = False
+bot.is_maintenance_mode = False # これは初期値。config_managerからロードされる
 bot.is_bot_ready_for_commands = False
 bot.original_status_message = ""
 bot.maintenance_loop_initial_delay_done = False
@@ -123,39 +134,52 @@ async def on_ready():
         # コグをロードする
         logger.info("デバッグ: コグのロードを開始します。")
         try:
+            # admin_commands が最初にロードされ、その中でメンテナンスモードの状態がロードされる
             await bot.load_extension("commands.admin.admin_commands")
             logger.info("デバッグ: commands.admin.admin_commands がロードされました。")
 
-            await bot.load_extension("commands.general.ping_commands") # ファイル名変更後のコグ
+            await bot.load_extension("commands.general.ping_commands")
             logger.info("デバッグ: commands.general.ping_commands がロードされました。")
 
-            await bot.load_extension("commands.general.pjsk_random_song_commands") # 新しいランダム選曲コグ
+            await bot.load_extension("commands.general.pjsk_random_song_commands")
             logger.info("デバッグ: commands.general.pjsk_random_song_commands がロードされました。")
 
         except Exception as e:
-            logger.error(f"エラー: コグのロード中にエラーが発生しました: {e}")
-            traceback.print_exc(file=sys.__stderr__)
+            logger.error(f"エラー: コグのロード中にエラーが発生しました: {e}", exc_info=True) # 詳細なトレースバックを出力
+            # ここで例外を再raiseせずに処理を続行すると、残りのon_ready処理が実行される
+            # ただし、ボットが正常に機能しない可能性もある
+            # 今回は致命的エラーとしてロギングし、ボット起動は試みる方針
+            pass
+
 
         # スラッシュコマンドを同期する
         logger.info("デバッグ: スラッシュコマンドの同期を開始します。")
 
         # 同期前にメンテナンスモードを有効にする（起動時の同期用）
-        logger.info("デバッグ: スラッシュコマンド同期のため、一時的にメンテナンスモードを有効にします。")
-        bot.is_maintenance_mode = True
-        import commands.admin.admin_commands as admin_module_for_save
-        admin_module_for_save.save_maintenance_status(True)
+        # admin_commandsがロードされていない場合、この部分はエラーになる可能性があるため、try-exceptブロックで囲む
+        try:
+            # config_manager_module を直接使用
+            bot.is_maintenance_mode = True
+            config_manager_module.save_maintenance_status(True)
+            logger.info("デバッグ: スラッシュコマンド同期のため、一時的にメンテナンスモードを有効にしました。")
+        except Exception as e:
+            logger.error(f"エラー: 起動時のメンテナンスモード有効化中にエラーが発生しました: {e}", exc_info=True)
+
 
         try:
             synced = await bot.tree.sync()
             logger.info(f"デバッグ: スラッシュコマンドが {len(synced)} 件同期されました。")
         except Exception as e:
-            logger.error(f"エラー: スラッシュコマンドの同期中にエラーが発生しました: {e}")
-            traceback.print_exc(file=sys.__stderr__)
+            logger.error(f"エラー: スラッシュコマンドの同期中にエラーが発生しました: {e}", exc_info=True)
         finally:
             # 同期後にメンテナンスモードを無効にする（起動時の同期完了用）
-            logger.info("デバッグ: スラッシュコマンド同期完了のため、メンテナンスモードを無効にします。")
-            bot.is_maintenance_mode = False
-            admin_module_for_save.save_maintenance_status(False)
+            try:
+                bot.is_maintenance_mode = False
+                config_manager_module.save_maintenance_status(False)
+                logger.info("デバッグ: スラッシュコマンド同期完了のため、メンテナンスモードを無効にしました。")
+            except Exception as e:
+                logger.error(f"エラー: 起動時のメンテナンスモード無効化中にエラーが発生しました: {e}", exc_info=True)
+
 
         bot.is_bot_ready_for_commands = True
         logger.info(f"デバッグ: is_bot_ready_for_commands が {bot.is_bot_ready_for_commands} に設定されました。")
@@ -183,17 +207,14 @@ async def on_ready():
             logger.info(f"デバッグ: on_ready: カスタムステータス '{bot.original_status_message}' とステータス 'オンライン' が設定されました。")
 
         except AttributeError as ae:
-            logger.error(f"エラー: data/songs.py から必要なデータ構造 (proseka_songs) を読み込めませんでした: {ae}")
-            traceback.print_exc(file=sys.__stderr__)
+            logger.error(f"エラー: data/songs.py から必要なデータ構造 (proseka_songs) を読み込めませんでした: {ae}", exc_info=True)
         except Exception as status_e:
-            logger.error(f"エラー: カスタムステータスの設定中にエラーが発生しました: {status_e}")
-            traceback.print_exc(file=sys.__stderr__)
+            logger.error(f"エラー: カスタムステータスの設定中にエラーが発生しました: {status_e}", exc_info=True)
 
         logger.info("デバッグ: on_readyイベントが終了しました。ボットは完全に稼働中です。")
 
     except Exception as e:
-        logger.critical(f"致命的なエラー: on_readyイベント内で予期せぬエラーが発生しました: {e}")
-        traceback.print_exc(file=sys.__stderr__)
+        logger.critical(f"致命的なエラー: on_readyイベント内で予期せぬエラーが発生しました: {e}", exc_info=True)
 logger.info("デバッグ: on_readyイベントハンドラが定義されました。")
 
 
@@ -212,6 +233,5 @@ if __name__ == '__main__':
         logger.critical("致命的なエラー: トークン認証に失敗しました。DISCORD_BOT_TOKEN を確認してください。")
         sys.exit(1)
     except Exception as e:
-        logger.critical(f"致命的なエラー: asyncio.run()中に重大なエラーが発生しました: {e}")
-        traceback.print_exc(file=sys.__stdout__)
+        logger.critical(f"致命的なエラー: asyncio.run()中に重大なエラーが発生しました: {e}", exc_info=True) # exc_info=Trueで詳細なトレースバックを出力
     logger.info("デバッグ: プログラムの実行が終了しました。")
