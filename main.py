@@ -41,7 +41,6 @@ logger.info("デバッグ: ボットインスタンスが作成されました�
 bot.is_maintenance_mode = False
 bot.is_bot_ready_for_commands = False
 bot.original_status_message = ""
-# bot.maintenance_loop_has_run_safely は削除
 logger.info(f"デバッグ: ボットのカスタム属性が初期化されました: is_maintenance_mode={bot.is_maintenance_mode}, is_bot_ready_for_commands={bot.is_bot_ready_for_commands}, original_status_message='{bot.original_status_message}'")
 
 
@@ -55,13 +54,10 @@ async def maintenance_status_loop():
     maintenance_message = "メンテナンス中... 🛠️"
 
     try:
-        # === 変更点 ===
-        # bot.wait_until_ready() と関連ロジックを削除し、is_ready() のみでスキップ
-        if not bot.is_ready():
-            logger.info("デバッグ: maintenance_status_loop: ボットがまだ準備できていないため、ステータス変更をスキップします。")
-            return # ループは続行するが、処理はスキップ
-        # ========================
-
+        # このループは bot.is_ready() の確認をせずに実行される
+        # main.py の on_ready と admin_commands.py での起動時に
+        # bot.is_ready() が確認済みであることを前提とする
+        
         # bot.is_maintenance_mode が True の場合のみステータスを切り替える
         if bot.is_maintenance_mode:
             if not bot.guilds:
@@ -76,27 +72,29 @@ async def maintenance_status_loop():
             current_activity = me_member.activity
             current_activity_name = current_activity.name if current_activity and isinstance(current_activity, discord.CustomActivity) else ""
 
-            logger.debug(f"デバッグ: maintenance_status_loop: メンテナンスモード有効。現在のアクティビティ名: '{current_activity_name}', 比較対象: '{current_activity_name}'") # 比較対象を修正
-            
-            # ここでステータスを切り替える
-            if current_activity_name != maintenance_message: # 現在のステータスがメンテ中メッセージでなければメンテ中に
+            # ステータスを切り替えるロジックを修正
+            # 現在の活動がメンテナンスメッセージでなければ、メンテナンスメッセージに設定
+            if current_activity_name != maintenance_message:
                 await bot.change_presence(activity=discord.CustomActivity(name=maintenance_message), status=discord.Status.dnd)
                 logger.info(f"デバッグ: ステータスを '{maintenance_message}' に切り替えました。")
-            else: # メンテ中メッセージであれば元のステータスに戻す
+            # 現在の活動がメンテナンスメッセージであれば、元のステータスに設定
+            else:
                 await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.dnd)
                 logger.info(f"デバッグ: ステータスを '{bot.original_status_message}' に切り替えました。")
         else:
             # bot.is_maintenance_mode が False なら
             logger.debug("デバッグ: maintenance_status_loop: メンテナンスモードが無効なため、ステータス変更をスキップします。")
+            
             # メンテナンスモードが無効になったら、ステータスを元の状態に戻す
-            if bot.is_ready(): # 再度 ready チェック
+            # ここでは bot.is_ready() は確認しない
+            # (ただし、ボットの切断処理中に呼び出される可能性も考慮し、エラーハンドリングは維持)
+            try:
                 await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.online)
                 logger.info("デバッグ: maintenance_status_loop: メンテナンスモード無効化に伴い、ステータスをオンラインに戻しました。")
-            else:
-                logger.warning("警告: maintenance_status_loop: ボットが準備できていないため、メンテナンスモード無効化時のステータスを戻せません。")
+            except Exception as e:
+                logger.warning(f"警告: maintenance_status_loop: メンテナンスモード無効化時のステータス戻し中にエラーが発生しました: {e}")
 
-            # そしてループを停止させる前に少し待機
-            await asyncio.sleep(1) # ステータス変更が反映されるのを少し待つ
+            # そしてループを停止させる
             maintenance_status_loop.cancel()
             logger.info("デバッグ: maintenance_status_loop をメンテナンスモード無効のため停止しました。")
 
@@ -136,6 +134,7 @@ async def on_ready():
         logger.info("デバッグ: スラッシュコマンドの同期を開始します。")
 
         # === 同期前にメンテナンスモードを有効にする（起動時の同期用） ===
+        # この部分はbot.is_ready()がTrueであることが保証されているので、そのまま
         logger.info("デバッグ: スラッシュコマンド同期のため、一時的にメンテナンスモードを有効にします。")
         bot.is_maintenance_mode = True
         import commands.admin.admin_commands as admin_module_for_save
@@ -200,7 +199,6 @@ if __name__ == '__main__':
         sys.exit(1)
 
     try:
-        # bot.run() はコルーチンではないため、直接呼び出す
         bot.run(token)
         logger.info("デバッグ: bot.run() が戻りました。これはボットが切断または停止したことを意味します。")
     except discord.LoginFailure:
