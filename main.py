@@ -38,7 +38,8 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 logger.info("デバッグ: ボットインスタンスが作成されました。")
 
 # === ボットにカスタム属性を追加して状態を管理する ===
-bot.is_maintenance_mode = False
+# 初期化の時点ではFalseにしておく
+bot.is_maintenance_mode = False 
 bot.is_bot_ready_for_commands = False
 bot.original_status_message = ""
 logger.info(f"デバッグ: ボットのカスタム属性が初期化されました: is_maintenance_mode={bot.is_maintenance_mode}, is_bot_ready_for_commands={bot.is_bot_ready_for_commands}, original_status_message='{bot.original_status_message}'")
@@ -47,6 +48,18 @@ logger.info(f"デバッグ: ボットのカスタム属性が初期化されま�
 load_dotenv()
 logger.info("デバッグ: 環境変数のロードを試みます。")
 logger.info("デバッグ: 環境変数がロードされました。")
+
+# --- 追加する部分 ---
+# commands.admin.admin_commands をインポートして、メンテナンス状態をロード
+try:
+    import commands.admin.admin_commands as admin_commands_module
+    # ロードしたメンテナンス状態を bot.is_maintenance_mode に設定
+    bot.is_maintenance_mode = admin_commands_module.load_maintenance_status()
+    logger.info(f"デバッグ: 起動時に maintenance_status.json からメンテナンスモード状態をロードしました: {bot.is_maintenance_mode}")
+except ImportError:
+    logger.critical("致命的なエラー: commands/admin/admin_commands.py が見つからないか、インポートできませんでした。")
+    sys.exit(1)
+# -------------------
 
 # === メンテナンスモード時のステータス切り替えループ ===
 @tasks.loop(seconds=10)
@@ -69,7 +82,6 @@ async def maintenance_status_loop():
             # CustomActivityの場合のみ.nameを参照
             current_activity_name = current_activity.name if isinstance(current_activity, discord.CustomActivity) else ""
 
-            # === ここを修正 ===
             # 現在のステータスがメンテナンスメッセージなら元のステータスに、そうでなければメンテナンスメッセージに切り替える
             if current_activity_name == maintenance_message:
                 await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.dnd)
@@ -77,7 +89,6 @@ async def maintenance_status_loop():
             else:
                 await bot.change_presence(activity=discord.CustomActivity(name=maintenance_message), status=discord.Status.dnd)
                 logger.info(f"デバッグ: ステータスを '{maintenance_message}' (DND) に切り替えました。")
-            # ====================
 
         else:
             # メンテナンスモードが無効な場合 (ループは動いているが、元のステータスに戻す)
@@ -132,10 +143,12 @@ async def on_ready():
         logger.info("デバッグ: スラッシュコマンドの同期を開始します。")
 
         # === 同期前にメンテナンスモードを有効にする（起動時の同期用） ===
-        logger.info("デバッグ: スラッシュコマンド同期のため、一時的にメンテナンスモードを有効にします。")
-        bot.is_maintenance_mode = True # この時点でTrueに設定
-        import commands.admin.admin_commands as admin_module_for_save
-        admin_module_for_save.save_maintenance_status(True)
+        # ただし、今回は起動時のロードを優先するため、この部分は一時的に無効化
+        # 起動時にメンテナンスモードだった場合、再度上書きしないようにする
+        # logger.info("デバッグ: スラッシュコマンド同期のため、一時的にメンテナンスモードを有効にします。")
+        # bot.is_maintenance_mode = True # この時点でTrueに設定
+        # import commands.admin.admin_commands as admin_module_for_save
+        # admin_module_for_save.save_maintenance_status(True)
 
         try:
             synced = await bot.tree.sync()
@@ -145,9 +158,11 @@ async def on_ready():
             traceback.print_exc(file=sys.__stderr__)
         finally:
             # === 同期後にメンテナンスモードを無効にする（起動時の同期完了用） ===
-            logger.info("デバッグ: スラッシュコマンド同期完了のため、メンテナンスモードを無効にします。")
-            bot.is_maintenance_mode = False # この時点でFalseに戻す
-            admin_module_for_save.save_maintenance_status(False)
+            # ここも起動時のロードを優先するため、一時的に無効化
+            # logger.info("デバッグ: スラッシュコマンド同期完了のため、メンテナンスモードを無効にします。")
+            # bot.is_maintenance_mode = False # この時点でFalseに戻す
+            # admin_module_for_save.save_maintenance_status(False)
+            pass # 何もしない
 
         bot.is_bot_ready_for_commands = True
         logger.info(f"デバッグ: is_bot_ready_for_commands が {bot.is_bot_ready_for_commands} に設定されました。")
@@ -168,9 +183,17 @@ async def on_ready():
             bot.original_status_message = status_message_text
             logger.info(f"デバッグ: on_ready: original_status_message を '{bot.original_status_message}' に設定しました。")
 
-            await asyncio.sleep(1)
-            await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.online)
-            logger.info(f"デバッグ: on_ready: カスタムステータス '{bot.original_status_message}' とステータス 'オンライン' が設定されました。")
+            # 起動時の初期ステータスを設定。もしメンテナンスモードであれば、ループがそれを処理する
+            # そうでなければ通常のオンラインステータス
+            if not bot.is_maintenance_mode: # 起動時にメンテナンスモードでなければ、オンラインに設定
+                await asyncio.sleep(1)
+                await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.online)
+                logger.info(f"デバッグ: on_ready: カスタムステータス '{bot.original_status_message}' とステータス 'オンライン' が設定されました。")
+            else: # 起動時にメンテナンスモードであれば、DNDにしてループに任せる
+                await asyncio.sleep(1)
+                await bot.change_presence(activity=discord.CustomActivity(name="起動中..."), status=discord.Status.dnd) # 初期表示は「起動中」など
+                logger.info("デバッグ: on_ready: 起動時にメンテナンスモードのため、ステータスを '起動中...' (DND) に設定しました。")
+
 
         except AttributeError as ae:
             logger.error(f"エラー: data/songs.py から必要なデータ構造 (proseka_songs) を読み込めませんでした: {ae}")
@@ -179,11 +202,10 @@ async def on_ready():
             logger.error(f"エラー: カスタムステータスの設定中にエラーが発生しました: {status_e}")
             traceback.print_exc(file=sys.__stderr__)
 
-        # === 変更点: on_ready で maintenance_status_loop を常に開始する ===
+        # maintenance_status_loop を常に開始する
         if not maintenance_status_loop.is_running():
             maintenance_status_loop.start()
             logger.info("デバッグ: on_readyイベントで maintenance_status_loop を開始しました。")
-        # =========================================================
 
         logger.info("デバッグ: on_readyイベントが終了しました。ボットは完全に稼働中です。")
 
@@ -195,7 +217,7 @@ logger.info("デバッグ: on_readyイベントハンドラが定義されまし
 
 # === プログラムのエントリポイント ===
 if __name__ == '__main__':
-    logger.info("デバッグ: プログラムのエントryポイントに入りました。bot.run()でボットを起動します。")
+    logger.info("デバッグ: プログラムのエントリポイントに入りました。bot.run()でボットを起動します。")
     token = os.getenv('DISCORD_BOT_TOKEN')
     if not token:
         logger.critical("致命的なエラー: 'DISCORD_BOT_TOKEN' 環境変数が設定されていません。終了します。")
