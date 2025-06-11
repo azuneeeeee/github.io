@@ -9,25 +9,13 @@ import json
 import asyncio
 
 # mainモジュール全体をインポート (bot.is_maintenance_mode の更新のため残す)
-import main 
+import main # これはボットオブジェクトの属性を直接操作する場合に必要
 
 # === 新しいインポート ===
-import utils.config_manager as config_manager_module # ここを変更
+import utils.config_manager as config_manager_module
 # ========================
 
 logger = logging.getLogger(__name__)
-
-# --- 削除する部分 ---
-MAINTENANCE_FILE = "/data/maintenance_status.json"
-#
-# def load_maintenance_status():
-#     # ... 削除 ...
-#
-# def save_maintenance_status(status: bool):
-#     # ... 削除 ...
-#
-# _is_maintenance_mode = load_maintenance_status() # これも削除
-# -------------------
 
 load_dotenv()
 
@@ -48,24 +36,35 @@ def is_owner():
 
 def not_in_maintenance():
     async def predicate(interaction: discord.Interaction):
-        if not interaction.response.is_done():
-            await interaction.response.defer(ephemeral=False, thinking=True)
-            logger.info(f"デバッグ: not_in_maintenanceチェック: defer実行 (ユーザーID={interaction.user.id}, interaction ID={interaction.id})")
-
         if not interaction.client.is_bot_ready_for_commands:
-            await interaction.followup.send(
-                "現在ボットは起動準備中のため、このコマンドは使用できません。\n"
-                "しばらく時間をおいてから再度お試しください。",
-                ephemeral=True
-            )
+            # defer されていないため、send_message を使用
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "現在ボットは起動準備中のため、このコマンドは使用できません。\n"
+                    "しばらく時間をおいてから再度お試しください。",
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send(
+                    "現在ボットは起動準備中のため、このコマンドは使用できません。\n"
+                    "しばらく時間をおいてから再度お試しください。",
+                    ephemeral=True
+                )
             logger.info("デバッグ: not_in_maintenanceチェック: bot.is_bot_ready_for_commands が False のため失敗。")
             return False
 
         if interaction.client.is_maintenance_mode and interaction.user.id != OWNER_ID:
-            await interaction.followup.send(
-                "現在ボットはメンテナンス中のため、このコマンドは使用できません。",
-                ephemeral=True
-            )
+            # defer されていないため、send_message を使用
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "現在ボットはメンテナンス中のため、このコマンドは使用できません。",
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send(
+                    "現在ボットはメンテナンス中のため、このコマンドは使用できません。",
+                    ephemeral=True
+                )
             logger.info("デバッグ: not_in_maintenanceチェック: bot.is_maintenance_mode が True かつオーナーではないため失敗。")
             return False
 
@@ -73,14 +72,19 @@ def not_in_maintenance():
         return True
     return discord.app_commands.check(predicate)
 
+
 class AdminCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # ボットの起動時に状態をロード (config_manager_module を使用)
+        self.bot.is_maintenance_mode = config_manager_module.load_maintenance_status()
+        logger.info(f"デバッグ: 初期メンテナンスモード状態をロードしました: {self.bot.is_maintenance_mode}")
+
 
     @discord.app_commands.command(name="status_toggle", description="ボットのDiscordステータス（オンライン/取り込み中）を切り替えます。")
     @is_owner()
     async def status_toggle(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True, thinking=True)
+        await interaction.response.defer(ephemeral=True) # thinking=True は削除
         logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。")
 
         # ボットが完全に準備できるまで待機
@@ -88,9 +92,9 @@ class AdminCommands(commands.Cog):
             logger.info("デバッグ: /status_toggle: ボットがまだ準備できていません。準備できるまで待機します。")
             await self.bot.wait_until_ready()
             logger.info("デバッグ: /status_toggle: ボットが準備できました。")
-        
+
         # 準備完了後、さらに短い時間待機して内部状態の安定を待つ
-        await asyncio.sleep(1) # 遅延時間を延長（前回の修正から変更なし）
+        await asyncio.sleep(1)
         logger.info("デバッグ: /status_toggle: wait_until_ready() 後に短い遅延を追加しました。")
 
 
