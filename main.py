@@ -54,8 +54,6 @@ async def maintenance_status_loop():
     maintenance_message = "メンテナンス中... 🛠️"
 
     try:
-        # このループは常に実行され、bot.is_maintenance_mode の状態に従って動作する
-        # botが完全に準備できていない場合は、初回は警告を出すが、エラーは出さない
         if not bot.is_ready():
             logger.warning("警告: maintenance_status_loop: ボットがまだ準備できていないため、初回ステータス変更をスキップします。")
             return
@@ -68,13 +66,19 @@ async def maintenance_status_loop():
                 return
 
             current_activity = me_member.activity
-            current_activity_name = current_activity.name if current_activity and isinstance(current_activity, discord.CustomActivity) else ""
+            # CustomActivityの場合のみ.nameを参照
+            current_activity_name = current_activity.name if isinstance(current_activity, discord.CustomActivity) else ""
 
-            if current_activity_name != maintenance_message:
-                await bot.change_presence(activity=discord.CustomActivity(name=maintenance_message), status=discord.Status.dnd)
-                logger.info(f"デバッグ: ステータスを '{maintenance_message}' に切り替えました。")
+            # === ここを修正 ===
+            # 現在のステータスがメンテナンスメッセージなら元のステータスに、そうでなければメンテナンスメッセージに切り替える
+            if current_activity_name == maintenance_message:
+                await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.dnd)
+                logger.info(f"デバッグ: ステータスを '{bot.original_status_message}' (DND) に切り替えました。")
             else:
-                logger.debug(f"デバッグ: ステータスは既に '{maintenance_message}' です。")
+                await bot.change_presence(activity=discord.CustomActivity(name=maintenance_message), status=discord.Status.dnd)
+                logger.info(f"デバッグ: ステータスを '{maintenance_message}' (DND) に切り替えました。")
+            # ====================
+
         else:
             # メンテナンスモードが無効な場合 (ループは動いているが、元のステータスに戻す)
             me_member = bot.guilds[0].me if bot.guilds else None
@@ -83,8 +87,10 @@ async def maintenance_status_loop():
                 return
 
             current_activity = me_member.activity
-            current_activity_name = current_activity.name if current_activity and isinstance(current_activity, discord.CustomActivity) else ""
+            current_activity_name = current_activity.name if isinstance(current_activity, discord.CustomActivity) else ""
             
+            # メンテナンスモードが解除されたら、確実に元のステータス（オンライン）に戻す
+            # 既に元のステータス（オンライン）でなければ変更
             if current_activity_name != bot.original_status_message or me_member.status != discord.Status.online:
                 await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.online)
                 logger.info("デバッグ: maintenance_status_loop: メンテナンスモード無効化に伴い、ステータスをオンラインに戻しました。")
@@ -126,7 +132,6 @@ async def on_ready():
         logger.info("デバッグ: スラッシュコマンドの同期を開始します。")
 
         # === 同期前にメンテナンスモードを有効にする（起動時の同期用） ===
-        # この部分はbot.is_ready()がTrueであることが保証されているので、そのまま
         logger.info("デバッグ: スラッシュコマンド同期のため、一時的にメンテナンスモードを有効にします。")
         bot.is_maintenance_mode = True # この時点でTrueに設定
         import commands.admin.admin_commands as admin_module_for_save
