@@ -1,86 +1,93 @@
-# commands/general/pjsk_random_song_commands.py
-
 import discord
 from discord.ext import commands
 import discord.app_commands
-import logging
 import random
+import logging
 
-from data import songs # data/songs.py を直接インポート
+# data/songs.py から情報をインポート
+try:
+    from data import songs
+except ImportError:
+    logging.critical("致命的なエラー: data/songs.py が見つからないか、インポートできませんでした。")
+    # ボットが起動できないように、ここではエラーを発生させるか、適切なハンドリングを行う
+    # 例: raise SystemExit("data/songs.py が見つかりません。")
+
+# admin_commands から not_in_maintenance と is_owner_check をインポート
+from commands.admin.admin_commands import not_in_maintenance, is_owner_check
 
 logger = logging.getLogger(__name__)
-
-# commands/admin/admin_commands.py から not_in_maintenance チェックをインポート
-# 同じディレクトリ階層ではないため、commands.admin からインポート
-from commands.admin.admin_commands import not_in_maintenance, is_owner_check
 
 class PjskRandomSongCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        logger.info("PjskRandomSongCommandsコグが初期化されています。")
 
-    @commands.Cog.listener()
-    async def on_ready(self):
-        logger.info(f"デバッグ: コグ {self.qualified_name} がロードされました。")
+    # コマンド名を 'pjsk_random_song' に変更
+    @discord.app_commands.command(name="pjsk_random_song", description="プロセカのランダムな曲を提示します。")
+    @not_in_maintenance() # メンテナンスモード中は利用不可
+    async def pjsk_random_song(self, interaction: discord.Interaction):
+        await interaction.response.defer() # 処理に時間がかかる可能性があるため、deferで応答を保留
 
-    @discord.app_commands.command(name="random_song", description="プロセカの登録曲の中からランダムに1曲選曲します。")
-    @not_in_maintenance() # メンテナンスモード中は使用不可
-    async def random_song(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=False) # コマンド応答が遅れる可能性があるため defer
-        logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /random_song コマンドを使用しました。")
+        if not songs.proseka_songs:
+            await interaction.followup.send("曲データが見つかりませんでした。", ephemeral=True)
+            logger.warning("警告: /pjsk_random_song コマンドが実行されましたが、proseka_songs が空でした。")
+            return
 
         try:
-            if not songs.proseka_songs:
-                await interaction.followup.send("選曲できる曲がデータに登録されていません。")
-                logger.warning("警告: data/songs.py の proseka_songs リストが空です。")
-                return
+            # ランダムに曲を選択
+            random_song = random.choice(songs.proseka_songs)
 
-            selected_song = random.choice(songs.proseka_songs) # リストからランダムに1曲選択
+            # 難易度情報を取得し、表示をMasterのみに絞る
+            difficulty_info = ""
+            if "master" in random_song and random_song["master"] is not None:
+                difficulty_info += f"Master: {random_song['master']}"
+            elif "expert" in random_song and random_song["expert"] is not None:
+                difficulty_info += f"Expert: {random_song['expert']}" # Masterがない場合のフォールバック
+            elif "hard" in random_song and random_song["hard"] is not None:
+                difficulty_info += f"Hard: {random_song['hard']}" # Expertもない場合のフォールバック
+            elif "normal" in random_song and random_song["normal"] is not None:
+                difficulty_info += f"Normal: {random_song['normal']}" # Hardもない場合のフォールバック
+            elif "easy" in random_song and random_song["easy"] is not None:
+                difficulty_info += f"Easy: {random_song['easy']}" # Normalもない場合のフォールバック
+            else:
+                difficulty_info = "情報なし" # どの難易度情報もない場合
 
-            # 埋め込みメッセージ用に曲情報を整形
-            title = selected_song.get("title", "不明な曲名")
-            image_url = selected_song.get("image_url") # 画像URLはオプション
+            # 曲のサムネイルURLを安全に取得
+            thumbnail_url = random_song.get("thumbnail", None)
 
-            # songs.py にある VALID_DIFFICULTIES を使って難易度情報を整形
-            difficulty_info = []
-            for diff_key_upper in songs.VALID_DIFFICULTIES:
-                diff_key_lower = diff_key_upper.lower()
-                level = selected_song.get(diff_key_lower)
-                if level is not None:
-                    difficulty_info.append(f"{diff_key_upper.capitalize()}: {level}")
-            difficulty_str = ", ".join(difficulty_info) if difficulty_info else "難易度情報なし"
-
-            # songs.py の例に artist, unit, event がないので、デフォルト値を入れる
-            artist = selected_song.get("artist", "情報なし")
-            unit = selected_song.get("unit", "情報なし")
-            event = selected_song.get("event", "情報なし")
-
-
+            # Embedの作成
             embed = discord.Embed(
-                title=f"🎧 {title}",
-                description=(
-                    f"**アーティスト:** {artist}\n"
-                    f"**ユニット:** {unit}\n"
-                    f"**イベント:** {event}\n"
-                    f"**難易度:** {difficulty_str}"
-                ),
-                color=discord.Color.blue()
+                title=f"🎧 {random_song.get('name', 'タイトル情報なし')}",
+                color=discord.Color.blue() # プロセカっぽい色 (任意)
             )
-            if image_url:
-                embed.set_thumbnail(url=image_url)
 
-            embed.set_footer(text="プロセカ ランダム選曲")
+            # アーティスト、ユニット、イベントのフィールドを削除
+            # embed.add_field(name="アーティスト", value=random_song.get("artist", "情報なし"), inline=False)
+            # embed.add_field(name="ユニット", value=random_song.get("unit", "情報なし"), inline=False)
+            # embed.add_field(name="イベント", value=random_song.get("event", "情報なし"), inline=False)
+
+            # 難易度情報を単一で追加
+            embed.add_field(name="難易度", value=difficulty_info, inline=False)
+
+            # サムネイルがある場合のみ設定
+            if thumbnail_url:
+                embed.set_thumbnail(url=thumbnail_url)
+
+            embed.set_footer(text="プロセカ ランダム選曲") # フッターはそのまま
 
             await interaction.followup.send(embed=embed)
-            logger.info(f"ランダム選曲: '{title}' をユーザー {interaction.user.name} に送信しました。")
+            logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_random_song コマンドを使用しました。曲: {random_song.get('name', 'タイトル情報なし')}")
 
-        except ImportError:
-            logger.error("エラー: data/songs.py が見つからないか、インポートできませんでした。", exc_info=True)
-            await interaction.followup.send("曲データを読み込めませんでした。ボットの管理者に連絡してください。")
         except Exception as e:
-            logger.error(f"エラー: ランダム選曲中に予期せぬエラーが発生しました: {e}", exc_info=True)
-            await interaction.followup.send("選曲中に予期せぬエラーが発生しました。")
+            await interaction.followup.send(f"曲の選曲中にエラーが発生しました: {e}", ephemeral=True)
+            logger.error(f"エラー: /pjsk_random_song コマンドの実行中にエラーが発生しました: {e}", exc_info=True)
 
 
-# コグをボットにセットアップするための関数
+    async def cog_load(self):
+        logger.info("PjskRandomSongCommandsコグがロードされました。")
+
+    async def cog_unload(self):
+        logger.info("PjskRandomSongCommandsコグがアンロードされました。")
+
 async def setup(bot):
     await bot.add_cog(PjskRandomSongCommands(bot))
