@@ -8,8 +8,8 @@ import sys
 import json
 import asyncio
 
-# mainモジュール全体をインポート (bot.is_maintenance_mode の更新のため残す)
-import main # これはボットオブジェクトの属性を直接操作する場合に必要
+# 不要になったインポートを削除
+# import main # ★削除★
 
 # === 新しいインポート ===
 import utils.config_manager as config_manager_module
@@ -19,25 +19,32 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-OWNER_ID = int(os.getenv('DISCORD_OWNER_ID')) if os.getenv('DISCORD_OWNER_ID') else None
+# OWNER_ID の設定は、ボットの `is_owner` メソッドに任せるため、ここでの定義は不要。
+# ただし、not_in_maintenance チェックで OWNER_ID を使う場合は保持。
+# Discord.py v2.0 以降の Bot オブジェクトには .owner_id が自動的に設定される。
+# 環境変数から取得するロジックは main.py の Bot 初期化時に適切に渡されているはずなので、ここでは必要ない。
 
-def is_owner():
+# is_owner() プレディケートを Bot.is_owner() を使うように変更
+def is_owner_check():
     async def predicate(interaction: discord.Interaction):
-        logger.info(f"デバッグ: is_ownerチェック: ユーザーID={interaction.user.id}, OWNER_ID={OWNER_ID}")
+        # bot.is_owner() を直接利用
+        is_owner = await interaction.client.is_owner(interaction.user)
+        logger.info(f"デバッグ: is_ownerチェック: ユーザーID={interaction.user.id}, OWNER_ID={interaction.client.owner_id}")
 
-        if OWNER_ID is None:
-            await interaction.response.send_message("エラー: ボットの製作者IDが設定されていません。環境変数をご確認ください。", ephemeral=True)
-            return False
-        if interaction.user.id != OWNER_ID:
-            await interaction.response.send_message("あなたはボットの製作者ではありません。このコマンドは使用できません。", ephemeral=True)
+        if not is_owner:
+            await interaction.response.send_message("このコマンドはボットの管理者のみが使用できます。", ephemeral=True)
+            logger.warning(f"警告: ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しようとしましたが、権限がありませんでした。")
             return False
         return True
     return discord.app_commands.check(predicate)
 
 def not_in_maintenance():
     async def predicate(interaction: discord.Interaction):
+        # interaction.client は bot オブジェクトを指す
+        # OWNER_ID の取得は interaction.client.owner_id を使う
+        current_owner_id = interaction.client.owner_id # bot.owner_id から取得
+
         if not interaction.client.is_bot_ready_for_commands:
-            # defer されていないため、send_message を使用
             if not interaction.response.is_done():
                 await interaction.response.send_message(
                     "現在ボットは起動準備中のため、このコマンドは使用できません。\n"
@@ -53,8 +60,24 @@ def not_in_maintenance():
             logger.info("デバッグ: not_in_maintenanceチェック: bot.is_bot_ready_for_commands が False のため失敗。")
             return False
 
-        if interaction.client.is_maintenance_mode and interaction.user.id != OWNER_ID:
-            # defer されていないため、send_message を使用
+        # OWNER_ID が設定されていない場合は警告し、メンテナンスモードチェックをスキップする
+        if current_owner_id is None:
+            logger.warning("警告: not_in_maintenanceチェック: ボットの製作者IDが設定されていません。環境変数をご確認ください。")
+            # この場合でも、オーナー以外のユーザーはコマンドを使用できないようにする（念のため）
+            if interaction.user.id != current_owner_id: # この条件は常に False になるが、コードの意図を明示
+                 if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "エラー: ボットの製作者IDが設定されていないため、一部機能が制限されています。",
+                        ephemeral=True
+                    )
+                 else:
+                    await interaction.followup.send(
+                        "エラー: ボットの製作者IDが設定されていないため、一部機能が制限されています。",
+                        ephemeral=True
+                    )
+                 return False
+
+        if interaction.client.is_maintenance_mode and interaction.user.id != current_owner_id:
             if not interaction.response.is_done():
                 await interaction.response.send_message(
                     "現在ボットはメンテナンス中のため、このコマンドは使用できません。",
@@ -76,15 +99,20 @@ def not_in_maintenance():
 class AdminCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # ボットの起動時に状態をロード (config_manager_module を使用)
-        self.bot.is_maintenance_mode = config_manager_module.load_maintenance_status()
-        logger.info(f"デバッグ: 初期メンテナンスモード状態をロードしました: {self.bot.is_maintenance_mode}")
+        logger.info("デバッグ: AdminCommandsコグが初期化されています。")
+        # 起動時にメンテナンスモードの状態をファイルからロードする
+        try:
+            initial_maintenance_status = config_manager_module.load_maintenance_status()
+            self.bot.is_maintenance_mode = initial_maintenance_status
+            logger.info(f"デバッグ: 初期メンテナンスモード状態をロードしました: {self.bot.is_maintenance_mode}")
+        except Exception as e:
+            logger.error(f"エラー: メンテナンスモードの初期ロード中にエラーが発生しました: {e}", exc_info=True)
 
 
     @discord.app_commands.command(name="status_toggle", description="ボットのDiscordステータス（オンライン/取り込み中）を切り替えます。")
-    @is_owner()
+    @is_owner_check() # 修正したis_owner_checkを使用
     async def status_toggle(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True) # thinking=True は削除
+        await interaction.response.defer(ephemeral=True) 
         logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。")
 
         # ボットが完全に準備できるまで待機
@@ -101,12 +129,12 @@ class AdminCommands(commands.Cog):
         # main.py の bot.is_maintenance_mode を直接更新する
         if self.bot.is_maintenance_mode: # 現在メンテナンスモードが有効なら無効に
             self.bot.is_maintenance_mode = False
-            config_manager_module.save_maintenance_status(False) # ここを変更
+            config_manager_module.save_maintenance_status(False)
             status_message = "オンライン"
             logger.info(f"デバッグ: /status_toggle によりメンテナンスモードが無効になりました。")
         else: # 現在メンテナンスモードが無効なら有効に
             self.bot.is_maintenance_mode = True
-            config_manager_module.save_maintenance_status(True) # ここを変更
+            config_manager_module.save_maintenance_status(True)
             status_message = "取り込み中"
             logger.info(f"デバッグ: /status_toggle によりメンテナンスモードが有効になりました。")
 
@@ -123,6 +151,12 @@ class AdminCommands(commands.Cog):
         logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。メンテモード: {'有効' if self.bot.is_maintenance_mode else '無効'}")
 
 
-# コグをボットにセットアップするための関数
+    # コグのロードとアンロードイベント
+    async def cog_load(self):
+        logger.info("AdminCommandsコグがロードされました。")
+
+    async def cog_unload(self):
+        logger.info("AdminCommandsコグがアンロードされました。")
+
 async def setup(bot):
     await bot.add_cog(AdminCommands(bot))
