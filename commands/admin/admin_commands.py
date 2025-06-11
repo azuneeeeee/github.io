@@ -6,9 +6,10 @@ from dotenv import load_dotenv
 import logging
 import sys
 import json
+import asyncio # <-- 追加
 
 # main モジュールをインポートして、bot オブジェクトと maintenance_status_loop にアクセスできるようにする
-import main # <-- 追加
+import main 
 
 # ロガーの取得
 logger = logging.getLogger(__name__)
@@ -116,11 +117,19 @@ class AdminCommands(commands.Cog):
             save_maintenance_status(True) # ファイルにも保存
             logger.info(f"デバッグ: /status_toggle によりメンテナンスモードが有効になりました。")
             
+            # ステータス変更が反映されるのを少し待つ
+            await asyncio.sleep(0.5) # <-- 追加
+            
             # メンテナンスステータスループを開始
-            if not main.maintenance_status_loop.is_running(): # main. を追加
-                main.maintenance_status_loop.start() # main. を追加
-                logger.info("デバッグ: maintenance_status_loop を開始しました。")
-
+            # before_loop でのチェックがあるため、bot.is_maintenance_mode が確実にTrueになってからstart()を呼び出す
+            if not main.maintenance_status_loop.is_running():
+                try:
+                    main.maintenance_status_loop.start() 
+                    logger.info("デバッグ: maintenance_status_loop を開始しました。")
+                except RuntimeError as e:
+                    logger.error(f"エラー: maintenance_status_loop の開始に失敗しました: {e}")
+                    # ここでループが開始できなかった場合の追加処理（例えば、元のステータスに戻すなど）
+                    # 今回は特に何もしないが、ログで把握できるようにする
 
         else: # current_status == discord.Status.dnd （取り込み中）から切り替える場合
             new_status = discord.Status.online # オンラインに変更
@@ -132,8 +141,8 @@ class AdminCommands(commands.Cog):
             logger.info(f"デバッグ: /status_toggle によりメンテナンスモードが無効になりました。")
 
             # メンテナンスステータスループを停止
-            if main.maintenance_status_loop.is_running(): # main. を追加
-                main.maintenance_status_loop.cancel() # main. を追加
+            if main.maintenance_status_loop.is_running():
+                main.maintenance_status_loop.cancel()
                 logger.info("デバッグ: maintenance_status_loop を停止しました。")
             
             # ループ停止後、元のカスタムステータスに戻す
@@ -143,8 +152,10 @@ class AdminCommands(commands.Cog):
             return # ステータス変更とメッセージ送信がここで行われるため、重複を防ぐ
 
         # ステータス変更とメッセージ送信（オンラインへの切り替え時以外）
-        current_activity = interaction.guild.me.activity
-        await self.bot.change_presence(status=new_status, activity=current_activity)
+        # ここでは、メンテナンスモード中に切り替わる場合にのみ実行される
+        # maintenance_status_loop.before_loop が最初にDNDステータスを設定するため、
+        # ここでは activity の変更は不要だが、念のため status の変更は残す
+        await self.bot.change_presence(status=new_status) # activity はループに任せる
         await interaction.followup.send(f"ボットのステータスを **{status_message}** に変更しました。\nメンテナンスモードは**{'有効' if self.bot.is_maintenance_mode else '無効'}**になりました。", ephemeral=True)
         logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。ステータス: {status_message}, メンテモード: {'有効' if self.bot.is_maintenance_mode else '無効'}")
         
