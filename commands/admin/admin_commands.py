@@ -7,6 +7,9 @@ import logging
 import sys
 import json
 
+# main モジュールをインポートして、bot オブジェクトと maintenance_status_loop にアクセスできるようにする
+import main # <-- 追加
+
 # ロガーの取得
 logger = logging.getLogger(__name__)
 
@@ -79,8 +82,6 @@ def not_in_maintenance():
             return False
 
         # bot オブジェクトの属性を参照する
-        # ここでは、オーナーであればメンテナンスモードでもコマンドを使えるようにするため、
-        # `interaction.client.is_maintenance_mode` のチェックをオーナーIDと比較している
         if interaction.client.is_maintenance_mode and interaction.user.id != OWNER_ID:
             await interaction.followup.send(
                 "現在ボットはメンテナンス中のため、このコマンドは使用できません。",
@@ -106,7 +107,7 @@ class AdminCommands(commands.Cog):
         current_status = interaction.guild.me.status
         
         # 新しいステータスに基づいてメンテナンスモードを切り替える
-        if current_status == discord.Status.idle: # 起動モード（退席中）から切り替える場合
+        if current_status == discord.Status.online: # 起動モード（オンライン）から切り替える場合
             new_status = discord.Status.dnd # 取り込み中に変更
             status_message = "取り込み中"
             
@@ -114,35 +115,39 @@ class AdminCommands(commands.Cog):
             self.bot.is_maintenance_mode = True
             save_maintenance_status(True) # ファイルにも保存
             logger.info(f"デバッグ: /status_toggle によりメンテナンスモードが有効になりました。")
+            
+            # メンテナンスステータスループを開始
+            if not main.maintenance_status_loop.is_running(): # main. を追加
+                main.maintenance_status_loop.start() # main. を追加
+                logger.info("デバッグ: maintenance_status_loop を開始しました。")
+
 
         else: # current_status == discord.Status.dnd （取り込み中）から切り替える場合
-            new_status = discord.Status.idle # 退席中に変更
-            status_message = "退席中"
+            new_status = discord.Status.online # オンラインに変更
+            status_message = "オンライン"
 
-            # ステータスが「オンライン」（退席中）になるので、メンテナンスモードを無効にする
+            # ステータスが「オンライン」になるので、メンテナンスモードを無効にする
             self.bot.is_maintenance_mode = False
             save_maintenance_status(False) # ファイルにも保存
             logger.info(f"デバッグ: /status_toggle によりメンテナンスモードが無効になりました。")
-        
+
+            # メンテナンスステータスループを停止
+            if main.maintenance_status_loop.is_running(): # main. を追加
+                main.maintenance_status_loop.cancel() # main. を追加
+                logger.info("デバッグ: maintenance_status_loop を停止しました。")
+            
+            # ループ停止後、元のカスタムステータスに戻す
+            await self.bot.change_presence(activity=discord.CustomActivity(name=self.bot.original_status_message), status=new_status)
+            await interaction.followup.send(f"ボットのステータスを **{status_message}** に変更しました。\nメンテナンスモードは**{'有効' if self.bot.is_maintenance_mode else '無効'}**になりました。", ephemeral=True)
+            logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。ステータス: {status_message}, メンテモード: {'有効' if self.bot.is_maintenance_mode else '無効'}")
+            return # ステータス変更とメッセージ送信がここで行われるため、重複を防ぐ
+
+        # ステータス変更とメッセージ送信（オンラインへの切り替え時以外）
         current_activity = interaction.guild.me.activity
         await self.bot.change_presence(status=new_status, activity=current_activity)
-
         await interaction.followup.send(f"ボットのステータスを **{status_message}** に変更しました。\nメンテナンスモードは**{'有効' if self.bot.is_maintenance_mode else '無効'}**になりました。", ephemeral=True)
+        logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。ステータス: {status_message}, メンテモード: {'有効' if self.bot.is_maintenance_mode else '無効'}")
         
-    # @discord.app_commands.command(name="maintenance", description="ボットのメンテナンスモードを切り替えます (管理者のみ)。")
-    # @is_owner()
-    # @discord.app_commands.guild_only()
-    # async def maintenance(self, interaction: discord.Interaction, mode: bool):
-    #     await interaction.response.defer(ephemeral=True, thinking=True)
-        
-    #     # bot オブジェクトの属性を直接更新する
-    #     self.bot.is_maintenance_mode = mode 
-    #     save_maintenance_status(mode) # ファイルにも保存
-
-    #     status = "有効" if mode else "無効"
-    #     await interaction.followup.send(f"メンテナンスモードを **{status}** に設定しました。", ephemeral=True)
-    #     logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) がメンテナンスモードを {status} に切り替えました。")
-
 
 # コグをボットにセットアップするための関数
 async def setup(bot):
