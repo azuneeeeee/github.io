@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # commands/admin/admin_commands.py から not_in_maintenance チェックをインポート
 # 同じディレクトリ階層ではないため、commands.admin からインポート
-from commands.admin.admin_commands import not_in_maintenance, is_owner
+from commands.admin.admin_commands import not_in_maintenance, is_owner_check
 
 class PjskRandomSongCommands(commands.Cog):
     def __init__(self, bot):
