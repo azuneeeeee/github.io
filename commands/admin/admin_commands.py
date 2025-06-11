@@ -8,6 +8,7 @@ import sys
 import json
 import asyncio 
 
+# main モジュールをインポート
 import main 
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,12 @@ class AdminCommands(commands.Cog):
         await interaction.response.defer(ephemeral=True, thinking=True)
         logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。")
 
+        # ボットが完全に準備できるまで待機
+        if not self.bot.is_ready():
+            logger.info("デバッグ: /status_toggle: ボットがまだ準備できていません。準備できるまで待機します。")
+            await self.bot.wait_until_ready()
+            logger.info("デバッグ: /status_toggle: ボットが準備できました。")
+
         current_status = interaction.guild.me.status
         
         if current_status == discord.Status.online: # 起動モード（オンライン）から切り替える場合
@@ -105,12 +112,6 @@ class AdminCommands(commands.Cog):
             save_maintenance_status(True)
             logger.info(f"デバッグ: /status_toggle によりメンテナンスモードが有効になりました。")
             
-            # === ここに、ボットが準備できるまで待つロジックを追加 ===
-            if not self.bot.is_ready():
-                logger.info("デバッグ: /status_toggle: ボットがまだ準備できていません。準備できるまで待機します。")
-                await self.bot.wait_until_ready()
-                logger.info("デバッグ: /status_toggle: ボットが準備できました。")
-
             # maintenance_status_loop がまだ実行中でない場合に開始
             if not main.maintenance_status_loop.is_running():
                 try:
@@ -140,12 +141,6 @@ class AdminCommands(commands.Cog):
                 logger.info("デバッグ: maintenance_status_loop を停止しました。")
             
             # ループ停止後、元のカスタムステータスに戻す
-            # ここでも bot.is_ready() を確認
-            if not self.bot.is_ready():
-                logger.info("デバッグ: /status_toggle (無効化): ボットがまだ準備できていません。準備できるまで待機します。")
-                await self.bot.wait_until_ready()
-                logger.info("デバッグ: /status_toggle (無効化): ボットが準備できました。")
-
             await self.bot.change_presence(activity=discord.CustomActivity(name=self.bot.original_status_message), status=new_status)
             await interaction.followup.send(f"ボットのステータスを **{status_message}** に変更しました。\nメンテナンスモードは**{'有効' if self.bot.is_maintenance_mode else '無効'}**になりました。", ephemeral=True)
             logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。ステータス: {status_message}, メンテモード: {'有効' if self.bot.is_maintenance_mode else '無効'}")
@@ -153,4 +148,3 @@ class AdminCommands(commands.Cog):
 # コグをボットにセットアップするための関数
 async def setup(bot):
     await bot.add_cog(AdminCommands(bot))
-
