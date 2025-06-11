@@ -1,3 +1,5 @@
+# utils/config_manager.py
+
 import json
 import os
 import logging
@@ -6,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 # プロジェクトのルートディレクトリにファイルを保存するよう絶対パスを指定
 # Railwayでは /app がルートディレクトリになるため、それに合わせる
+# RAILWAY_VOLUME_MOUNT_PATH 環境変数が設定されていない場合は、一般的なボリュームパス '/data' を使用
 MAINTENANCE_FILE = os.path.join(os.getenv('RAILWAY_VOLUME_MOUNT_PATH', '/data'), "maintenance_status.json")
 
 def load_maintenance_status() -> bool:
@@ -39,8 +42,12 @@ def save_maintenance_status(status: bool):
     """
     logger.debug(f"デバッグ: メンテナンスモードの状態を {MAINTENANCE_FILE} に保存しようとしています: {status}")
     try:
+        # ★ 変更点: ディレクトリが存在しない場合に作成する処理を追加 ★
+        os.makedirs(os.path.dirname(MAINTENANCE_FILE), exist_ok=True)
+        
         with open(MAINTENANCE_FILE, 'w', encoding='utf-8') as f:
-            json.dump({'is_maintenance_mode': status}, f, indent=4)
+            # ★ 変更点: ensure_ascii=False を追加し、日本語が正しく保存されるようにする ★
+            json.dump({'is_maintenance_mode': status}, f, indent=4, ensure_ascii=False)
         logger.info(f"デバッグ: メンテナンスモードの状態を {MAINTENANCE_FILE} に保存しました: {status}")
     except Exception as e:
         logger.error(f"エラー: メンテナンスモードの状態を {MAINTENANCE_FILE} に保存できませんでした: {e}", exc_info=True) # exc_info=Trueで詳細なトレースバックを出力
