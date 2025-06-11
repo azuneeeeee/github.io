@@ -285,4 +285,4 @@ if __name__ == '__main__':
 
     try:
         bot.run(token)
-        logger.info("デバッグ: bot.run() が戻りました。これはボットが切断または停止したことを意味
+        logger.info("デバッグ: bot.run() が戻りました。これはボットが切断または停止したことを意味します。")
