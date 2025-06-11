@@ -8,7 +8,6 @@ import sys
 import json
 import asyncio 
 
-# main モジュールをインポート
 import main 
 
 logger = logging.getLogger(__name__)
@@ -96,7 +95,7 @@ class AdminCommands(commands.Cog):
         await interaction.response.defer(ephemeral=True, thinking=True)
         logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。")
 
-        # ボットが完全に準備できるまで待機
+        # ボットが完全に準備できるまで待機（前回同様）
         if not self.bot.is_ready():
             logger.info("デバッグ: /status_toggle: ボットがまだ準備できていません。準備できるまで待機します。")
             await self.bot.wait_until_ready()
@@ -112,13 +111,34 @@ class AdminCommands(commands.Cog):
             save_maintenance_status(True)
             logger.info(f"デバッグ: /status_toggle によりメンテナンスモードが有効になりました。")
             
-            # maintenance_status_loop がまだ実行中でない場合に開始
+            # --- ここからが最も重要な変更点 ---
+            # maintenance_status_loop を開始する前に、ボットが確実に ready になるまで待機する
             if not main.maintenance_status_loop.is_running():
                 try:
                     main.maintenance_status_loop.start() 
                     logger.info("デバッグ: maintenance_status_loop を開始しました。")
+                    
+                    # ループが本当に 'ready' 状態になるまで待機する
+                    timeout_seconds = 30 # 最大30秒待つ
+                    start_time = asyncio.get_event_loop().time()
+                    
+                    while not self.bot.is_ready() and (asyncio.get_event_loop().time() - start_time) < timeout_seconds:
+                        logger.debug("デバッグ: /status_toggle: ループ起動後、bot.is_ready() が True になるのを待機中...")
+                        await asyncio.sleep(0.5) # 0.5秒ごとにチェック
+                    
+                    if not self.bot.is_ready():
+                        logger.error(f"エラー: /status_toggle: {timeout_seconds}秒待ってもボットが ready 状態になりませんでした。")
+                        await interaction.followup.send("エラー: ボットが完全に準備状態になる前にタイムアウトしました。しばらくしてから再試行してください。", ephemeral=True)
+                        # ここでループをキャンセルするべきか検討（今回はクラッシュ回避のためそのまま続行）
+                        # main.maintenance_status_loop.cancel() 
+                        # return
+                    else:
+                        logger.info("デバッグ: /status_toggle: ループ起動後、ボットが ready 状態であることを確認しました。")
+
                 except RuntimeError as e:
                     logger.error(f"エラー: maintenance_status_loop の開始に失敗しました: {e}")
+                    await interaction.followup.send("エラー: メンテナンスステータスループの開始に失敗しました。", ephemeral=True)
+                    return
             else:
                 logger.info("デバッグ: maintenance_status_loop はすでに実行中です。")
 
@@ -137,6 +157,12 @@ class AdminCommands(commands.Cog):
 
             # maintenance_status_loop が実行中なら停止させる
             if main.maintenance_status_loop.is_running():
+                # ここでもボットがreadyになるまで待つ
+                if not self.bot.is_ready():
+                    logger.info("デバッグ: /status_toggle (無効化): ボットがまだ準備できていません。準備できるまで待機します。")
+                    await self.bot.wait_until_ready()
+                    logger.info("デバッグ: /status_toggle (無効化): ボットが準備できました。")
+
                 main.maintenance_status_loop.cancel()
                 logger.info("デバッグ: maintenance_status_loop を停止しました。")
             
