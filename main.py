@@ -64,7 +64,7 @@ logger.info("デバッグ: 環境変数がロードされました。")
 @tasks.loop(seconds=10)
 async def maintenance_status_loop():
     maintenance_message = "メンテナンス中... 🛠️"
-    logger.debug("デバッグ: maintenance_status_loop が実行されました。") # 追加したログ
+    logger.debug("デバッグ: maintenance_status_loop が実行されました。")
 
     try:
         if not bot.maintenance_loop_initial_delay_done:
@@ -79,41 +79,53 @@ async def maintenance_status_loop():
             return
 
         if bot.is_maintenance_mode:
-            logger.debug("デバッグ: maintenance_status_loop: メンテナンスモードが有効です。ステータス変更を試みます。") # 追加したログ
+            logger.debug("デバッグ: maintenance_status_loop: メンテナンスモードが有効です。ステータス変更を試みます。")
             if not bot.guilds:
                 logger.warning("警告: maintenance_status_loop: ボットが参加しているギルドが見つかりません。ステータスを変更できません。")
-                return
-
-            me_member = bot.guilds[0].me
+                # ここで return しないことで、ギルドがない場合でもエラーをログしつつループは継続させる
+            
+            # bot.guildsが空の場合にエラーにならないようにNoneチェックを追加
+            me_member = bot.guilds[0].me if bot.guilds else None
             if not me_member:
                 logger.warning("警告: maintenance_status_loop: ギルドのボットメンバー情報が取得できません。ステータスを変更できません。")
-                return
+                return # member情報がない場合はこれ以上ステータス変更できないのでここで戻る
 
             current_activity = me_member.activity
             current_activity_name = current_activity.name if current_activity and isinstance(current_activity, discord.CustomActivity) else ""
 
             logger.debug(f"デバッグ: maintenance_status_loop: メンテナンスモード有効。現在のアクティビティ名: '{current_activity_name}', 比較対象: '{bot.original_status_message}'")
 
-            if current_activity_name == bot.original_status_message:
+            # 現在のステータスが「メンテナンス中」ではない場合、切り替える
+            if not (isinstance(current_activity, discord.CustomActivity) and current_activity.name == maintenance_message and me_member.status == discord.Status.dnd):
                 await bot.change_presence(activity=discord.CustomActivity(name=maintenance_message), status=discord.Status.dnd)
-                logger.info(f"デバッグ: ステータスを '{maintenance_message}' (DND) に切り替えました。") # ログをより詳細に
+                logger.info(f"デバッグ: ステータスを '{maintenance_message}' (DND) に切り替えました。")
             else:
-                await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.dnd)
-                logger.info(f"デバッグ: ステータスを '{bot.original_status_message}' (DND) に切り替えました。") # ログをより詳細に
-        else:
-            logger.debug("デバッグ: maintenance_status_loop: メンテナンスモードが無効です。ステータスをオンラインに戻します。") # 追加したログ
-            if bot.is_ready():
-                await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.online)
-                logger.info("デバッグ: maintenance_status_loop: メンテナンスモード無効化に伴い、ステータスをオンラインに戻しました。")
+                logger.debug("デバッグ: maintenance_status_loop: すでにメンテナンスステータスに設定済みです。")
+
+        else: # bot.is_maintenance_mode が False の場合
+            logger.debug("デバッグ: maintenance_status_loop: メンテナンスモードが無効です。ステータスをオンラインに戻します。")
+            
+            # 現在のステータスが「オンライン」かつ original_status_message ではない場合、切り替える
+            # ボットの起動時設定と異なる場合にのみ変更する
+            me_member = bot.guilds[0].me if bot.guilds else None
+            if me_member:
+                current_activity = me_member.activity
+                current_activity_name = current_activity.name if current_activity and isinstance(current_activity, discord.CustomActivity) else ""
+
+                if not (isinstance(current_activity, discord.CustomActivity) and current_activity.name == bot.original_status_message and me_member.status == discord.Status.online):
+                    await bot.change_presence(activity=discord.CustomActivity(name=bot.original_status_message), status=discord.Status.online)
+                    logger.info("デバッグ: maintenance_status_loop: メンテナンスモード無効化に伴い、ステータスをオンラインに戻しました。")
+                else:
+                    logger.debug("デバッグ: maintenance_status_loop: すでにオンラインステータスに設定済みです。")
             else:
-                logger.warning("警告: maintenance_status_loop: ボットが準備できていないため、メンテナンスモード無効化時のステータスを戻せません。")
+                logger.warning("警告: maintenance_status_loop: ギルドメンバー情報が取得できないため、オンラインステータスに戻せません。")
 
-            await asyncio.sleep(1)
-            maintenance_status_loop.cancel()
-            logger.info("デバッグ: maintenance_status_loop をメンテナンスモード無効のため停止しました。")
-            bot.maintenance_loop_initial_delay_done = False
-            logger.info("デバッグ: maintenance_status_loop を停止し、初回遅延フラグをリセットしました。")
-
+            # ★ ループをキャンセルする行を削除 ★
+            # await asyncio.sleep(1)
+            # maintenance_status_loop.cancel()
+            # logger.info("デバッグ: maintenance_status_loop をメンテナンスモード無効のため停止しました。")
+            # bot.maintenance_loop_initial_delay_done = False
+            # logger.info("デバッグ: maintenance_status_loop を停止し、初回遅延フラグをリセットしました。")
 
     except discord.HTTPException as http_e:
         logger.error(f"エラー: Discord APIからのHTTPエラーが発生しました（ステータス変更中）: {http_e} (コード: {http_e.status})", exc_info=True)
