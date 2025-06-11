@@ -41,11 +41,32 @@ except ImportError:
     sys.exit(1)
 
 
+load_dotenv() # .env ファイルから環境変数をロード
+logger.info("デバッグ: 環境変数のロードを試みます。")
+
+# --- ★ここから修正・追加★ ---
+# OWNER_ID を環境変数から取得し、ボットの初期化時に渡す
+# bot.owner_id はこの値で設定される
+OWNER_ID = os.getenv('DISCORD_OWNER_ID')
+if OWNER_ID:
+    try:
+        OWNER_ID = int(OWNER_ID)
+        logger.info(f"デバッグ: 環境変数 DISCORD_OWNER_ID から OWNER_ID をロードしました: {OWNER_ID}")
+    except ValueError:
+        logger.critical("致命的なエラー: DISCORD_OWNER_ID が整数ではありません。正しいIDを設定してください。")
+        sys.exit(1)
+else:
+    logger.critical("致命的なエラー: DISCORD_OWNER_ID 環境変数が設定されていません。ボットは起動できません。")
+    sys.exit(1)
+# --- ★ここまで修正・追加★ ---
+
+
 # ボットインスタンスの作成
 intents = discord.Intents.all()
 logger.info("デバッグ: インテントが設定されました (discord.Intents.all())。")
 
-bot = commands.Bot(command_prefix='!', intents=intents)
+# botを初期化する際に owner_id を明示的に渡す
+bot = commands.Bot(command_prefix='!', intents=intents, owner_id=OWNER_ID) # ★ここを修正★
 logger.info("デバッグ: ボットインスタンスが作成されました。")
 
 # === ボットにカスタム属性を追加して状態を管理する ===
@@ -56,9 +77,7 @@ bot.maintenance_loop_initial_delay_done = False
 logger.info(f"デバッグ: ボットのカスタム属性が初期化されました: is_maintenance_mode={bot.is_maintenance_mode}, is_bot_ready_for_commands={bot.is_bot_ready_for_commands}, original_status_message='{bot.original_status_message}', maintenance_loop_initial_delay_done={bot.maintenance_loop_initial_delay_done}")
 
 
-load_dotenv()
-logger.info("デバッグ: 環境変数のロードを試みます。")
-logger.info("デバッグ: 環境変数がロードされました。")
+logger.info("デバッグ: 環境変数がロードされました。") # この行はロードdotenvの後にもう一度表示されるが、無視してよい
 
 # === メンテナンスモード時のステータス切り替えループ ===
 @tasks.loop(seconds=10)
@@ -109,7 +128,7 @@ async def maintenance_status_loop():
             next_activity_name = ""
             next_status = discord.Status.dnd # メンテナンスモード中は常にDND
 
-            # 現在のステータスがオプション1なら、次のループでオプション2へ切り替える
+            # 現在のステータスがどちらかのオプションと一致するか確認
             is_currently_option1 = (isinstance(current_activity, discord.CustomActivity) and current_activity.name == status_options[0][0] and current_status_raw == status_options[0][1])
             is_currently_option2 = (isinstance(current_activity, discord.CustomActivity) and current_activity.name == status_options[1][0] and current_status_raw == status_options[1][1])
 
@@ -190,31 +209,11 @@ async def on_ready():
         # スラッシュコマンドを同期する
         logger.info("デバッグ: スラッシュコマンドの同期を開始します。")
 
-        # ★★★ 変更点: ここからスラッシュコマンド同期時のメンテナンスモード操作を削除 ★★★
-        # try:
-        #     bot.is_maintenance_mode = True
-        #     config_manager_module.save_maintenance_status(True)
-        #     logger.info("デバッグ: スラッシュコマンド同期のため、一時的にメンテナンスモードを有効にしました。")
-        # except Exception as e:
-        #     logger.error(f"エラー: 起動時のメンテナンスモード有効化中にエラーが発生しました: {e}", exc_info=True)
-        # ★★★ 変更点ここまで ★★★
-
-
         try:
             synced = await bot.tree.sync()
             logger.info(f"デバッグ: スラッシュコマンドが {len(synced)} 件同期されました。")
         except Exception as e:
             logger.error(f"エラー: スラッシュコマンドの同期中にエラーが発生しました: {e}", exc_info=True)
-        # ★★★ 変更点: ここからスラッシュコマンド同期後のメンテナンスモード操作を削除 ★★★
-        # finally:
-        #     try:
-        #         bot.is_maintenance_mode = False
-        #         config_manager_module.save_maintenance_status(False)
-        #         logger.info("デバッグ: スラッシュコマンド同期完了のため、メンテナンスモードを無効にしました。")
-        #     except Exception as e:
-        #         logger.error(f"エラー: 起動時のメンテナンスモード無効化中にエラーが発生しました: {e}", exc_info=True)
-        # ★★★ 変更点ここまで ★★★
-
 
         bot.is_bot_ready_for_commands = True
         logger.info(f"デバッグ: is_bot_ready_for_commands が {bot.is_bot_ready_for_commands} に設定されました。")
@@ -286,10 +285,4 @@ if __name__ == '__main__':
 
     try:
         bot.run(token)
-        logger.info("デバッグ: bot.run() が戻りました。これはボットが切断または停止したことを意味します。")
-    except discord.LoginFailure:
-        logger.critical("致命的なエラー: トークン認証に失敗しました。DISCORD_BOT_TOKEN を確認してください。")
-        sys.exit(1)
-    except Exception as e:
-        logger.critical(f"致命的なエラー: asyncio.run()中に重大なエラーが発生しました: {e}", exc_info=True)
-    logger.info("デバッグ: プログラムの実行が終了しました。")
+        logger.info("デバッグ: bot.run() が戻りました。これはボットが切断または停止したことを意味
