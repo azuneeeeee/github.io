@@ -18,7 +18,7 @@ import utils.config_manager as config_manager_module # ここを変更
 logger = logging.getLogger(__name__)
 
 # --- 削除する部分 ---
-# MAINTENANCE_FILE = "maintenance_status.json"
+MAINTENANCE_FILE = "/data/maintenance_status.json"
 #
 # def load_maintenance_status():
 #     # ... 削除 ...
