@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 # プロジェクトのルートディレクトリにファイルを保存するよう絶対パスを指定
 # Railwayでは /app がルートディレクトリになるため、それに合わせる
-MAINTENANCE_FILE = os.path.join(os.getenv('RAILWAY_VOLUME_MOUNT_PATH', './'), "maintenance_status.json")
+MAINTENANCE_FILE = os.path.join(os.getenv('RAILWAY_VOLUME_MOUNT_PATH', '/data'), "maintenance_status.json")
 
 def load_maintenance_status() -> bool:
     """
