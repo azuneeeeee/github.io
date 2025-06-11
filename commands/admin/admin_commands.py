@@ -95,7 +95,12 @@ class AdminCommands(commands.Cog):
         await interaction.response.defer(ephemeral=True, thinking=True)
         logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。")
 
-        # ここにあった await self.bot.wait_until_ready() とポーリングは main.py の maintenance_status_loop に移動
+        # === ここに await self.bot.wait_until_ready() を戻す ===
+        if not self.bot.is_ready():
+            logger.info("デバッグ: /status_toggle: ボットがまだ準備できていません。準備できるまで待機します。")
+            await self.bot.wait_until_ready()
+            logger.info("デバッグ: /status_toggle: ボットが準備できました。")
+        # ===============================================
 
         current_status = interaction.guild.me.status
 
@@ -138,7 +143,6 @@ class AdminCommands(commands.Cog):
                 logger.info("デバッグ: maintenance_status_loop を停止しました。")
 
             # ループ停止後、元のカスタムステータスに戻す
-            # ここも await self.bot.wait_until_ready() は不要
             await self.bot.change_presence(activity=discord.CustomActivity(name=self.bot.original_status_message), status=new_status)
             await interaction.followup.send(f"ボットのステータスを **{status_message}** に変更しました。\nメンテナンスモードは**{'有効' if self.bot.is_maintenance_mode else '無効'}**になりました。", ephemeral=True)
             logger.warning(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /status_toggle コマンドを使用しました。ステータス: {status_message}, メンテモード: {'有効' if self.bot.is_maintenance_mode else '無効'}")
