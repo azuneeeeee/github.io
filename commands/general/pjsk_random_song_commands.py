@@ -111,7 +111,7 @@ class PjskRandomSongCommands(commands.Cog):
             # フィルタリングされた曲の中からランダムに選択
             random_song = random.choice(available_songs)
 
-            # --- ★ここから表示する難易度をランダムに選ぶロジックを再修正★ ---
+            # --- ここから表示する難易度をランダムに選ぶロジック ---
             difficulty_info = "情報なし"
             
             # 実際に表示する難易度タイプを決定するための候補リスト
@@ -147,7 +147,6 @@ class PjskRandomSongCommands(commands.Cog):
                 difficulty_info = f"{self.DISPLAY_DIFFICULTY_TYPES.get(chosen_display_difficulty, chosen_display_difficulty.upper())}: {random_song[chosen_display_difficulty]}"
             
             logger.debug(f"デバッグ: 最終的に表示する難易度情報: {difficulty_info}")
-            # --- ★ここまで修正★ ---
 
             # 曲のサムネイルURLを安全に取得 (キー名を 'image_url' に変更)
             thumbnail_url = random_song.get("image_url", None)
@@ -175,24 +174,24 @@ class PjskRandomSongCommands(commands.Cog):
             await interaction.followup.send(f"曲の選曲中にエラーが発生しました: {e}", ephemeral=True)
             logger.error(f"エラー: /pjsk_random_song コマンドの実行中に予期せぬエラーが発生しました: {e}", exc_info=True)
 
-    # Autocompleteの実装
-    @pjsk_random_song.autocomplete('difficulties')
-    async def difficulties_autocomplete(self, interaction: discord.Interaction, current: str):
-        """難易度タイプの入力補完を提供します。"""
-        entered_parts = [p.strip().lower() for p in current.split(',') if p.strip()]
-        last_part = entered_parts[-1] if entered_parts else ""
+    # ★★★★★ ここから下の Autocomplete の部分を全て削除 ★★★★★
+    # @pjsk_random_song.autocomplete('difficulties')
+    # async def difficulties_autocomplete(self, interaction: discord.Interaction, current: str):
+    #     """難易度タイプの入力補完を提供します。"""
+    #     entered_parts = [p.strip().lower() for p in current.split(',') if p.strip()]
+    #     last_part = entered_parts[-1] if entered_parts else ""
 
-        options = []
-        for diff_key in self.ALL_DIFFICULTY_TYPES:
-            display_name = self.DISPLAY_DIFFICULTY_TYPES[diff_key]
-            # 既にユーザーが入力した（最後の部分を除く）難易度は候補から除外
-            if diff_key not in entered_parts[:-1] and display_name.lower().startswith(last_part):
-                options.append(display_name)
+    #     options = []
+    #     for diff_key in self.ALL_DIFFICULTY_TYPES:
+    #         display_name = self.DISPLAY_DIFFICULTY_TYPES[diff_key]
+    #         if diff_key not in entered_parts[:-1] and display_name.lower().startswith(last_part):
+    #             options.append(display_name)
         
-        return [
-            discord.app_commands.Choice(name=opt, value=opt)
-            for opt in options[:25]
-        ]
+    #     return [
+    #         discord.app_commands.Choice(name=opt, value=opt)
+    #         for opt in options[:25]
+    #     ]
+    # ★★★★★ ここまで削除 ★★★★★
 
     async def cog_load(self):
         logger.info("PjskRandomSongCommandsコグがロードされました。")
