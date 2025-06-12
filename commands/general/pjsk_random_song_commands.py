@@ -70,11 +70,12 @@ class PjskRandomSongCommands(commands.Cog):
                 
                 # もし不正な難易度タイプが指定された場合は警告
                 if len(raw_difficulties) != len(selected_difficulty_types):
-                    invalid_types = set(raw_difficulties) - set(selected_difficulty_types)
-                    await interaction.followup.send(
-                        f"警告: 不正な難易度タイプが指定されました: {', '.join(invalid_types)}。無視して処理を続行します。",
-                        ephemeral=True
-                    )
+                    invalid_types = set(raw_difficulties) - set(self.ALL_DIFFICULTY_TYPES) # 修正: ALL_DIFFICULTY_TYPESと比較
+                    if invalid_types: # 実際に不正なタイプがある場合のみ警告
+                        await interaction.followup.send(
+                            f"警告: 不正な難易度タイプが指定されました: {', '.join([self.DISPLAY_DIFFICULTY_TYPES.get(t, t.upper()) for t in invalid_types])}。無視して処理を続行します。",
+                            ephemeral=True
+                        )
             
             # どの難易度タイプも選択されていない（または不正な値のみだった）場合は、全ての難易度タイプを対象とする
             if not selected_difficulty_types:
@@ -87,6 +88,7 @@ class PjskRandomSongCommands(commands.Cog):
             for song in songs.proseka_songs:
                 song_matches_criteria = False
                 
+                # この曲で、選択された難易度タイプかつレベル範囲に合致する譜面が存在するかチェック
                 for diff_type in selected_difficulty_types:
                     if diff_type in song and song[diff_type] is not None:
                         level = song[diff_type]
@@ -116,41 +118,44 @@ class PjskRandomSongCommands(commands.Cog):
             # フィルタリングされた曲の中からランダムに選択
             random_song = random.choice(available_songs)
 
-            # 表示する難易度情報を決定
+            # --- ★ここから表示する難易度をランダムに選ぶロジックを修正★ ---
             difficulty_info = "情報なし"
-            display_difficulty_type = None # 表示する難易度タイプ（easy, normalなど）
-
-            # 優先順位（高い順）
-            priority_difficulties = ["append", "master", "expert", "hard", "normal", "easy"]
-
-            # 選択された難易度タイプの中から、ランダムな曲で存在する最も高い優先順位の難易度を選ぶ
-            for diff_type in priority_difficulties:
-                # ユーザーが指定した難易度タイプに含まれていて、かつ、その難易度が曲に存在しレベルが設定されている場合
-                if diff_type in selected_difficulty_types and \
-                   diff_type in random_song and random_song[diff_type] is not None:
-                    # その難易度レベルが指定されたレベル範囲内にあるか最終確認
+            
+            # 選ばれた曲が持つ、ユーザーが指定した難易度タイプかつレベル範囲内の難易度を収集
+            eligible_display_difficulties = []
+            for diff_type in self.ALL_DIFFICULTY_TYPES: # 全難易度タイプを優先順位関係なくチェック
+                if diff_type in random_song and random_song[diff_type] is not None:
                     level_for_display = random_song[diff_type]
-                    if (min_level is None or level_for_display >= min_level) and \
-                       (max_level is None or level_for_display <= max_level):
-                        display_difficulty_type = diff_type
-                        break
-            
-            # もし上記で見つからなかった場合（例えば、選択された難易度がレベル範囲外で曲が見つかったが、
-            # 表示すべき難易度が範囲外になった場合など）
-            # または、どの難易度タイプも指定されなかったがレベル範囲で曲が見つかった場合、
-            # その曲の最も高い優先順位の難易度を表示する
-            if display_difficulty_type is None:
-                for diff_type in priority_difficulties:
-                     if diff_type in random_song and random_song[diff_type] is not None:
-                        display_difficulty_type = diff_type
-                        break
 
-            if display_difficulty_type:
-                # 難易度表記を全て大文字にする
-                # ALL_DIFFICULTY_TYPESではなくDISPLAY_DIFFICULTY_TYPESから大文字名を取得
-                difficulty_info = f"{self.DISPLAY_DIFFICULTY_TYPES.get(display_difficulty_type, display_difficulty_type.upper())}: {random_song[display_difficulty_type]}"
+                    # ユーザーが難易度タイプを指定している場合、それに含まれるか
+                    if diff_type not in selected_difficulty_types:
+                        continue # ユーザーが選択しなかった難易度はスキップ
+
+                    # レベル範囲のチェック
+                    if (min_level is not None and level_for_display < min_level) or \
+                       (max_level is not None and level_for_display > max_level):
+                        continue # レベル範囲外ならスキップ
+                    
+                    eligible_display_difficulties.append(diff_type)
             
+            if eligible_display_difficulties:
+                # ユーザーが指定した難易度タイプ & レベル範囲内の難易度からランダムに選択
+                chosen_display_difficulty = random.choice(eligible_display_difficulties)
+                difficulty_info = f"{self.DISPLAY_DIFFICULTY_TYPES.get(chosen_display_difficulty, chosen_display_difficulty.upper())}: {random_song[chosen_display_difficulty]}"
+            else:
+                # どんな難易度タイプも選択されなかった場合、または範囲外だった場合、
+                # フォールバックとしてランダムな曲が持つ全ての難易度から選ぶ
+                all_song_difficulties = []
+                for diff_type in self.ALL_DIFFICULTY_TYPES:
+                    if diff_type in random_song and random_song[diff_type] is not None:
+                        all_song_difficulties.append(diff_type)
+                
+                if all_song_difficulties:
+                    chosen_display_difficulty = random.choice(all_song_difficulties)
+                    difficulty_info = f"{self.DISPLAY_DIFFICULTY_TYPES.get(chosen_display_difficulty, chosen_display_difficulty.upper())}: {random_song[chosen_display_difficulty]}"
+
             logger.debug(f"デバッグ: 最終的に表示する難易度情報: {difficulty_info}")
+            # --- ★ここまで修正★ ---
 
             # 曲のサムネイルURLを安全に取得 (キー名を 'image_url' に変更)
             thumbnail_url = random_song.get("image_url", None)
@@ -192,14 +197,16 @@ class PjskRandomSongCommands(commands.Cog):
 
         # まだ選択されていない、かつ現在の入力と一致する難易度を候補として返す
         options = []
-        for diff_type in self.ALL_DIFFICULTY_TYPES:
-            if diff_type not in entered_parts[:-1] and diff_type.startswith(last_part):
+        # ALL_DIFFICULTY_TYPESではなく、DISPLAY_DIFFICULTY_TYPESのキーを回す
+        for diff_key in self.ALL_DIFFICULTY_TYPES: # 修正: ALL_DIFFICULTY_TYPESを回して、DISPLAY_DIFFICULTY_TYPESから表示名を取得
+            display_name = self.DISPLAY_DIFFICULTY_TYPES[diff_key]
+            if diff_key not in entered_parts[:-1] and display_name.lower().startswith(last_part): # 修正: display_name.lower()で比較
                 # ユーザーへの表示は大文字にする
-                options.append(self.DISPLAY_DIFFICULTY_TYPES[diff_type])
+                options.append(display_name)
         
         # 最大25件の候補を返す
         return [
-            discord.app_commands.Choice(name=opt, value=opt)
+            discord.app_commands.Choice(name=opt, value=opt) # valueも表示名と同じにする
             for opt in options[:25]
         ]
 
