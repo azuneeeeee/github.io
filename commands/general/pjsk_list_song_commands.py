@@ -20,7 +20,7 @@ class PjskListSongCommands(commands.Cog):
         self.bot = bot
         logger.info("PjskListSongCommandsコグが初期化されています。")
 
-    # 利用可能な難易度タイプを定義 (小文字で内部処理、大文字で表示) - この部分は必要に応じて残します
+    # 利用可能な難易度タイプを定義 (小文字で内部処理、大文字で表示) - この部分はもう使われませんが、削除しても良いです
     ALL_DIFFICULTY_TYPES = ["easy", "normal", "hard", "expert", "master", "append"]
     DISPLAY_DIFFICULTY_TYPES = {
         "easy": "EASY",
@@ -31,12 +31,11 @@ class PjskListSongCommands(commands.Cog):
         "append": "APPEND"
     }
 
-    @discord.app_commands.command(name="pjsk_list_song", description="プロセカの全曲リストを表示します。")
-    # ★★★ describeデコレータからオプションを削除 ★★★
+    @discord.app_commands.command(name="pjsk_list_song", description="プロセカの全曲リスト（最初の10曲）を表示します。")
     @not_in_maintenance() # メンテナンスモード中は利用不可
     async def pjsk_list_song(
         self,
-        interaction: discord.Interaction # ★★★ 引数をinteractionのみに削減 ★★★
+        interaction: discord.Interaction
     ):
         await interaction.response.defer() # 処理に時間がかかる可能性があるため、deferで応答を保留
 
@@ -46,12 +45,12 @@ class PjskListSongCommands(commands.Cog):
             return
 
         try:
-            # ★★★ フィルタリングロジックを削除し、全曲を対象とする ★★★
-            filtered_songs = list(songs.proseka_songs) # 全曲をコピーして処理
+            # 全曲を対象とする
+            filtered_songs = list(songs.proseka_songs) 
 
             if not filtered_songs:
                 await interaction.followup.send(
-                    "曲データが見つかりませんでした。", # エラーメッセージを簡略化
+                    "曲データが見つかりませんでした。",
                     ephemeral=True
                 )
                 logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song コマンドを使用しましたが、曲が見つかりませんでした。")
@@ -60,38 +59,29 @@ class PjskListSongCommands(commands.Cog):
             # 結果のソート (タイトル順)
             filtered_songs.sort(key=lambda s: s.get('title', ''))
 
-            # Embedに表示する文字列を生成
+            # ★★★ Embedに表示する文字列を生成 (最初の10曲のみ、難易度情報なし) ★★★
             song_entries = []
-            for song in filtered_songs:
-                diff_levels = []
-                for diff_type_key in self.ALL_DIFFICULTY_TYPES:
-                    if diff_type_key in song and song[diff_type_key] is not None:
-                        diff_levels.append(f"{self.DISPLAY_DIFFICULTY_TYPES[diff_type_key]}: {song[diff_type_key]}")
-                
-                # 難易度情報がない場合のFallback
-                if not diff_levels:
-                    diff_levels.append("難易度情報なし")
-
-                song_entry = f"**{song.get('title', 'タイトル不明')}**\n" \
-                             f"  {', '.join(diff_levels)}\n"
+            for i, song in enumerate(filtered_songs):
+                if i >= 10: # 10曲で停止
+                    break
+                song_entry = f"**{song.get('title', 'タイトル不明')}**\n"
                 song_entries.append(song_entry)
 
-            # ★★★ 単一のEmbedを作成して送信するロジックに変更 ★★★
+            # ★★★ 単一のEmbedを作成して送信するロジック ★★★
             full_description = "".join(song_entries)
 
-            # DiscordのEmbed descriptionの最大文字数 (4096文字) を超える場合は切り詰める
-            if len(full_description) > 4096:
-                full_description = full_description[:4093] + "..." # 3文字分を...に
+            if not full_description:
+                full_description = "表示できる曲がありませんでした。" # 念のため空の場合のメッセージ
 
             embed = discord.Embed(
-                title="プロセカ楽曲リスト (全曲)",
+                title="プロセカ楽曲リスト (最初の10曲)",
                 description=full_description,
                 color=discord.Color.blue()
             )
-            embed.set_footer(text=f"合計: {len(filtered_songs)}件")
+            embed.set_footer(text=f"全{len(filtered_songs)}件中、最初の{min(len(filtered_songs), 10)}件を表示")
             
             await interaction.followup.send(embed=embed)
-            logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song コマンドを使用しました。{len(filtered_songs)}件の曲が単一のEmbedで表示されました。")
+            logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song コマンドを使用しました。最初の{min(len(filtered_songs), 10)}件の曲が単一のEmbedで表示されました。")
 
         except Exception as e:
             await interaction.followup.send(f"曲リストの取得中にエラーが発生しました: {e}", ephemeral=True)
