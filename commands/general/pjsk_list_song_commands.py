@@ -31,12 +31,14 @@ class PjskListView(discord.ui.View):
         self.clear_items()
         
         # Previous ボタン
-        prev_button = discord.ui.Button(label="Previous", style=discord.ButtonStyle.blurple, custom_id="prev_page", disabled=(self.current_page == 0))
+        # ★★★ ここを修正 ★★★
+        prev_button = discord.ui.Button(label="⬅️前のページ", style=discord.ButtonStyle.blurple, custom_id="prev_page", disabled=(self.current_page == 0))
         prev_button.callback = self.go_previous_page
         self.add_item(prev_button)
 
         # Next ボタン
-        next_button = discord.ui.Button(label="Next", style=discord.ButtonStyle.blurple, custom_id="next_page", disabled=(self.current_page >= self.max_pages - 1))
+        # ★★★ ここを修正 ★★★
+        next_button = discord.ui.Button(label="次のページ➡️", style=discord.ButtonStyle.blurple, custom_id="next_page", disabled=(self.current_page >= self.max_pages - 1))
         next_button.callback = self.go_next_page
         self.add_item(next_button)
         logger.debug(f"PjskListView: ボタン更新完了。現在のページ: {self.current_page}, Previousボタン無効: {prev_button.disabled}, Nextボタン無効: {next_button.disabled}")
@@ -47,9 +49,6 @@ class PjskListView(discord.ui.View):
         page_songs = self.song_data[start_index:end_index]
 
         song_entries = []
-        # グローバルなALL_DIFFICULTY_TYPESやDISPLAY_DIFFICULTY_TYPESにアクセスできないため、ここで定義
-        # あるいはPjskListSongCommandsから渡す必要あり
-        # 今回は難易度表示がないので不要
         
         for i, song in enumerate(page_songs):
             song_entry = f"{start_index + i + 1}. **{song.get('title', 'タイトル不明')}**\n"
@@ -75,7 +74,7 @@ class PjskListView(discord.ui.View):
             await interaction.response.edit_message(embed=self.get_page_embed(), view=self)
             logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song のページを戻りました。現在のページ: {self.current_page + 1}")
         else:
-            await interaction.response.defer() # ボタンが無効化されているため、基本的にはここには来ない
+            await interaction.response.defer()
 
     async def go_next_page(self, interaction: discord.Interaction):
         if self.current_page < self.max_pages - 1:
@@ -84,13 +83,12 @@ class PjskListView(discord.ui.View):
             await interaction.response.edit_message(embed=self.get_page_embed(), view=self)
             logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song のページを進みました。現在のページ: {self.current_page + 1}")
         else:
-            await interaction.response.defer() # ボタンが無効化されているため、基本的にはここには来ない
+            await interaction.response.defer()
 
     async def on_timeout(self):
-        # タイムアウト時にボタンを無効化する
         for item in self.children:
             item.disabled = True
-        await self.message.edit(view=self) # self.messageは、Viewがアタッチされたメッセージ
+        await self.message.edit(view=self)
         logger.info("PjskListView: タイムアウトしました。ボタンを無効化しました。")
 
 
@@ -99,7 +97,6 @@ class PjskListSongCommands(commands.Cog):
         self.bot = bot
         logger.info("PjskListSongCommandsコグが初期化されています。")
 
-    # 利用可能な難易度タイプを定義 (このコマンドではもう使われません)
     ALL_DIFFICULTY_TYPES = ["easy", "normal", "hard", "expert", "master", "append"]
     DISPLAY_DIFFICULTY_TYPES = {
         "easy": "EASY",
@@ -111,7 +108,7 @@ class PjskListSongCommands(commands.Cog):
     }
 
     @discord.app_commands.command(name="pjsk_list_song", description="プロセカの全曲リストをページ表示します。")
-    @not_in_maintenance() # メンテナンスモード中は利用不可
+    @not_in_maintenance()
     async def pjsk_list_song(
         self,
         interaction: discord.Interaction
@@ -124,7 +121,6 @@ class PjskListSongCommands(commands.Cog):
             return
 
         try:
-            # 全曲を対象とする (登録順)
             all_songs = list(songs.proseka_songs) 
 
             if not all_songs:
@@ -135,13 +131,11 @@ class PjskListSongCommands(commands.Cog):
                 logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song コマンドを使用しましたが、曲が見つかりませんでした。")
                 return
 
-            # PjskListView をインスタンス化し、最初のページを送信
             view = PjskListView(all_songs)
             initial_embed = view.get_page_embed()
             
-            # followup.sendはメッセージオブジェクトを返すので、それをviewにセット
             message = await interaction.followup.send(embed=initial_embed, view=view)
-            view.message = message # Viewにメッセージを紐付ける
+            view.message = message 
 
             logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song コマンドを使用しました。最初のページが送信されました。")
 
