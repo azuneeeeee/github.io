@@ -15,12 +15,91 @@ from commands.admin.admin_commands import not_in_maintenance
 
 logger = logging.getLogger(__name__)
 
+# --- PjskListView クラスの定義 (ページングボタン用) ---
+class PjskListView(discord.ui.View):
+    def __init__(self, song_data, current_page=0):
+        super().__init__(timeout=300) # タイムアウトを5分 (300秒) に設定
+        self.song_data = song_data
+        self.current_page = current_page
+        self.songs_per_page = 10 # 1ページあたりの曲数
+        self.max_pages = (len(self.song_data) + self.songs_per_page - 1) // self.songs_per_page
+        self.update_buttons()
+        logger.debug(f"PjskListView: 初期化完了。総曲数: {len(song_data)}, 最大ページ: {self.max_pages}, 初期ページ: {self.current_page}")
+
+    def update_buttons(self):
+        # ボタンを全てクリアして再構築
+        self.clear_items()
+        
+        # Previous ボタン
+        prev_button = discord.ui.Button(label="Previous", style=discord.ButtonStyle.blurple, custom_id="prev_page", disabled=(self.current_page == 0))
+        prev_button.callback = self.go_previous_page
+        self.add_item(prev_button)
+
+        # Next ボタン
+        next_button = discord.ui.Button(label="Next", style=discord.ButtonStyle.blurple, custom_id="next_page", disabled=(self.current_page >= self.max_pages - 1))
+        next_button.callback = self.go_next_page
+        self.add_item(next_button)
+        logger.debug(f"PjskListView: ボタン更新完了。現在のページ: {self.current_page}, Previousボタン無効: {prev_button.disabled}, Nextボタン無効: {next_button.disabled}")
+
+    def get_page_embed(self):
+        start_index = self.current_page * self.songs_per_page
+        end_index = start_index + self.songs_per_page
+        page_songs = self.song_data[start_index:end_index]
+
+        song_entries = []
+        # グローバルなALL_DIFFICULTY_TYPESやDISPLAY_DIFFICULTY_TYPESにアクセスできないため、ここで定義
+        # あるいはPjskListSongCommandsから渡す必要あり
+        # 今回は難易度表示がないので不要
+        
+        for i, song in enumerate(page_songs):
+            song_entry = f"{start_index + i + 1}. **{song.get('title', 'タイトル不明')}**\n"
+            song_entries.append(song_entry)
+
+        full_description = "".join(song_entries)
+        if not full_description:
+            full_description = "表示できる曲がありませんでした。"
+
+        embed = discord.Embed(
+            title="プロセカ楽曲リスト",
+            description=full_description,
+            color=discord.Color.blue()
+        )
+        embed.set_footer(text=f"全{len(self.song_data)}件中、{start_index + 1}-{min(end_index, len(self.song_data))}件を表示 | ページ {self.current_page + 1}/{self.max_pages}")
+        logger.debug(f"PjskListView: Embed生成完了。ページ: {self.current_page + 1}/{self.max_pages}")
+        return embed
+
+    async def go_previous_page(self, interaction: discord.Interaction):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_buttons()
+            await interaction.response.edit_message(embed=self.get_page_embed(), view=self)
+            logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song のページを戻りました。現在のページ: {self.current_page + 1}")
+        else:
+            await interaction.response.defer() # ボタンが無効化されているため、基本的にはここには来ない
+
+    async def go_next_page(self, interaction: discord.Interaction):
+        if self.current_page < self.max_pages - 1:
+            self.current_page += 1
+            self.update_buttons()
+            await interaction.response.edit_message(embed=self.get_page_embed(), view=self)
+            logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song のページを進みました。現在のページ: {self.current_page + 1}")
+        else:
+            await interaction.response.defer() # ボタンが無効化されているため、基本的にはここには来ない
+
+    async def on_timeout(self):
+        # タイムアウト時にボタンを無効化する
+        for item in self.children:
+            item.disabled = True
+        await self.message.edit(view=self) # self.messageは、Viewがアタッチされたメッセージ
+        logger.info("PjskListView: タイムアウトしました。ボタンを無効化しました。")
+
+
 class PjskListSongCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         logger.info("PjskListSongCommandsコグが初期化されています。")
 
-    # 利用可能な難易度タイプを定義 (小文字で内部処理、大文字で表示) - この部分はもう使われませんが、削除しても良いです
+    # 利用可能な難易度タイプを定義 (このコマンドではもう使われません)
     ALL_DIFFICULTY_TYPES = ["easy", "normal", "hard", "expert", "master", "append"]
     DISPLAY_DIFFICULTY_TYPES = {
         "easy": "EASY",
@@ -31,13 +110,13 @@ class PjskListSongCommands(commands.Cog):
         "append": "APPEND"
     }
 
-    @discord.app_commands.command(name="pjsk_list_song", description="プロセカの全曲リスト（最初の10曲）を表示します。")
+    @discord.app_commands.command(name="pjsk_list_song", description="プロセカの全曲リストをページ表示します。")
     @not_in_maintenance() # メンテナンスモード中は利用不可
     async def pjsk_list_song(
         self,
         interaction: discord.Interaction
     ):
-        await interaction.response.defer() # 処理に時間がかかる可能性があるため、deferで応答を保留
+        await interaction.response.defer() 
 
         if not songs.proseka_songs:
             await interaction.followup.send("曲データが見つかりませんでした。", ephemeral=True)
@@ -45,10 +124,10 @@ class PjskListSongCommands(commands.Cog):
             return
 
         try:
-            # 全曲を対象とする
-            filtered_songs = list(songs.proseka_songs) 
+            # 全曲を対象とする (登録順)
+            all_songs = list(songs.proseka_songs) 
 
-            if not filtered_songs:
+            if not all_songs:
                 await interaction.followup.send(
                     "曲データが見つかりませんでした。",
                     ephemeral=True
@@ -56,33 +135,15 @@ class PjskListSongCommands(commands.Cog):
                 logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song コマンドを使用しましたが、曲が見つかりませんでした。")
                 return
 
-            # ★★★ 登録順にするため、このソート行を削除します ★★★
-            # filtered_songs.sort(key=lambda s: s.get('title', ''))
-
-            # Embedに表示する文字列を生成 (最初の10曲のみ、難易度情報なし)
-            song_entries = []
-            for i, song in enumerate(filtered_songs):
-                if i >= 10: # 10曲で停止
-                    break
-                # 曲名のみを表示し、連番を追加
-                song_entry = f"{i+1}. **{song.get('title', 'タイトル不明')}**\n" # ★連番を追加しました★
-                song_entries.append(song_entry)
-
-            # 単一のEmbedを作成して送信するロジック
-            full_description = "".join(song_entries)
-
-            if not full_description:
-                full_description = "表示できる曲がありませんでした。" # 念のため空の場合のメッセージ
-
-            embed = discord.Embed(
-                title="プロセカ楽曲リスト (最初の10曲)",
-                description=full_description,
-                color=discord.Color.blue()
-            )
-            embed.set_footer(text=f"全{len(filtered_songs)}件中、最初の{min(len(filtered_songs), 10)}件を表示")
+            # PjskListView をインスタンス化し、最初のページを送信
+            view = PjskListView(all_songs)
+            initial_embed = view.get_page_embed()
             
-            await interaction.followup.send(embed=embed)
-            logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song コマンドを使用しました。最初の{min(len(filtered_songs), 10)}件の曲が単一のEmbedで表示されました。")
+            # followup.sendはメッセージオブジェクトを返すので、それをviewにセット
+            message = await interaction.followup.send(embed=initial_embed, view=view)
+            view.message = message # Viewにメッセージを紐付ける
+
+            logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song コマンドを使用しました。最初のページが送信されました。")
 
         except Exception as e:
             await interaction.followup.send(f"曲リストの取得中にエラーが発生しました: {e}", ephemeral=True)
