@@ -5500,6 +5500,16 @@ proseka_songs = [
         "expert": 25,
         "master": 29,
         "append": 29
+    },
+    {
+        "title": "このふざけた素晴らしき世界は、僕の為にある",
+        "image_url": "",
+        "easy": 7,
+        "normal": 14,
+        "hard": 17,
+        "expert": 25,
+        "master": 29,
+        "append": None
     }
 ]
 
