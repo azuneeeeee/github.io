@@ -56,18 +56,19 @@ class PjskListSongCommands(commands.Cog):
                 logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song コマンドを使用しましたが、曲が見つかりませんでした。")
                 return
 
-            # 結果のソート (タイトル順)
-            filtered_songs.sort(key=lambda s: s.get('title', ''))
+            # ★★★ 登録順にするため、このソート行を削除します ★★★
+            # filtered_songs.sort(key=lambda s: s.get('title', ''))
 
-            # ★★★ Embedに表示する文字列を生成 (最初の10曲のみ、難易度情報なし) ★★★
+            # Embedに表示する文字列を生成 (最初の10曲のみ、難易度情報なし)
             song_entries = []
             for i, song in enumerate(filtered_songs):
                 if i >= 10: # 10曲で停止
                     break
-                song_entry = f"**{song.get('title', 'タイトル不明')}**\n"
+                # 曲名のみを表示し、連番を追加
+                song_entry = f"{i+1}. **{song.get('title', 'タイトル不明')}**\n" # ★連番を追加しました★
                 song_entries.append(song_entry)
 
-            # ★★★ 単一のEmbedを作成して送信するロジック ★★★
+            # 単一のEmbedを作成して送信するロジック
             full_description = "".join(song_entries)
 
             if not full_description:
