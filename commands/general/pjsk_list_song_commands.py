@@ -17,27 +17,23 @@ logger = logging.getLogger(__name__)
 
 # --- PjskListView クラスの定義 (ページングボタン用) ---
 class PjskListView(discord.ui.View):
-    def __init__(self, song_data, current_page=0):
-        super().__init__(timeout=300) # タイムアウトを5分 (300秒) に設定
+    def __init__(self, song_data, original_interactor_id, current_page=0): # ★★★ original_interactor_id を追加 ★★★
+        super().__init__(timeout=86400) # タイムアウトを24時間 (86400秒) に設定 ★★★ タイムアウト変更 ★★★
         self.song_data = song_data
         self.current_page = current_page
         self.songs_per_page = 10 # 1ページあたりの曲数
         self.max_pages = (len(self.song_data) + self.songs_per_page - 1) // self.songs_per_page
+        self.original_interactor_id = original_interactor_id # ★★★ original_interactor_id を保存 ★★★
         self.update_buttons()
-        logger.debug(f"PjskListView: 初期化完了。総曲数: {len(song_data)}, 最大ページ: {self.max_pages}, 初期ページ: {self.current_page}")
+        logger.debug(f"PjskListView: 初期化完了。総曲数: {len(song_data)}, 最大ページ: {self.max_pages}, 初期ページ: {self.current_page}, インタラクターID: {self.original_interactor_id}")
 
     def update_buttons(self):
-        # ボタンを全てクリアして再構築
         self.clear_items()
         
-        # Previous ボタン
-        # ★★★ ここを修正 ★★★
         prev_button = discord.ui.Button(label="⬅️前のページ", style=discord.ButtonStyle.blurple, custom_id="prev_page", disabled=(self.current_page == 0))
         prev_button.callback = self.go_previous_page
         self.add_item(prev_button)
 
-        # Next ボタン
-        # ★★★ ここを修正 ★★★
         next_button = discord.ui.Button(label="次のページ➡️", style=discord.ButtonStyle.blurple, custom_id="next_page", disabled=(self.current_page >= self.max_pages - 1))
         next_button.callback = self.go_next_page
         self.add_item(next_button)
@@ -67,29 +63,48 @@ class PjskListView(discord.ui.View):
         logger.debug(f"PjskListView: Embed生成完了。ページ: {self.current_page + 1}/{self.max_pages}")
         return embed
 
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        # ★★★ コマンドを実行したユーザーのみ有効にするチェック ★★★
+        if interaction.user and interaction.user.id == self.original_interactor_id:
+            logger.debug(f"PjskListView: interaction_check OK for user ID {interaction.user.id}")
+            return True
+        else:
+            await interaction.response.send_message("このボタンはコマンドを実行したユーザーのみ操作できます。", ephemeral=True)
+            logger.warning(f"PjskListView: 不正なユーザーによるボタン操作: ユーザーID {interaction.user.id}, オリジナルインタラクターID {self.original_interactor_id}")
+            return False
+
     async def go_previous_page(self, interaction: discord.Interaction):
+        # ★★★ タイムアウトのリセットとボタン更新 ★★★
+        self.stop() # 現在のビューを停止
         if self.current_page > 0:
             self.current_page -= 1
-            self.update_buttons()
-            await interaction.response.edit_message(embed=self.get_page_embed(), view=self)
+            new_view = PjskListView(self.song_data, self.original_interactor_id, self.current_page) # 新しいビューを作成
+            await interaction.response.edit_message(embed=new_view.get_page_embed(), view=new_view)
+            new_view.message = interaction.message # 新しいビューに現在のメッセージを紐付け
             logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song のページを戻りました。現在のページ: {self.current_page + 1}")
         else:
+            # 既に最初のページにいる場合は、何もしない（ボタンはdisabledになっているはず）
             await interaction.response.defer()
 
     async def go_next_page(self, interaction: discord.Interaction):
+        # ★★★ タイムアウトのリセットとボタン更新 ★★★
+        self.stop() # 現在のビューを停止
         if self.current_page < self.max_pages - 1:
             self.current_page += 1
-            self.update_buttons()
-            await interaction.response.edit_message(embed=self.get_page_embed(), view=self)
+            new_view = PjskListView(self.song_data, self.original_interactor_id, self.current_page) # 新しいビューを作成
+            await interaction.response.edit_message(embed=new_view.get_page_embed(), view=new_view)
+            new_view.message = interaction.message # 新しいビューに現在のメッセージを紐付け
             logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song のページを進みました。現在のページ: {self.current_page + 1}")
         else:
+            # 既に最後のページにいる場合は、何もしない（ボタンはdisabledになっているはず）
             await interaction.response.defer()
 
     async def on_timeout(self):
         for item in self.children:
             item.disabled = True
-        await self.message.edit(view=self)
-        logger.info("PjskListView: タイムアウトしました。ボタンを無効化しました。")
+        if self.message: # メッセージが紐付けられていれば編集
+            await self.message.edit(view=self)
+            logger.info("PjskListView: タイムアウトしました。ボタンを無効化しました。")
 
 
 class PjskListSongCommands(commands.Cog):
@@ -131,7 +146,8 @@ class PjskListSongCommands(commands.Cog):
                 logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song コマンドを使用しましたが、曲が見つかりませんでした。")
                 return
 
-            view = PjskListView(all_songs)
+            # ★★★ original_interactor_id を渡す ★★★
+            view = PjskListView(all_songs, interaction.user.id) 
             initial_embed = view.get_page_embed()
             
             message = await interaction.followup.send(embed=initial_embed, view=view)
