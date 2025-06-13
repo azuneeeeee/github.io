@@ -31,6 +31,18 @@ class PjskRandomSongCommands(commands.Cog):
         "master": "MASTER",
         "append": "APPEND"
     }
+
+    # ★★★ 難易度ごとの色のマッピングを更新 ★★★
+    DIFFICULTY_COLORS = {
+        "easy": discord.Color.green(),     # 緑
+        "normal": discord.Color.blue(),    # 青
+        "hard": discord.Color.yellow(),    # 黄色
+        "expert": discord.Color.red(),     # 赤
+        "master": discord.Color.purple(),  # 紫
+        "append": discord.Color.from_rgb(255, 192, 203), # 桃色 (RGB: R:255, G:192, B:203)
+        # デフォルトの色（該当する難易度が見つからない場合）
+        "default": discord.Color.light_grey() # デフォルトは薄い灰色などに変更
+    }
     
     # コマンド名を 'pjsk_random_song' に変更し、新しいオプションを追加
     @discord.app_commands.command(name="pjsk_random_song", description="プロセカのランダムな曲を提示します。")
@@ -111,9 +123,10 @@ class PjskRandomSongCommands(commands.Cog):
             # フィルタリングされた曲の中からランダムに選択
             random_song = random.choice(available_songs)
 
-            # --- ここから表示する難易度をランダムに選ぶロジック ---
+            # --- 表示する難易度をランダムに選ぶロジック ---
             difficulty_info = "情報なし"
-            
+            chosen_difficulty_type_for_embed = "default" # Embedの色に使用する難易度タイプを初期化
+
             # 実際に表示する難易度タイプを決定するための候補リスト
             display_candidates = []
             
@@ -145,16 +158,20 @@ class PjskRandomSongCommands(commands.Cog):
             if display_candidates:
                 chosen_display_difficulty = random.choice(display_candidates) # 候補からランダムに選択
                 difficulty_info = f"{self.DISPLAY_DIFFICULTY_TYPES.get(chosen_display_difficulty, chosen_display_difficulty.upper())}: {random_song[chosen_display_difficulty]}"
+                chosen_difficulty_type_for_embed = chosen_display_difficulty # Embedの色に使う難易度をセット
             
             logger.debug(f"デバッグ: 最終的に表示する難易度情報: {difficulty_info}")
 
             # 曲のサムネイルURLを安全に取得 (キー名を 'image_url' に変更)
             thumbnail_url = random_song.get("image_url", None)
 
-            # Embedの作成 (タイトルを 'title' キーから取得)
+            # Embedの作成
+            # chosen_difficulty_type_for_embed に基づいて色を設定
+            embed_color = self.DIFFICULTY_COLORS.get(chosen_difficulty_type_for_embed, self.DIFFICULTY_COLORS["default"])
+
             embed = discord.Embed(
                 title=f"🎧 {random_song.get('title', 'タイトル情報なし')}",
-                color=discord.Color.blue()
+                color=embed_color # 設定した色を適用
             )
 
             embed.add_field(name="難易度", value=difficulty_info, inline=False)
@@ -173,25 +190,6 @@ class PjskRandomSongCommands(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"曲の選曲中にエラーが発生しました: {e}", ephemeral=True)
             logger.error(f"エラー: /pjsk_random_song コマンドの実行中に予期せぬエラーが発生しました: {e}", exc_info=True)
-
-    # ★★★★★ ここから下の Autocomplete の部分を全て削除 ★★★★★
-    # @pjsk_random_song.autocomplete('difficulties')
-    # async def difficulties_autocomplete(self, interaction: discord.Interaction, current: str):
-    #     """難易度タイプの入力補完を提供します。"""
-    #     entered_parts = [p.strip().lower() for p in current.split(',') if p.strip()]
-    #     last_part = entered_parts[-1] if entered_parts else ""
-
-    #     options = []
-    #     for diff_key in self.ALL_DIFFICULTY_TYPES:
-    #         display_name = self.DISPLAY_DIFFICULTY_TYPES[diff_key]
-    #         if diff_key not in entered_parts[:-1] and display_name.lower().startswith(last_part):
-    #             options.append(display_name)
-        
-    #     return [
-    #         discord.app_commands.Choice(name=opt, value=opt)
-    #         for opt in options[:25]
-    #     ]
-    # ★★★★★ ここまで削除 ★★★★★
 
     async def cog_load(self):
         logger.info("PjskRandomSongCommandsコグがロードされました。")
