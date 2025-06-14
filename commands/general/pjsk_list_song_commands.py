@@ -25,7 +25,7 @@ class PjskListView(discord.ui.View):
     def __init__(self, song_data, original_interactor_id, current_page=0, sort_order=SORT_REGISTER):
         super().__init__(timeout=86400) # タイムアウトを24時間 (86400秒) に設定
         self.original_song_data = list(song_data) # 元の登録順のデータを保持
-        self.original_interactor_id = original_interactor_id # ★★★ この行を上に移動 ★★★
+        self.original_interactor_id = original_interactor_id
         self._sorted_song_data = self._sort_songs(self.original_song_data, sort_order) # ソート済みのデータを保持
         self.current_page = current_page
         self.songs_per_page = 10 # 1ページあたりの曲数
@@ -42,9 +42,8 @@ class PjskListView(discord.ui.View):
         if self.current_page < 0:
             self.current_page = 0
 
+        self.update_buttons() # @discord.ui.button を使っている場合、ここでの明示的な追加は不要です。
 
-        self.update_buttons()
-        # 修正されたログ出力: original_interactor_id が先に定義されている
         logger.debug(f"PjskListView: 初期化完了。総曲数: {len(song_data)}, 最大ページ: {self.max_pages}, 初期ページ: {self.current_page}, インタラクターID: {self.original_interactor_id}, ソート順: {self.sort_order}")
 
     def _sort_songs(self, songs_list, order):
@@ -67,10 +66,11 @@ class PjskListView(discord.ui.View):
         next_button.callback = self.go_next_page
         self.add_item(next_button)
 
-        # ソート順ボタン
-        self.add_item(discord.ui.Button(label="タイトル昇順", style=discord.ButtonStyle.green if self.sort_order == self.SORT_TITLE_ASC else discord.ButtonStyle.grey, custom_id="sort_title_asc", row=1))
-        self.add_item(discord.ui.Button(label="タイトル降順", style=discord.ButtonStyle.green if self.sort_order == self.SORT_TITLE_DESC else discord.ButtonStyle.grey, custom_id="sort_title_desc", row=1))
-        self.add_item(discord.ui.Button(label="登録順", style=discord.ButtonStyle.green if self.sort_order == self.SORT_REGISTER else discord.ButtonStyle.grey, custom_id="sort_register", row=1))
+        # ★★★ ここから以下のソートボタンの add_item を削除します ★★★
+        # self.add_item(discord.ui.Button(label="タイトル昇順", style=discord.ButtonStyle.green if self.sort_order == self.SORT_TITLE_ASC else discord.ButtonStyle.grey, custom_id="sort_title_asc", row=1))
+        # self.add_item(discord.ui.Button(label="タイトル降順", style=discord.ButtonStyle.green if self.sort_order == self.SORT_TITLE_DESC else discord.ButtonStyle.grey, custom_id="sort_title_desc", row=1))
+        # self.add_item(discord.ui.Button(label="登録順", style=discord.ButtonStyle.green if self.sort_order == self.SORT_REGISTER else discord.ButtonStyle.grey, custom_id="sort_register", row=1))
+        # ★★★ ここまで削除 ★★★
 
         logger.debug(f"PjskListView: ボタン更新完了。現在のページ: {self.current_page}, ソート順: {self.sort_order}")
 
@@ -139,6 +139,8 @@ class PjskListView(discord.ui.View):
         else:
             await interaction.response.defer()
             
+    # ★★★ @discord.ui.button デコレータが付いているので、これらのボタンは自動的にViewに追加されます ★★★
+    # ★★★ update_buttons() メソッドで add_item する必要はありません ★★★
     @discord.ui.button(label="タイトル昇順", style=discord.ButtonStyle.grey, custom_id="sort_title_asc", row=1)
     async def sort_title_asc_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         logger.debug(f"PjskListView: 'タイトル昇順' ボタンがクリックされました。")
