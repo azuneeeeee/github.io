@@ -42,7 +42,14 @@ class PjskListView(discord.ui.View):
         if self.current_page < 0:
             self.current_page = 0
 
-        self.update_buttons() # @discord.ui.button を使っている場合、ここでの明示的な追加は不要です。
+        # ここでボタンの状態を設定（update_buttonsメソッドは削除し、各ボタンデコレータで直接設定）
+        self.prev_button.disabled = (self.current_page == 0)
+        self.next_button.disabled = (self.current_page >= self.max_pages - 1)
+        
+        # ソートボタンのスタイルを現在のソート順に応じて設定
+        self.sort_title_asc_button.style = discord.ButtonStyle.green if self.sort_order == self.SORT_TITLE_ASC else discord.ButtonStyle.grey
+        self.sort_title_desc_button.style = discord.ButtonStyle.green if self.sort_order == self.SORT_TITLE_DESC else discord.ButtonStyle.grey
+        self.sort_register_button.style = discord.ButtonStyle.green if self.sort_order == self.SORT_REGISTER else discord.ButtonStyle.grey
 
         logger.debug(f"PjskListView: 初期化完了。総曲数: {len(song_data)}, 最大ページ: {self.max_pages}, 初期ページ: {self.current_page}, インタラクターID: {self.original_interactor_id}, ソート順: {self.sort_order}")
 
@@ -54,25 +61,8 @@ class PjskListView(discord.ui.View):
         else: # self.SORT_REGISTER
             return list(songs_list) # 元のリストのコピーを返す (登録順)
 
-    def update_buttons(self):
-        self.clear_items()
-        
-        # Previous / Next ボタン
-        prev_button = discord.ui.Button(label="⬅️前のページ", style=discord.ButtonStyle.blurple, custom_id="prev_page", disabled=(self.current_page == 0))
-        prev_button.callback = self.go_previous_page
-        self.add_item(prev_button)
-
-        next_button = discord.ui.Button(label="次のページ➡️", style=discord.ButtonStyle.blurple, custom_id="next_page", disabled=(self.current_page >= self.max_pages - 1))
-        next_button.callback = self.go_next_page
-        self.add_item(next_button)
-
-        # ★★★ ここから以下のソートボタンの add_item を削除します ★★★
-        # self.add_item(discord.ui.Button(label="タイトル昇順", style=discord.ButtonStyle.green if self.sort_order == self.SORT_TITLE_ASC else discord.ButtonStyle.grey, custom_id="sort_title_asc", row=1))
-        # self.add_item(discord.ui.Button(label="タイトル降順", style=discord.ButtonStyle.green if self.sort_order == self.SORT_TITLE_DESC else discord.ButtonStyle.grey, custom_id="sort_title_desc", row=1))
-        # self.add_item(discord.ui.Button(label="登録順", style=discord.ButtonStyle.green if self.sort_order == self.SORT_REGISTER else discord.ButtonStyle.grey, custom_id="sort_register", row=1))
-        # ★★★ ここまで削除 ★★★
-
-        logger.debug(f"PjskListView: ボタン更新完了。現在のページ: {self.current_page}, ソート順: {self.sort_order}")
+    # ★★★ update_buttonsメソッドは削除しました ★★★
+    # ボタンはデコレータで直接定義し、__init__で状態を設定します。
 
     def get_page_embed(self):
         start_index = self.current_page * self.songs_per_page
@@ -119,11 +109,14 @@ class PjskListView(discord.ui.View):
     async def _update_page_and_view(self, interaction: discord.Interaction):
         # Viewを更新し、メッセージを編集するヘルパー
         self.stop() # 現在のビューを停止
-        new_view = PjskListView(self.original_song_data, self.original_interactor_id, self.current_page, self.sort_order) # 新しいビューを作成
+        # 新しいビューを作成し、現在の状態 (original_song_data, current_page, sort_order) を引き継ぐ
+        new_view = PjskListView(self.original_song_data, self.original_interactor_id, self.current_page, self.sort_order) 
         await interaction.response.edit_message(embed=new_view.get_page_embed(), view=new_view)
         new_view.message = interaction.message # 新しいビューに現在のメッセージを紐付け
         
-    async def go_previous_page(self, interaction: discord.Interaction):
+    # ★★★ @discord.ui.button デコレータで直接ボタンを定義 ★★★
+    @discord.ui.button(label="⬅️前のページ", style=discord.ButtonStyle.blurple, custom_id="prev_page", row=0)
+    async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button): # ★ボタンインスタンスを引数に追加★
         if self.current_page > 0:
             self.current_page -= 1
             await self._update_page_and_view(interaction)
@@ -131,7 +124,8 @@ class PjskListView(discord.ui.View):
         else:
             await interaction.response.defer()
 
-    async def go_next_page(self, interaction: discord.Interaction):
+    @discord.ui.button(label="次のページ➡️", style=discord.ButtonStyle.blurple, custom_id="next_page", row=0)
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button): # ★ボタンインスタンスを引数に追加★
         if self.current_page < self.max_pages - 1:
             self.current_page += 1
             await self._update_page_and_view(interaction)
@@ -139,8 +133,6 @@ class PjskListView(discord.ui.View):
         else:
             await interaction.response.defer()
             
-    # ★★★ @discord.ui.button デコレータが付いているので、これらのボタンは自動的にViewに追加されます ★★★
-    # ★★★ update_buttons() メソッドで add_item する必要はありません ★★★
     @discord.ui.button(label="タイトル昇順", style=discord.ButtonStyle.grey, custom_id="sort_title_asc", row=1)
     async def sort_title_asc_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         logger.debug(f"PjskListView: 'タイトル昇順' ボタンがクリックされました。")
@@ -179,9 +171,10 @@ class PjskListView(discord.ui.View):
         logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song を登録順にソートしました。")
 
     async def on_timeout(self):
+        # タイムアウト時にボタンを無効化する
         for item in self.children:
             item.disabled = True
-        if self.message:
+        if self.message: # メッセージが紐付けられていれば編集
             await self.message.edit(view=self)
             logger.info("PjskListView: タイムアウトしました。ボタンを無効化しました。")
 
@@ -191,6 +184,7 @@ class PjskListSongCommands(commands.Cog):
         self.bot = bot
         logger.info("PjskListSongCommandsコグが初期化されています。")
 
+    # このコマンドでは使われませんが、削除はしていません
     ALL_DIFFICULTY_TYPES = ["easy", "normal", "hard", "expert", "master", "append"]
     DISPLAY_DIFFICULTY_TYPES = {
         "easy": "EASY",
