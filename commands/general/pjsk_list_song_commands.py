@@ -18,16 +18,16 @@ logger = logging.getLogger(__name__)
 # --- PjskListView クラスの定義 (ページング・ソートボタン用) ---
 class PjskListView(discord.ui.View):
     # ソート順の定数
-    # SORT_REGISTER = "register"  # ★削除★
+    SORT_REGISTER = "register"  # ★復活: 登録順の定数★
     SORT_TITLE_ASC = "title_asc"
     SORT_TITLE_DESC = "title_desc"
 
-    # ★初期ソート順をSORT_TITLE_ASCに変更★
-    def __init__(self, song_data, original_interactor_id, current_page=0, sort_order=SORT_TITLE_ASC):
+    # ★初期ソート順をSORT_REGISTERに戻す★
+    def __init__(self, song_data, original_interactor_id, current_page=0, sort_order=SORT_REGISTER):
         super().__init__(timeout=86400) # タイムアウトを24時間 (86400秒) に設定
-        self.original_song_data = list(song_data) # 元の登録順のデータを保持
+        self.original_song_data = list(song_data) # 元の登録順のデータを保持 (ソートのベースとして保持)
         self.original_interactor_id = original_interactor_id
-        # ★ _sort_songs の呼び出しも変更 (sort_orderを引き続き使用) ★
+        # ★ _sort_songs の呼び出し (sort_orderを引き続き使用) ★
         self._sorted_song_data = self._sort_songs(self.original_song_data, sort_order) # ソート済みのデータを保持
         self.current_page = current_page
         self.songs_per_page = 10 # 1ページあたりの曲数
@@ -51,7 +51,7 @@ class PjskListView(discord.ui.View):
         # ソートボタンのスタイルを現在のソート順に応じて設定
         self.sort_title_asc_button.style = discord.ButtonStyle.green if self.sort_order == self.SORT_TITLE_ASC else discord.ButtonStyle.grey
         self.sort_title_desc_button.style = discord.ButtonStyle.green if self.sort_order == self.SORT_TITLE_DESC else discord.ButtonStyle.grey
-        # self.sort_register_button.style = discord.ButtonStyle.green if self.sort_order == self.SORT_REGISTER else discord.ButtonStyle.grey # ★削除★
+        # 登録順ボタンは存在しないため、そのスタイル設定行も不要です。
 
         logger.debug(f"PjskListView: 初期化完了。総曲数: {len(song_data)}, 最大ページ: {self.max_pages}, 初期ページ: {self.current_page}, インタラクターID: {self.original_interactor_id}, ソート順: {self.sort_order}")
 
@@ -60,9 +60,12 @@ class PjskListView(discord.ui.View):
             return sorted(songs_list, key=lambda s: s.get('title', ''))
         elif order == self.SORT_TITLE_DESC:
             return sorted(songs_list, key=lambda s: s.get('title', ''), reverse=True)
-        else: # 未知のソート順が指定された場合はタイトル昇順をデフォルトとする（エラーを避けるため）
-            logger.warning(f"未知のソート順が指定されました: {order}。タイトル昇順でソートします。")
-            return sorted(songs_list, key=lambda s: s.get('title', ''))
+        # ★復活: 登録順のソート処理★
+        elif order == self.SORT_REGISTER: 
+            return list(songs_list) # 元のリストのコピーを返す (登録順)
+        else: # 未知のソート順が指定された場合は登録順をデフォルトとする
+            logger.warning(f"未知のソート順が指定されました: {order}。登録順でソートします。")
+            return list(songs_list)
 
     def get_page_embed(self):
         start_index = self.current_page * self.songs_per_page
@@ -83,7 +86,7 @@ class PjskListView(discord.ui.View):
 
         # Embedタイトルにソート順を反映
         sort_label = {
-            # self.SORT_REGISTER: "登録順", # ★削除★
+            self.SORT_REGISTER: "登録順", # ★復活: 登録順のラベル定義★
             self.SORT_TITLE_ASC: "タイトル昇順",
             self.SORT_TITLE_DESC: "タイトル降順"
         }.get(self.sort_order, "不明な順")
@@ -132,9 +135,10 @@ class PjskListView(discord.ui.View):
         else:
             await interaction.response.defer()
             
-    @discord.ui.button(label="タイトル昇順", style=discord.ButtonStyle.grey, custom_id="sort_title_asc", row=1)
+    # ★★★ ラベルを「タイトル昇順」から「昇順」に変更 ★★★
+    @discord.ui.button(label="昇順", style=discord.ButtonStyle.grey, custom_id="sort_title_asc", row=1)
     async def sort_title_asc_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        logger.debug(f"PjskListView: 'タイトル昇順' ボタンがクリックされました。")
+        logger.debug(f"PjskListView: '昇順' ボタンがクリックされました。")
         self.sort_order = self.SORT_TITLE_ASC
         self._sorted_song_data = self._sort_songs(self.original_song_data, self.sort_order)
         # ソート後は現在のページを調整
@@ -143,11 +147,12 @@ class PjskListView(discord.ui.View):
         if self.current_page >= self.max_pages: self.current_page = self.max_pages - 1
         if self.current_page < 0: self.current_page = 0
         await self._update_page_and_view(interaction)
-        logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song をタイトル昇順にソートしました。")
+        logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song を昇順にソートしました。")
 
-    @discord.ui.button(label="タイトル降順", style=discord.ButtonStyle.grey, custom_id="sort_title_desc", row=1)
+    # ★★★ ラベルを「タイトル降順」から「降順」に変更 ★★★
+    @discord.ui.button(label="降順", style=discord.ButtonStyle.grey, custom_id="sort_title_desc", row=1)
     async def sort_title_desc_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        logger.debug(f"PjskListView: 'タイトル降順' ボタンがクリックされました。")
+        logger.debug(f"PjskListView: '降順' ボタンがクリックされました。")
         self.sort_order = self.SORT_TITLE_DESC
         self._sorted_song_data = self._sort_songs(self.original_song_data, self.sort_order)
         self.max_pages = (len(self._sorted_song_data) + self.songs_per_page - 1) // self.songs_per_page
@@ -155,19 +160,12 @@ class PjskListView(discord.ui.View):
         if self.current_page >= self.max_pages: self.current_page = self.max_pages - 1
         if self.current_page < 0: self.current_page = 0
         await self._update_page_and_view(interaction)
-        logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song をタイトル降順にソートしました。")
+        logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song を降順にソートしました。")
 
-    # @discord.ui.button(label="登録順", style=discord.ButtonStyle.grey, custom_id="sort_register", row=1) # ★削除★
-    # async def sort_register_button(self, interaction: discord.Interaction, button: discord.ui.Button): # ★削除★
-    #     logger.debug(f"PjskListView: '登録順' ボタンがクリックされました。") # ★削除★
-    #     self.sort_order = self.SORT_REGISTER # ★削除★
-    #     self._sorted_song_data = self._sort_songs(self.original_song_data, self.sort_order) # ★削除★
-    #     self.max_pages = (len(self._sorted_song_data) + self.songs_per_page - 1) // self.songs_per_page # ★削除★
-    #     if self.max_pages == 0: self.max_pages = 1 # ★削除★
-    #     if self.current_page >= self.max_pages: self.current_page = self.max_pages - 1 # ★削除★
-    #     if self.current_page < 0: self.current_page = 0 # ★削除★
-    #     await self._update_page_and_view(interaction) # ★削除★
-    #     logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song を登録順にソートしました。") # ★削除★
+    # ★★★ 登録順ボタンは削除されたままです ★★★
+    # @discord.ui.button(label="登録順", style=discord.ButtonStyle.grey, custom_id="sort_register", row=1)
+    # async def sort_register_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    #     ... (このメソッドは削除されたまま)
 
     async def on_timeout(self):
         # タイムアウト時にボタンを無効化する
@@ -218,8 +216,8 @@ class PjskListSongCommands(commands.Cog):
                 logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song コマンドを使用しましたが、曲が見つかりませんでした。")
                 return
 
-            # 初期表示はタイトル昇順
-            view = PjskListView(all_songs, interaction.user.id, sort_order=PjskListView.SORT_TITLE_ASC) 
+            # ★初期表示は登録順に戻す★
+            view = PjskListView(all_songs, interaction.user.id, sort_order=PjskListView.SORT_REGISTER) 
             initial_embed = view.get_page_embed()
             
             message = await interaction.followup.send(embed=initial_embed, view=view)
