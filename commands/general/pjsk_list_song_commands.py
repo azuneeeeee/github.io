@@ -21,19 +21,8 @@ BASE_SONG_DETAILS_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'data', '楽曲詳細')
 )
 
-# ユニット名からフォルダ名へのマッピングは不要になりますが、念のため残しておきます。
-# ユニットフォルダ名と一致していれば直接使われるため。
-UNIT_TO_FOLDER_MAP = {
-    # "バーチャル・シンガー": "バチャシン", # これらは自動で取得できるようになります
-    # "Leo/need": "レオニ",
-    # ...
-}
-
-# ★新規追加・変更★
 # 楽曲タイトルと対応するユニットフォルダ名のマッピングを保持する辞書
 # key: 楽曲タイトル (songs.pyのタイトル), value: ユニットフォルダ名
-# 複数ユニットに同名楽曲がある場合を考慮し、listにするか、最初の1つだけを使うか検討。
-# 今回はシンプルに、最初に見つかったものを使用します。（現実的には同名楽曲は稀なはず）
 _song_title_to_unit_folder_map = {}
 
 
@@ -42,19 +31,13 @@ def sanitize_filename(filename: str) -> str:
     ファイル名として安全な文字列に変換します。
     スペースをアンダースコアに、その他ファイル名に使えない文字を置き換えます。
     """
-    # Windowsで特に問題になりやすい文字を置き換え (Discordのメッセージではそのままのタイトルを利用)
-    # : を全角コロンに、/ を全角スラッシュに、? を全角疑問符に、< > | * " を全角に置き換え
-    # または、よりシンプルにアンダースコアに置き換える
-    filename = filename.replace(' ', '_').replace('　', '_') # 半角・全角スペースをアンダースコアに
-    invalid_chars = r'\/:*?"<>|' # Windowsで無効な文字
+    # 半角・全角スペースをアンダースコアに
+    filename = filename.replace(' ', '_').replace('　', '_') 
+    # Windowsで無効な文字をアンダースコアに
+    invalid_chars = r'\/:*?"<>|' 
     for char in invalid_chars:
-        filename = filename.replace(char, '_') # 無効な文字をアンダースコアに
+        filename = filename.replace(char, '_') 
     
-    # Pythonのモジュール名としても安全にするため、数字で始まる場合なども考慮する必要があるが、
-    # 実際は日本語のタイトルなので、英数字以外の文字を全て_にするのは過剰な場合も。
-    # ここではPythonのimport spec_from_file_locationがファイル名をそのまま扱うため、
-    # OSのファイル名としての安全性を優先。
-
     return filename
 
 
@@ -79,32 +62,18 @@ def build_song_unit_mapping():
             for filename in os.listdir(unit_folder_path):
                 if filename.endswith(".py"):
                     # .py 拡張子を除去して楽曲タイトル候補を取得
-                    song_title_candidate = os.path.splitext(filename)[0]
+                    song_title_candidate_from_file = os.path.splitext(filename)[0]
                     
-                    # ファイル名がアンダースコアに変換されている可能性があるため、
-                    # songs.pyの元のタイトルとの照合をどう行うか検討が必要。
-                    # 現状では、songs.pyのタイトルとファイル名が一致している（スペースもそのまま）
-                    # か、ファイル名がアンダースコアに変換されていても、songs.pyのタイトルを
-                    # アンダースコア変換したときに一致するかで判断する必要があります。
-                    
-                    # 最もシンプルなのは、songs.pyのタイトルとファイル名が完全に一致することですが、
-                    # 空白の扱いが問題になるので、ここで少し工夫します。
-
-                    # songs.py の全楽曲タイトルをスキャンし、一致するものを見つける
                     found_match = False
                     for song_in_songs_py in songs.proseka_songs:
                         proseka_title = song_in_songs_py.get('title')
                         if proseka_title:
                             # songs.pyのタイトルをファイル名と同じルールでサニタイズして比較
-                            # これにより、songs.pyの "ワーワーワールド" と ファイル名 "ワーワーワールド.py"
-                            # songs.pyの "セカイはまだ始まってすらいない" と ファイル名 "セカイはまだ始まってすらいない.py"
-                            # が正しくマッチします。
                             sanitized_proseka_title = sanitize_filename(proseka_title)
                             
-                            if song_title_candidate == sanitized_proseka_title:
+                            if song_title_candidate_from_file == sanitized_proseka_title:
                                 if proseka_title in _song_title_to_unit_folder_map:
                                     logger.warning(f"警告: 楽曲 '{proseka_title}' が複数のユニットフォルダ ({_song_title_to_unit_folder_map[proseka_title]} と {unit_folder_name}) で見つかりました。最初に見つかったものを使用します。")
-                                    # ここでは最初に見つかったものを採用するが、必要であればリストで持つことも可能
                                 else:
                                     _song_title_to_unit_folder_map[proseka_title] = unit_folder_name
                                 logger.debug(f"マッピング追加: '{proseka_title}' -> '{unit_folder_name}'")
@@ -160,9 +129,7 @@ def load_song_detail_file(unit_folder_name: str, song_title_from_songs_py: str) 
 
 
 class PjskListView(discord.ui.View):
-    # (既存のコードは省略、変更点のみ記載)
-    # ソート方法の定数、DIFFICULTY_MAPPINGなどは変更なしで保持
-
+    # ソート方法の定数
     SORT_DEFAULT = "default"        # 配信順 (元の登録順)
     SORT_JAPANESE_ALPHA = "japanese_alpha" # 50音順 (タイトル昇順)
     SORT_LEVEL_BASE = "level_" 
@@ -173,6 +140,7 @@ class PjskListView(discord.ui.View):
     SORT_MASTER_LEVEL = "level_master"   
     SORT_APPEND_LEVEL = "level_append"
 
+    # ソート方向の定数 
     ORDER_ASC = "asc"  # 昇順 (Ascending)
     ORDER_DESC = "desc" # 降順 (Descending)
 
@@ -234,7 +202,7 @@ class PjskListView(discord.ui.View):
             self.toggle_order_button.label = "昇順"
             self.toggle_order_button.style = discord.ButtonStyle.green 
 
-        # ソート方法選択 Select メニュー (変更なし)
+        # ソート方法選択 Select メニュー
         current_sort_label = {
             self.SORT_DEFAULT: "配信順", 
             self.SORT_JAPANESE_ALPHA: "50音順",
@@ -250,7 +218,7 @@ class PjskListView(discord.ui.View):
         sort_select.callback = self.sort_options_select_callback
         self.add_item(sort_select)
 
-        # ★変更・追加★ 楽曲詳細選択 Select メニュー
+        # 楽曲詳細選択 Select メニュー
         current_page_songs = self._sorted_song_data[
             self.current_page * self.songs_per_page : (self.current_page + 1) * self.songs_per_page
         ]
@@ -259,44 +227,35 @@ class PjskListView(discord.ui.View):
         for song in current_page_songs:
             title = song.get('title', '不明なタイトル')
             
-            # SelectOptionのvalueは25文字以内という制限があるため、
-            # もしタイトルが長い場合は短縮するか、別途IDなどを検討する
-            # ここではそのままvalueに設定し、長すぎる場合は警告ログを出す
-            if len(title) > 100: # Discordのvalueの最大は100文字
+            if len(title) > 100: 
                  logger.warning(f"楽曲タイトルが長すぎます（100文字以上）: {title}。Selectメニューで問題が発生する可能性があります。")
 
             # _song_title_to_unit_folder_map に存在するかどうかで、選択肢にするかを判断
             if title in _song_title_to_unit_folder_map:
                 song_detail_options.append(
-                    discord.SelectOption(label=title, value=title) # labelとvalueをタイトルにする
+                    discord.SelectOption(label=title, value=title)
                 )
             else:
                 logger.debug(f"楽曲 '{title}' の詳細情報ファイルが見つからないため、詳細選択メニューに追加しません。")
         
-        # オプションがない場合はメニューを無効化
-        if not song_detail_options:
-            song_detail_select_placeholder = "詳細情報のある楽曲がありません。"
-            song_detail_select_disabled = True
+        # オプションがある場合のみ Select メニューを追加する
+        if song_detail_options:
+            song_detail_select = discord.ui.Select(
+                placeholder="楽曲を選択して詳細を見る", # オプションがあるので disabled=False
+                options=song_detail_options,
+                custom_id="song_detail_select",
+                row=2,
+                disabled=False # 明示的にFalseにする
+            )
+            song_detail_select.callback = self.song_detail_select_callback
+            self.add_item(song_detail_select)
         else:
-            song_detail_select_placeholder = "楽曲を選択して詳細を見る"
-            song_detail_select_disabled = False
-
-
-        song_detail_select = discord.ui.Select(
-            placeholder=song_detail_select_placeholder,
-            options=song_detail_options,
-            custom_id="song_detail_select",
-            row=2, # ソートメニューの次の行に配置
-            disabled=song_detail_select_disabled
-        )
-        song_detail_select.callback = self.song_detail_select_callback
-        self.add_item(song_detail_select)
-
+            # オプションがない場合、Selectメニュー自体を追加しない
+            logger.debug("現在のページには詳細情報のある楽曲がないため、詳細選択メニューは追加されません。")
 
         logger.debug(f"PjskListView: 初期化完了。総曲数: {len(song_data)}, 表示対象曲数: {self.total_displayable_songs}, 最大ページ: {self.max_pages}, 初期ページ: {self.current_page}, インタラクターID: {self.original_interactor_id}, ソート方法: {self.sort_method}, ソート方向: {self.sort_order}")
 
     def _sort_songs(self, songs_list, method, order): 
-        # (このメソッドは変更なしで保持)
         logger.debug(f"_sort_songs: ソート方法 '{method}', 方向 '{order}' でソートを開始します。")
 
         filtered_songs = list(songs_list) 
@@ -449,7 +408,7 @@ class PjskListView(discord.ui.View):
         await self._update_page_and_view(interaction)
         logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song のソート方法を {self.sort_method} に切り替えました。")
 
-    # ★変更★ 楽曲詳細選択メニューのコールバック関数
+    # 楽曲詳細選択メニューのコールバック関数
     async def song_detail_select_callback(self, interaction: discord.Interaction):
         selected_title = interaction.data['values'][0]
         logger.debug(f"PjskListView: 楽曲詳細オプションが選択されました: {selected_title}")
@@ -490,7 +449,7 @@ class PjskListView(discord.ui.View):
             
             if not fields_added:
                 embed.description = "この楽曲の詳細情報はまだ登録されていません。"
-                embed.set_footer(text=f"ユニット: {unit_folder_name}") # ユニット名も表示すると分かりやすいかも
+                embed.set_footer(text=f"ユニット: {unit_folder_name}")
             else:
                 embed.set_footer(text=f"ユニット: {unit_folder_name}")
 
@@ -565,7 +524,7 @@ class PjskListSongCommands(commands.Cog):
 
     async def cog_load(self):
         logger.info("PjskListSongCommandsコグがロードされました。楽曲-ユニットマッピングを構築します。")
-        build_song_unit_mapping() # ★Bot起動時にマッピングを構築★
+        build_song_unit_mapping() # Bot起動時にマッピングを構築
         logger.info("PjskListSongCommandsコグのロードが完了しました。")
 
 
