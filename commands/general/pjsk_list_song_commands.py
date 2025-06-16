@@ -47,15 +47,19 @@ class PjskListView(discord.ui.View):
         self.next_button.disabled = (self.current_page >= self.max_pages - 1)
         
         # ★単一の昇順/降順トグルボタンのラベルとスタイルを設定★
+        # __init__ での初回設定時も、次に来るソート順のラベルを表示するようにする
         if self.sort_order == self.SORT_INDEX_ASC:
-            self.toggle_order_button.label = "降順" # 現在が昇順なので、次は降順に切り替わる
+            # 現在昇順なので、次は降順に切り替わる。ボタンのラベルは「降順」
+            self.toggle_order_button.label = "降順" 
             self.toggle_order_button.style = discord.ButtonStyle.green
         elif self.sort_order == self.SORT_INDEX_DESC:
-            self.toggle_order_button.label = "昇順" # 現在が降順なので、次は昇順に切り替わる
+            # 現在降順なので、次は昇順に切り替わる。ボタンのラベルは「昇順」
+            self.toggle_order_button.label = "昇順" 
             self.toggle_order_button.style = discord.ButtonStyle.green
-        else: # self.sort_order == self.SORT_REGISTER (初期状態または登録順に戻された場合)
-            self.toggle_order_button.label = "昇順" # 登録順からスタートする場合は、次は昇順にソートできるようにする
-            self.toggle_order_button.style = discord.ButtonStyle.grey # デフォルトの色
+        else: # self.sort_order == self.SORT_REGISTER (初期状態)
+            # 現在登録順なので、次は昇順に切り替わる。ボタンのラベルは「昇順」
+            self.toggle_order_button.label = "昇順" 
+            self.toggle_order_button.style = discord.ButtonStyle.grey 
 
         logger.debug(f"PjskListView: 初期化完了。総曲数: {len(song_data)}, 最大ページ: {self.max_pages}, 初期ページ: {self.current_page}, インタラクターID: {self.original_interactor_id}, ソート順: {self.sort_order}")
 
@@ -143,16 +147,24 @@ class PjskListView(discord.ui.View):
     async def toggle_order_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         logger.debug(f"PjskListView: '昇順/降順' トグルボタンがクリックされました。現在のソート順: {self.sort_order}")
         
+        # 次のソート順を決定
+        next_sort_order = self.SORT_INDEX_ASC # デフォルトは昇順
         if self.sort_order == self.SORT_INDEX_ASC:
-            # 現在が昇順なら、次は降順にする
-            self.sort_order = self.SORT_INDEX_DESC
+            next_sort_order = self.SORT_INDEX_DESC
         elif self.sort_order == self.SORT_INDEX_DESC:
-            # 現在が降順なら、次は昇順にする
-            self.sort_order = self.SORT_INDEX_ASC
-        else: # self.SORT_REGISTER (登録順の場合)
-            # 登録順からスタートする場合は、最初は昇順にする
-            self.sort_order = self.SORT_INDEX_ASC
+            next_sort_order = self.SORT_INDEX_ASC
+        # else (self.sort_order == self.SORT_REGISTERの場合) は next_sort_order は SORT_INDEX_ASC のまま
 
+        self.sort_order = next_sort_order # 新しいソート順を設定
+
+        # ★ボタンのラベルとスタイルを手動で更新★
+        if self.sort_order == self.SORT_INDEX_ASC:
+            button.label = "降順" # 現在昇順に切り替わったので、次は降順に切り替えられる
+            button.style = discord.ButtonStyle.green
+        elif self.sort_order == self.SORT_INDEX_DESC:
+            button.label = "昇順" # 現在降順に切り替わったので、次は昇順に切り替えられる
+            button.style = discord.ButtonStyle.green
+        
         self._sorted_song_data = self._sort_songs(self.original_song_data, self.sort_order)
         
         # ソート後は現在のページを調整
