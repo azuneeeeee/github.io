@@ -105,28 +105,42 @@ class PjskListView(discord.ui.View):
         logger.debug(f"PjskListView: 初期化完了。総曲数: {len(song_data)}, 最大ページ: {self.max_pages}, 初期ページ: {self.current_page}, インタラクターID: {self.original_interactor_id}, ソート方法: {self.sort_method}")
 
     def _sort_songs(self, songs_list, method):
+        logger.debug(f"_sort_songs: ソート方法 '{method}' でソートを開始します。")
+
         if method == self.SORT_DEFAULT:
-            return list(songs_list) # 元の登録順のコピー
+            logger.debug("_sort_songs: 配信順でソートします。")
+            return list(songs_list)
 
         elif method == self.SORT_JAPANESE_ALPHA:
-            # 50音順ソート (タイトルでソート)
+            logger.debug("_sort_songs: 50音順でソートします。")
             return sorted(songs_list, key=lambda s: s.get('title', ''))
 
         elif method.startswith(self.SORT_LEVEL_BASE):
-            difficulty_key = method.replace(self.SORT_LEVEL_BASE, "")
+            difficulty_key = method.replace(self.SORT_LEVEL_BASE, "") # "easy", "normal" など
+            logger.debug(f"_sort_songs: {difficulty_key.upper()} のレベル順でソートします。")
             
             def get_level(song):
-                difficulties = song.get('difficulties', {})
-                level_data = difficulties.get(difficulty_key)
-                if level_data and 'level' in level_data:
-                    return level_data['level']
-                return float('inf') # レベルがない曲は最後に配置
+                # songs.py のデータ構造に合わせて直接難易度キーでレベルを取得
+                level = song.get(difficulty_key) 
+                
+                # デバッグログを追加 (より簡潔に)
+                if level is None:
+                    logger.debug(f"  _sort_songs.get_level: 曲 '{song.get('title', '不明なタイトル')}' に難易度 '{difficulty_key}' のレベル情報がありません。")
+                elif not isinstance(level, (int, float)):
+                    logger.warning(f"  _sort_songs.get_level: 曲 '{song.get('title', '不明なタイトル')}' の難易度 '{difficulty_key}' のレベルが数値ではありません。値: {level}")
+
+                if isinstance(level, (int, float)): # レベルが数値であることを確認
+                    return level
+                
+                # レベル情報がない、または数値でない場合は非常に大きな値を返し、リストの最後に配置
+                return float('inf') 
 
             # まずレベルでソートし、同じレベルの場合はタイトルでソート
-            return sorted(songs_list, key=lambda s: (get_level(s), s.get('title', '')))
+            sorted_data = sorted(songs_list, key=lambda s: (get_level(s), s.get('title', '')))
+            return sorted_data
         
         else: # 未知のソート方法が指定された場合はデフォルトを返す
-            logger.warning(f"未知のソート方法が指定されました: {method}。デフォルトでソートします。")
+            logger.warning(f"_sort_songs: 未知のソート方法が指定されました: {method}。デフォルトでソートします。")
             return list(songs_list)
 
     def get_page_embed(self):
@@ -145,10 +159,10 @@ class PjskListView(discord.ui.View):
             # 現在のソート方法が難易度レベルソートの場合のみレベル情報を表示
             if self.sort_method.startswith(self.SORT_LEVEL_BASE):
                 difficulty_key = self.sort_method.replace(self.SORT_LEVEL_BASE, "")
-                difficulties = song.get('difficulties', {})
-                level_data = difficulties.get(difficulty_key)
-                if level_data and 'level' in level_data:
-                    level_info = f" (Lv.{level_data['level']})"
+                # songs.py のデータ構造に合わせて直接難易度キーでレベルを取得
+                level = song.get(difficulty_key) 
+                if isinstance(level, (int, float)): # レベルが数値であることを確認
+                    level_info = f" (Lv.{level})"
             
             song_entry = f"{display_num}. **{title}**{level_info}\n"
             song_entries.append(song_entry)
@@ -275,9 +289,6 @@ class PjskListSongCommands(commands.Cog):
             view = PjskListView(all_songs, interaction.user.id, sort_method=PjskListView.SORT_DEFAULT) 
             initial_embed = view.get_page_embed()
             
-            # ここで Selectメニューの options を手動で設定する行は不要になった
-            # view.sort_options_select.options = view._get_sort_options() # この行は削除
-
             message = await interaction.followup.send(embed=initial_embed, view=view)
             view.message = message 
 
