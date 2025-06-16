@@ -18,11 +18,12 @@ logger = logging.getLogger(__name__)
 # --- PjskListView クラスの定義 (ページング・ソートボタン用) ---
 class PjskListView(discord.ui.View):
     # ソート順の定数を見直し
-    SORT_REGISTER = "register"      # 初期登録順 (実際のデータ順)
+    SORT_REGISTER = "register"      # 初期登録順 (※実際には使わないが定義は残す)
     SORT_INDEX_ASC = "index_asc"    # 登録順を基準とした昇順 (正順)
     SORT_INDEX_DESC = "index_desc"  # 登録順を基準とした降順 (逆順)
 
-    def __init__(self, song_data, original_interactor_id, current_page=0, sort_order=SORT_REGISTER):
+    # ★ここを変更: 初期ソート順を SORT_INDEX_ASC に変更★
+    def __init__(self, song_data, original_interactor_id, current_page=0, sort_order=SORT_INDEX_ASC):
         super().__init__(timeout=86400) # タイムアウトを24時間 (86400秒) に設定
         self.original_song_data = list(song_data) # 元の登録順のデータを保持 (ソートのベースとして保持)
         self.original_interactor_id = original_interactor_id
@@ -47,7 +48,7 @@ class PjskListView(discord.ui.View):
         self.next_button.disabled = (self.current_page >= self.max_pages - 1)
         
         # ★単一の昇順/降順トグルボタンのラベルとスタイルを設定★
-        # __init__ での初回設定時も、次に来るソート順のラベルを表示するようにする
+        # 初期ソート順が SORT_INDEX_ASC なので、ボタンは「降順」と表示されるべき
         if self.sort_order == self.SORT_INDEX_ASC:
             # 現在昇順なので、次は降順に切り替わる。ボタンのラベルは「降順」
             self.toggle_order_button.label = "降順" 
@@ -56,8 +57,7 @@ class PjskListView(discord.ui.View):
             # 現在降順なので、次は昇順に切り替わる。ボタンのラベルは「昇順」
             self.toggle_order_button.label = "昇順" 
             self.toggle_order_button.style = discord.ButtonStyle.green
-        else: # self.sort_order == self.SORT_REGISTER (初期状態)
-            # 現在登録順なので、次は昇順に切り替わる。ボタンのラベルは「昇順」
+        else: # これは本来発生しないが、フォールバックとして
             self.toggle_order_button.label = "昇順" 
             self.toggle_order_button.style = discord.ButtonStyle.grey 
 
@@ -68,8 +68,8 @@ class PjskListView(discord.ui.View):
             return list(songs_list) # 元のリストのコピー (インデックス昇順)
         elif order == self.SORT_INDEX_DESC: # 降順の場合
             return list(reversed(songs_list)) # 元のリストを逆順にしたコピー
-        else: # 未知のソート順が指定された場合は登録順(昇順)をデフォルトとする
-            logger.warning(f"未知のソート順が指定されました: {order}。登録順でソートします。")
+        else: # 未知のソート順が指定された場合は昇順をデフォルトとする
+            logger.warning(f"未知のソート順が指定されました: {order}。昇順でソートします。")
             return list(songs_list)
 
     def get_page_embed(self):
@@ -92,7 +92,7 @@ class PjskListView(discord.ui.View):
 
         # Embedタイトルにソート順を反映
         sort_label = {
-            self.SORT_REGISTER: "登録順", 
+            self.SORT_REGISTER: "登録順", # このラベルは使われなくなるはずだが、定義は残す
             self.SORT_INDEX_ASC: "昇順",
             self.SORT_INDEX_DESC: "降順"
         }.get(self.sort_order, "不明な順")
@@ -141,20 +141,19 @@ class PjskListView(discord.ui.View):
         else:
             await interaction.response.defer()
             
-    # ★★★ 単一の昇順/降順トグルボタン (タイトル順にはソートしない) ★★★
-    # ラベルは動的に設定されるため、ここでは仮のラベルを設定 (あるいは設定しない)
+    # ★★★ 単一の昇順/降順トグルボタン ★★★
+    # ラベルは動的に設定されるため、ここでは仮のラベルを設定
     @discord.ui.button(label="ソート", style=discord.ButtonStyle.grey, custom_id="toggle_index_order", row=1)
     async def toggle_order_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         logger.debug(f"PjskListView: '昇順/降順' トグルボタンがクリックされました。現在のソート順: {self.sort_order}")
         
         # 次のソート順を決定
-        next_sort_order = self.SORT_INDEX_ASC # デフォルトは昇順
+        # 現在のソート順が SORT_INDEX_ASC なら次は SORT_INDEX_DESC
+        # それ以外（SORT_INDEX_DESC または SORT_REGISTER）なら次は SORT_INDEX_ASC
+        next_sort_order = self.SORT_INDEX_ASC 
         if self.sort_order == self.SORT_INDEX_ASC:
             next_sort_order = self.SORT_INDEX_DESC
-        elif self.sort_order == self.SORT_INDEX_DESC:
-            next_sort_order = self.SORT_INDEX_ASC
-        # else (self.sort_order == self.SORT_REGISTERの場合) は next_sort_order は SORT_INDEX_ASC のまま
-
+        
         self.sort_order = next_sort_order # 新しいソート順を設定
 
         # ★ボタンのラベルとスタイルを手動で更新★
@@ -225,8 +224,8 @@ class PjskListSongCommands(commands.Cog):
                 logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song コマンドを使用しましたが、曲が見つかりませんでした。")
                 return
 
-            # 初期表示は登録順
-            view = PjskListView(all_songs, interaction.user.id, sort_order=PjskListView.SORT_REGISTER) 
+            # ★ここを変更: 初期ソート順を SORT_INDEX_ASC に変更★
+            view = PjskListView(all_songs, interaction.user.id, sort_order=PjskListView.SORT_INDEX_ASC) 
             initial_embed = view.get_page_embed()
             
             message = await interaction.followup.send(embed=initial_embed, view=view)
