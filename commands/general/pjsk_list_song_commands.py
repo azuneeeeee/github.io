@@ -3,31 +3,31 @@ from discord.ext import commands
 import discord.app_commands
 import logging
 
-# data/songs.py から情報をインポート
 try:
     from data import songs
 except ImportError:
     logging.critical("致命的なエラー: data/songs.py が見つからないか、インポートできませんでした。")
     raise SystemExit("data/songs.py が見つかりません。")
 
-# admin_commands から not_in_maintenance をインポート
 from commands.admin.admin_commands import not_in_maintenance
 
 logger = logging.getLogger(__name__)
 
-# --- PjskListView クラスの定義 (ページング・ソート選択メニュー用) ---
 class PjskListView(discord.ui.View):
     # ソート方法の定数
     SORT_DEFAULT = "default"        # 配信順 (元の登録順)
     SORT_JAPANESE_ALPHA = "japanese_alpha" # 50音順 (タイトル昇順)
-    # 各難易度のレベル順の基底
     SORT_LEVEL_BASE = "level_" 
     SORT_EASY_LEVEL = "level_easy"
-    SORT_NORMAL_LEVEL = "normal" # NOTE: これはlevel_normalのつもり？
-    SORT_HARD_LEVEL = "hard"     # NOTE: これはlevel_hardのつもり？
-    SORT_EXPERT_LEVEL = "expert"   # NOTE: これはlevel_expertのつもり？
-    SORT_MASTER_LEVEL = "master"   # NOTE: これはlevel_masterのつもり？
+    SORT_NORMAL_LEVEL = "level_normal" 
+    SORT_HARD_LEVEL = "level_hard"     
+    SORT_EXPERT_LEVEL = "level_expert"   
+    SORT_MASTER_LEVEL = "level_master"   
     SORT_APPEND_LEVEL = "level_append"
+
+    # ソート方向の定数 (変更なし)
+    ORDER_ASC = "asc"  # 昇順 (Ascending)
+    ORDER_DESC = "desc" # 降順 (Descending)
 
     DIFFICULTY_MAPPING = {
         "easy": "EASY",
@@ -38,38 +38,34 @@ class PjskListView(discord.ui.View):
         "append": "APPEND"
     }
 
-    # セレクトメニューのオプションを生成するヘルパーメソッド
-    def _get_sort_options_list(self): 
+    def _get_sort_options_list(self):
         options = [
             discord.SelectOption(label="配信順", value=self.SORT_DEFAULT, description="ゲームへの配信順で並べ替えます。"),
             discord.SelectOption(label="50音順", value=self.SORT_JAPANESE_ALPHA, description="楽曲タイトルを50音順で並べ替えます。"),
         ]
-        # 各難易度のレベル順オプションを追加
         for key, display_name in self.DIFFICULTY_MAPPING.items():
             options.append(
                 discord.SelectOption(
                     label=f"{display_name} Lv順", 
-                    value=f"{self.SORT_LEVEL_BASE}{key}", # ここは level_easy のような形式でOK
+                    value=f"{self.SORT_LEVEL_BASE}{key}", 
                     description=f"{display_name}難易度のレベル順で並べ替えます。"
                 )
             )
         return options
-
-    def __init__(self, song_data, original_interactor_id, current_page=0, sort_method=SORT_DEFAULT):
-        super().__init__(timeout=86400) 
-        self.original_song_data = list(song_data) 
+    
+    def __init__(self, song_data, original_interactor_id, current_page=0, sort_method=SORT_DEFAULT, sort_order=ORDER_ASC):
+        super().__init__(timeout=86400)
+        self.original_song_data = list(song_data)
         self.original_interactor_id = original_interactor_id
         self.sort_method = sort_method 
+        self.sort_order = sort_order 
         
-        # ソート実行 (ここでフィルタリングも適用される)
-        self._sorted_song_data = self._sort_songs(self.original_song_data, self.sort_method) 
+        self._sorted_song_data = self._sort_songs(self.original_song_data, self.sort_method, self.sort_order)
         
         self.current_page = current_page
         self.songs_per_page = 10 
         
-        # ★★★ ここを修正 ★★★
-        # self._sorted_song_data の長さに基づいて最大ページ数を計算
-        self.total_displayable_songs = len(self._sorted_song_data) # 表示対象となる曲の総数
+        self.total_displayable_songs = len(self._sorted_song_data)
         self.max_pages = (self.total_displayable_songs + self.songs_per_page - 1) // self.songs_per_page
         if self.max_pages == 0: 
             self.max_pages = 1 
@@ -79,9 +75,20 @@ class PjskListView(discord.ui.View):
         if self.current_page < 0:
             self.current_page = 0
 
+        # ページングボタンの状態を設定
         self.prev_button.disabled = (self.current_page == 0)
         self.next_button.disabled = (self.current_page >= self.max_pages - 1)
 
+        # ★変更・追加★ 昇順/降順切り替えボタンの状態を設定
+        # ボタンのラベルは、現在のソート方向の逆を表示
+        if self.sort_order == self.ORDER_ASC:
+            self.toggle_order_button.label = "降順"
+            self.toggle_order_button.style = discord.ButtonStyle.red # 降順にするボタンは赤
+        else:
+            self.toggle_order_button.label = "昇順"
+            self.toggle_order_button.style = discord.ButtonStyle.green # 昇順にするボタンは緑
+
+        # ソート方法選択 Select メニュー (これは残す)
         current_sort_label = {
             self.SORT_DEFAULT: "配信順", 
             self.SORT_JAPANESE_ALPHA: "50音順",
@@ -92,17 +99,17 @@ class PjskListView(discord.ui.View):
             placeholder=f"現在のソート: {current_sort_label}",
             options=self._get_sort_options_list(), 
             custom_id="sort_options_select",
-            row=1 
+            row=1 # ページングボタンと同じ行に配置
         )
         sort_select.callback = self.sort_options_select_callback
         self.add_item(sort_select)
 
-        logger.debug(f"PjskListView: 初期化完了。総曲数: {len(song_data)}, 表示対象曲数: {self.total_displayable_songs}, 最大ページ: {self.max_pages}, 初期ページ: {self.current_page}, インタラクターID: {self.original_interactor_id}, ソート方法: {self.sort_method}")
 
-    def _sort_songs(self, songs_list, method):
-        logger.debug(f"_sort_songs: ソート方法 '{method}' でソートを開始します。")
+        logger.debug(f"PjskListView: 初期化完了。総曲数: {len(song_data)}, 表示対象曲数: {self.total_displayable_songs}, 最大ページ: {self.max_pages}, 初期ページ: {self.current_page}, インタラクターID: {self.original_interactor_id}, ソート方法: {self.sort_method}, ソート方向: {self.sort_order}")
 
-        # ソート対象となる曲リスト
+    def _sort_songs(self, songs_list, method, order): 
+        logger.debug(f"_sort_songs: ソート方法 '{method}', 方向 '{order}' でソートを開始します。")
+
         filtered_songs = list(songs_list) 
         
         if method == self.SORT_APPEND_LEVEL:
@@ -120,11 +127,11 @@ class PjskListView(discord.ui.View):
 
         if method == self.SORT_DEFAULT:
             logger.debug("_sort_songs: 配信順でソートします。")
-            return list(filtered_songs) 
+            return list(filtered_songs) if order == self.ORDER_ASC else list(reversed(filtered_songs))
 
         elif method == self.SORT_JAPANESE_ALPHA:
             logger.debug("_sort_songs: 50音順でソートします。")
-            return sorted(filtered_songs, key=lambda s: s.get('title', ''))
+            return sorted(filtered_songs, key=lambda s: s.get('title', ''), reverse=(order == self.ORDER_DESC))
 
         elif method.startswith(self.SORT_LEVEL_BASE):
             difficulty_key = method.replace(self.SORT_LEVEL_BASE, "")
@@ -143,7 +150,7 @@ class PjskListView(discord.ui.View):
                 
                 return float('inf') 
 
-            sorted_data = sorted(filtered_songs, key=lambda s: (get_level(s), s.get('title', '')))
+            sorted_data = sorted(filtered_songs, key=lambda s: (get_level(s), s.get('title', '')), reverse=(order == self.ORDER_DESC))
             return sorted_data
         
         else:
@@ -181,16 +188,18 @@ class PjskListView(discord.ui.View):
             self.SORT_JAPANESE_ALPHA: "50音順",
             **{f"{self.SORT_LEVEL_BASE}{key}": f"{value} Lv順" for key, value in self.DIFFICULTY_MAPPING.items()}
         }.get(self.sort_method, "不明なソート順")
+        
+        order_label = "昇順" if self.sort_order == self.ORDER_ASC else "降順"
+        embed_title_suffix = f" ({sort_label}・{order_label})" if sort_label != "不明なソート順" else f" ({order_label})"
+
 
         embed = discord.Embed(
-            title=f"プロセカ楽曲リスト ({sort_label})",
+            title=f"プロセカ楽曲リスト{embed_title_suffix}", 
             description=full_description,
             color=discord.Color.blue()
         )
-        # ★★★ ここを修正 ★★★
-        # total_displayable_songs を使用して、表示対象の総曲数を反映
         embed.set_footer(text=f"全{self.total_displayable_songs}件中、{start_index + 1}-{min(end_index, len(self._sorted_song_data))}件を表示 | ページ {self.current_page + 1}/{self.max_pages}")
-        logger.debug(f"PjskListView: Embed生成完了。ページ: {self.current_page + 1}/{self.max_pages}, ソート方法: {self.sort_method}")
+        logger.debug(f"PjskListView: Embed生成完了。ページ: {self.current_page + 1}/{self.max_pages}, ソート方法: {self.sort_method}, ソート方向: {self.sort_order}")
         return embed
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -204,7 +213,8 @@ class PjskListView(discord.ui.View):
 
     async def _update_page_and_view(self, interaction: discord.Interaction):
         self.stop() 
-        new_view = PjskListView(self.original_song_data, self.original_interactor_id, self.current_page, self.sort_method) 
+        # 新しいビューにソート方法とソート方向を引き継ぐ
+        new_view = PjskListView(self.original_song_data, self.original_interactor_id, self.current_page, self.sort_method, self.sort_order) 
         await interaction.response.edit_message(embed=new_view.get_page_embed(), view=new_view)
         new_view.message = interaction.message 
         
@@ -226,6 +236,20 @@ class PjskListView(discord.ui.View):
         else:
             await interaction.response.defer()
             
+    # ★追加・変更★ 昇順/降順を切り替えるボタン
+    @discord.ui.button(label="昇順/降順切替", style=discord.ButtonStyle.secondary, custom_id="toggle_order_button", row=0)
+    async def toggle_order_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # 現在のソート方向を反転させる
+        if self.sort_order == self.ORDER_ASC:
+            self.sort_order = self.ORDER_DESC
+            logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song のソート方向を降順に切り替えました。")
+        else:
+            self.sort_order = self.ORDER_ASC
+            logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song のソート方向を昇順に切り替えました。")
+        
+        self.current_page = 0 # 方向が変わったら最初のページに戻る
+        await self._update_page_and_view(interaction)
+
     async def sort_options_select_callback(self, interaction: discord.Interaction):
         selected_value = interaction.data['values'][0]
         logger.debug(f"PjskListView: ソートオプションが選択されました: {selected_value}")
@@ -282,7 +306,7 @@ class PjskListSongCommands(commands.Cog):
                 logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song コマンドを使用しましたが、曲が見つかりませんでした。")
                 return
 
-            view = PjskListView(all_songs, interaction.user.id, sort_method=PjskListView.SORT_DEFAULT) 
+            view = PjskListView(all_songs, interaction.user.id, sort_method=PjskListView.SORT_DEFAULT, sort_order=PjskListView.ORDER_ASC) 
             initial_embed = view.get_page_embed()
             
             message = await interaction.followup.send(embed=initial_embed, view=view)
