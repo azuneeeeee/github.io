@@ -39,7 +39,7 @@ class PjskListView(discord.ui.View):
     }
 
     # セレクトメニューのオプションを生成するヘルパーメソッド
-    def _get_sort_options(self):
+    def _get_sort_options_list(self): # メソッド名を変更して混乱を避ける
         options = [
             discord.SelectOption(label="配信順", value=self.SORT_DEFAULT, description="ゲームへの配信順で並べ替えます。"),
             discord.SelectOption(label="50音順", value=self.SORT_JAPANESE_ALPHA, description="楽曲タイトルを50音順で並べ替えます。"),
@@ -82,16 +82,26 @@ class PjskListView(discord.ui.View):
         self.prev_button.disabled = (self.current_page == 0)
         self.next_button.disabled = (self.current_page >= self.max_pages - 1)
 
-        # ★単一のソート選択メニューの placeholder 設定★
-        # 現在のソート方法に応じて placeholder を変更
+        # ★★★ ここからSelectメニューの動的な作成と追加 ★★★
         current_sort_label = {
             self.SORT_DEFAULT: "配信順", 
             self.SORT_JAPANESE_ALPHA: "50音順",
             **{f"{self.SORT_LEVEL_BASE}{key}": f"{value} Lv順" for key, value in self.DIFFICULTY_MAPPING.items()}
         }.get(self.sort_method, "ソート方法を選択...")
 
-        self.sort_options_select.placeholder = f"現在のソート: {current_sort_label}"
-        
+        # Selectメニューをインスタンス化し、optionsを設定して追加
+        # @discord.ui.select デコレータは削除し、手動で Select を作成
+        sort_select = discord.ui.Select(
+            placeholder=f"現在のソート: {current_sort_label}",
+            options=self._get_sort_options_list(), # ここでオプションを設定
+            custom_id="sort_options_select",
+            row=1 
+        )
+        # Select のコールバックを設定
+        sort_select.callback = self.sort_options_select_callback # 新しいコールバック関数名を設定
+        self.add_item(sort_select)
+        # ★★★ Selectメニューの動的な作成と追加 ここまで ★★★
+
         logger.debug(f"PjskListView: 初期化完了。総曲数: {len(song_data)}, 最大ページ: {self.max_pages}, 初期ページ: {self.current_page}, インタラクターID: {self.original_interactor_id}, ソート方法: {self.sort_method}")
 
     def _sort_songs(self, songs_list, method):
@@ -100,7 +110,6 @@ class PjskListView(discord.ui.View):
 
         elif method == self.SORT_JAPANESE_ALPHA:
             # 50音順ソート (タイトルでソート)
-            # 全角カタカナに変換してソートすることで、より正確な50音順ソートを実現
             return sorted(songs_list, key=lambda s: s.get('title', ''))
 
         elif method.startswith(self.SORT_LEVEL_BASE):
@@ -199,16 +208,12 @@ class PjskListView(discord.ui.View):
         else:
             await interaction.response.defer()
             
-    # ★★★ 単一のソートオプション選択メニュー ★★★
-    @discord.ui.select(
-        cls=discord.ui.Select, 
-        placeholder="ソート方法を選択...", # 初期 placeholder は変更なし
-        options=[], # options は __init__ の後に動的に設定されるため、ここでは空リスト
-        custom_id="sort_options_select",
-        row=1 
-    )
-    async def sort_options_select(self, interaction: discord.Interaction, select: discord.ui.Select):
-        selected_value = select.values[0]
+    # ★★★ 単一のソートオプション選択メニューのコールバック関数 ★★★
+    # @discord.ui.select デコレータは削除し、このメソッドは通常の非同期関数とする
+    async def sort_options_select_callback(self, interaction: discord.Interaction):
+        # interaction.data から選択された値を取得
+        # Selectコンポーネントが単一選択なので、values[0]でOK
+        selected_value = interaction.data['values'][0]
         logger.debug(f"PjskListView: ソートオプションが選択されました: {selected_value}")
 
         self.sort_method = selected_value # 選択された値を直接ソート方法に設定
@@ -270,8 +275,8 @@ class PjskListSongCommands(commands.Cog):
             view = PjskListView(all_songs, interaction.user.id, sort_method=PjskListView.SORT_DEFAULT) 
             initial_embed = view.get_page_embed()
             
-            # Selectメニューのoptionsをここで設定
-            view.sort_options_select.options = view._get_sort_options()
+            # ここで Selectメニューの options を手動で設定する行は不要になった
+            # view.sort_options_select.options = view._get_sort_options() # この行は削除
 
             message = await interaction.followup.send(embed=initial_embed, view=view)
             view.message = message 
