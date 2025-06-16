@@ -82,66 +82,76 @@ class PjskListView(discord.ui.View):
         self.prev_button.disabled = (self.current_page == 0)
         self.next_button.disabled = (self.current_page >= self.max_pages - 1)
 
-        # ★★★ ここからSelectメニューの動的な作成と追加 ★★★
+        # Selectメニューをインスタンス化し、optionsを設定して追加
         current_sort_label = {
             self.SORT_DEFAULT: "配信順", 
             self.SORT_JAPANESE_ALPHA: "50音順",
             **{f"{self.SORT_LEVEL_BASE}{key}": f"{value} Lv順" for key, value in self.DIFFICULTY_MAPPING.items()}
         }.get(self.sort_method, "ソート方法を選択...")
 
-        # Selectメニューをインスタンス化し、optionsを設定して追加
-        # @discord.ui.select デコレータは削除し、手動で Select を作成
         sort_select = discord.ui.Select(
             placeholder=f"現在のソート: {current_sort_label}",
-            options=self._get_sort_options_list(), # ここでオプションを設定
+            options=self._get_sort_options_list(), 
             custom_id="sort_options_select",
             row=1 
         )
-        # Select のコールバックを設定
-        sort_select.callback = self.sort_options_select_callback # 新しいコールバック関数名を設定
+        sort_select.callback = self.sort_options_select_callback
         self.add_item(sort_select)
-        # ★★★ Selectメニューの動的な作成と追加 ここまで ★★★
 
         logger.debug(f"PjskListView: 初期化完了。総曲数: {len(song_data)}, 最大ページ: {self.max_pages}, 初期ページ: {self.current_page}, インタラクターID: {self.original_interactor_id}, ソート方法: {self.sort_method}")
 
     def _sort_songs(self, songs_list, method):
         logger.debug(f"_sort_songs: ソート方法 '{method}' でソートを開始します。")
 
+        # ソート対象となる曲リスト
+        filtered_songs = list(songs_list) # まずは元のリストのコピー
+        
+        # ★★★ APPEND Lv順の場合のみフィルタリングを実行 ★★★
+        if method == self.SORT_APPEND_LEVEL:
+            original_count = len(filtered_songs)
+            temp_filtered = []
+            for song in filtered_songs:
+                # songに 'append' キーがあり、かつその値が数値であることを確認
+                append_level = song.get("append")
+                if isinstance(append_level, (int, float)):
+                    temp_filtered.append(song)
+                else:
+                    logger.debug(f"  _sort_songs: APPEND Lv順ソートのため、曲 '{song.get('title', '不明なタイトル')}' はAPPENDレベルがないため除外されました。")
+            filtered_songs = temp_filtered
+            logger.debug(f"  _sort_songs: APPEND Lv順ソートで {original_count} 曲中 {len(filtered_songs)} 曲がフィルタリングされました。")
+
+
         if method == self.SORT_DEFAULT:
             logger.debug("_sort_songs: 配信順でソートします。")
-            return list(songs_list)
+            return list(filtered_songs) # フィルタリング後のリストを返す
 
         elif method == self.SORT_JAPANESE_ALPHA:
             logger.debug("_sort_songs: 50音順でソートします。")
-            return sorted(songs_list, key=lambda s: s.get('title', ''))
+            return sorted(filtered_songs, key=lambda s: s.get('title', ''))
 
         elif method.startswith(self.SORT_LEVEL_BASE):
-            difficulty_key = method.replace(self.SORT_LEVEL_BASE, "") # "easy", "normal" など
+            difficulty_key = method.replace(self.SORT_LEVEL_BASE, "")
             logger.debug(f"_sort_songs: {difficulty_key.upper()} のレベル順でソートします。")
             
             def get_level(song):
-                # songs.py のデータ構造に合わせて直接難易度キーでレベルを取得
                 level = song.get(difficulty_key) 
                 
-                # デバッグログを追加 (より簡潔に)
                 if level is None:
                     logger.debug(f"  _sort_songs.get_level: 曲 '{song.get('title', '不明なタイトル')}' に難易度 '{difficulty_key}' のレベル情報がありません。")
                 elif not isinstance(level, (int, float)):
                     logger.warning(f"  _sort_songs.get_level: 曲 '{song.get('title', '不明なタイトル')}' の難易度 '{difficulty_key}' のレベルが数値ではありません。値: {level}")
 
-                if isinstance(level, (int, float)): # レベルが数値であることを確認
+                if isinstance(level, (int, float)): 
                     return level
                 
-                # レベル情報がない、または数値でない場合は非常に大きな値を返し、リストの最後に配置
                 return float('inf') 
 
-            # まずレベルでソートし、同じレベルの場合はタイトルでソート
-            sorted_data = sorted(songs_list, key=lambda s: (get_level(s), s.get('title', '')))
+            sorted_data = sorted(filtered_songs, key=lambda s: (get_level(s), s.get('title', '')))
             return sorted_data
         
-        else: # 未知のソート方法が指定された場合はデフォルトを返す
+        else:
             logger.warning(f"_sort_songs: 未知のソート方法が指定されました: {method}。デフォルトでソートします。")
-            return list(songs_list)
+            return list(filtered_songs) # フィルタリング後のリストを返す
 
     def get_page_embed(self):
         start_index = self.current_page * self.songs_per_page
@@ -159,9 +169,8 @@ class PjskListView(discord.ui.View):
             # 現在のソート方法が難易度レベルソートの場合のみレベル情報を表示
             if self.sort_method.startswith(self.SORT_LEVEL_BASE):
                 difficulty_key = self.sort_method.replace(self.SORT_LEVEL_BASE, "")
-                # songs.py のデータ構造に合わせて直接難易度キーでレベルを取得
                 level = song.get(difficulty_key) 
-                if isinstance(level, (int, float)): # レベルが数値であることを確認
+                if isinstance(level, (int, float)): 
                     level_info = f" (Lv.{level})"
             
             song_entry = f"{display_num}. **{title}**{level_info}\n"
@@ -183,6 +192,9 @@ class PjskListView(discord.ui.View):
             description=full_description,
             color=discord.Color.blue()
         )
+        # フッターの総件数はフィルタリング後の数ではなく、元の全曲数（フィルタリングされた場合も含む）を表示するのが一般的だが、
+        # ここではフィルタリング後のソート済みデータ長を使用し、表示されている件数を正確に反映させる
+        # ただし、フッターの「全X件中」のXは original_song_data の長さを使うのがよりユーザーフレンドリー
         embed.set_footer(text=f"全{len(self.original_song_data)}件中、{start_index + 1}-{min(end_index, len(self._sorted_song_data))}件を表示 | ページ {self.current_page + 1}/{self.max_pages}")
         logger.debug(f"PjskListView: Embed生成完了。ページ: {self.current_page + 1}/{self.max_pages}, ソート方法: {self.sort_method}")
         return embed
@@ -222,24 +234,19 @@ class PjskListView(discord.ui.View):
         else:
             await interaction.response.defer()
             
-    # ★★★ 単一のソートオプション選択メニューのコールバック関数 ★★★
-    # @discord.ui.select デコレータは削除し、このメソッドは通常の非同期関数とする
     async def sort_options_select_callback(self, interaction: discord.Interaction):
-        # interaction.data から選択された値を取得
-        # Selectコンポーネントが単一選択なので、values[0]でOK
         selected_value = interaction.data['values'][0]
         logger.debug(f"PjskListView: ソートオプションが選択されました: {selected_value}")
 
-        self.sort_method = selected_value # 選択された値を直接ソート方法に設定
-        self.current_page = 0 # ソート方法が変わったら最初のページに戻る
+        self.sort_method = selected_value 
+        self.current_page = 0 
         await self._update_page_and_view(interaction)
         logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song のソート方法を {self.sort_method} に切り替えました。")
 
     async def on_timeout(self):
-        # タイムアウト時に全てのUIコンポーネントを無効化する
         for item in self.children:
             item.disabled = True
-        if self.message: # メッセージが紐付けられていれば編集
+        if self.message: 
             await self.message.edit(view=self)
             logger.info("PjskListView: タイムアウトしました。UIを無効化しました。")
 
@@ -249,7 +256,6 @@ class PjskListSongCommands(commands.Cog):
         self.bot = bot
         logger.info("PjskListSongCommandsコグが初期化されています。")
 
-    # このコマンドでは使われませんが、削除はしていません
     ALL_DIFFICULTY_TYPES = ["easy", "normal", "hard", "expert", "master", "append"]
     DISPLAY_DIFFICULTY_TYPES = {
         "easy": "EASY",
@@ -284,8 +290,6 @@ class PjskListSongCommands(commands.Cog):
                 logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song コマンドを使用しましたが、曲が見つかりませんでした。")
                 return
 
-            # 初期表示は「配信順」
-            # Viewの初期化時にソート方法を渡す
             view = PjskListView(all_songs, interaction.user.id, sort_method=PjskListView.SORT_DEFAULT) 
             initial_embed = view.get_page_embed()
             
