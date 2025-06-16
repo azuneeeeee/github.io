@@ -119,6 +119,8 @@ def load_song_detail_file(unit_folder_name: str, song_title_from_songs_py: str) 
 
 # ★新規追加★ 楽曲詳細表示用のView
 class SongDetailView(discord.ui.View):
+    # original_list_view: 楽曲リスト表示を管理する PjskListView のインスタンス
+    # original_message: Botが送信した元のメッセージオブジェクト（リスト表示と詳細表示で共有）
     def __init__(self, original_list_view: 'PjskListView', original_message: discord.Message):
         super().__init__(timeout=86400)
         self.original_list_view = original_list_view
@@ -137,19 +139,26 @@ class SongDetailView(discord.ui.View):
     @discord.ui.button(label="← リストに戻る", style=discord.ButtonStyle.red, custom_id="back_to_list", row=0)
     async def back_to_list_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が楽曲詳細からリストに戻りました。")
-        # 元のリストビューを再設定してメッセージを編集
-        # self.original_list_view は前回の状態を保持しているので、それをそのまま使う
+        
+        # このViewを停止
+        self.stop() 
+
+        # 元のリストビューに戻るために、元のメッセージとViewを編集
+        # original_list_view の _update_page_and_view はEmbedとViewの状態を更新する
+        # このViewは PjskListView のインスタンスを参照しており、その View の状態（ページ、ソート順など）は維持されている。
+        # _update_page_and_view 内で Select メニューのオプションも再生成される。
         await interaction.response.edit_message(
             embed=self.original_list_view.get_page_embed(), 
-            view=self.original_list_view
+            view=self.original_list_view # ここで元の PjskListView インスタンスを渡す
         )
-        self.original_list_view.message = interaction.message # Viewに現在のメッセージを再設定
-        self.stop() # このSongDetailViewはもう不要なので停止
+        # self.original_list_view.message は既に設定済みなので不要だが、念のため再設定しても問題ない
+        # self.original_list_view.message = interaction.message 
+
 
     async def on_timeout(self):
         for item in self.children:
             item.disabled = True
-        if self.original_message: # original_message を使用
+        if self.original_message: 
             try:
                 await self.original_message.edit(view=self)
             except discord.NotFound:
@@ -209,11 +218,30 @@ class PjskListView(discord.ui.View):
         if self.current_page < 0:
             self.current_page = 0
 
-        # ページングボタンの状態を設定
+        # PjskListViewのインスタンス変数としてSelectメニューを保持
+        # これにより、_update_page_and_viewで直接optionsなどを更新できる
+        self.sort_select: discord.ui.Select = None
+        self.song_detail_select: discord.ui.Select = None
+
+        # Paging buttons (already added by decorator)
+        # self.prev_button と self.next_button はデコレータにより自動的に追加されるため、
+        # __init__ 内で明示的に add_item する必要はない。
+        # self.toggle_order_button も同様。
+        self.update_buttons_state() # ボタンの初期状態を設定
+
+        # ソート方法選択 Select メニュー
+        self._add_sort_select_menu()
+
+        # 楽曲詳細選択 Select メニュー
+        self._add_song_detail_select_menu()
+
+        logger.debug(f"PjskListView: 初期化完了。総曲数: {len(song_data)}, 表示対象曲数: {self.total_displayable_songs}, 最大ページ: {self.max_pages}, 初期ページ: {self.current_page}, インタラクターID: {self.original_interactor_id}, ソート方法: {self.sort_method}, ソート方向: {self.sort_order}")
+    
+    def update_buttons_state(self):
+        """ページングボタンとソート順切り替えボタンの状態を更新するヘルパーメソッド"""
         self.prev_button.disabled = (self.current_page == 0)
         self.next_button.disabled = (self.current_page >= self.max_pages - 1)
 
-        # 昇順/降順切り替えボタンの状態を設定
         if self.sort_order == self.ORDER_ASC:
             self.toggle_order_button.label = "降順"
             self.toggle_order_button.style = discord.ButtonStyle.red 
@@ -221,23 +249,30 @@ class PjskListView(discord.ui.View):
             self.toggle_order_button.label = "昇順"
             self.toggle_order_button.style = discord.ButtonStyle.green 
 
-        # ソート方法選択 Select メニュー
+    def _add_sort_select_menu(self):
+        """ソート選択Selectメニューを追加（または更新）するヘルパーメソッド"""
         current_sort_label = {
             self.SORT_DEFAULT: "配信順", 
             self.SORT_JAPANESE_ALPHA: "50音順",
             **{f"{self.SORT_LEVEL_BASE}{key}": f"{value} Lv順" for key, value in self.DIFFICULTY_MAPPING.items()}
         }.get(self.sort_method, "ソート方法を選択...")
 
-        sort_select = discord.ui.Select(
-            placeholder=f"現在のソート: {current_sort_label}",
-            options=self._get_sort_options_list(), 
-            custom_id="sort_options_select",
-            row=1 
-        )
-        sort_select.callback = self.sort_options_select_callback
-        self.add_item(sort_select)
+        # 既存のSelectがあればそれを更新、なければ新規作成
+        if self.sort_select:
+            self.sort_select.placeholder = f"現在のソート: {current_sort_label}"
+            self.sort_select.options = self._get_sort_options_list()
+        else:
+            self.sort_select = discord.ui.Select(
+                placeholder=f"現在のソート: {current_sort_label}",
+                options=self._get_sort_options_list(), 
+                custom_id="sort_options_select",
+                row=1 
+            )
+            self.sort_select.callback = self.sort_options_select_callback
+            self.add_item(self.sort_select)
 
-        # 楽曲詳細選択 Select メニュー
+    def _add_song_detail_select_menu(self):
+        """楽曲詳細選択Selectメニューを追加（または更新）するヘルパーメソッド"""
         current_page_songs = self._sorted_song_data[
             self.current_page * self.songs_per_page : (self.current_page + 1) * self.songs_per_page
         ]
@@ -245,11 +280,9 @@ class PjskListView(discord.ui.View):
         song_detail_options = []
         for song in current_page_songs:
             title = song.get('title', '不明なタイトル')
-            
             if len(title) > 100: 
                  logger.warning(f"楽曲タイトルが長すぎます（100文字以上）: {title}。Selectメニューで問題が発生する可能性があります。")
 
-            # _song_title_to_unit_folder_map に存在するかどうかで、選択肢にするかを判断
             if title in _song_title_to_unit_folder_map:
                 song_detail_options.append(
                     discord.SelectOption(label=title, value=title)
@@ -257,20 +290,44 @@ class PjskListView(discord.ui.View):
             else:
                 logger.debug(f"楽曲 '{title}' の詳細情報ファイルが見つからないため、詳細選択メニューに追加しません。")
         
-        if song_detail_options:
-            song_detail_select = discord.ui.Select(
-                placeholder="楽曲を選択して詳細を見る", 
-                options=song_detail_options,
-                custom_id="song_detail_select",
-                row=2,
-                disabled=False 
-            )
-            song_detail_select.callback = self.song_detail_select_callback
-            self.add_item(song_detail_select)
+        # 既存のSelectがあればそれを更新、なければ新規作成
+        if self.song_detail_select:
+            # 既に存在する場合、optionsとplaceholderを更新
+            if song_detail_options:
+                self.song_detail_select.placeholder = "楽曲を選択して詳細を見る"
+                self.song_detail_select.options = song_detail_options
+                self.song_detail_select.disabled = False
+            else:
+                # オプションがない場合は、placeholderを更新し、無効化する
+                # Discord APIの制限により、optionsは空にできないためダミーを追加
+                self.song_detail_select.placeholder = "詳細情報のある楽曲がありません。"
+                self.song_detail_select.options = [discord.SelectOption(label="選択肢なし", value="no_option", default=True, description="詳細情報のある楽曲がありません。")]
+                self.song_detail_select.disabled = True # 無効化
         else:
-            logger.debug("現在のページには詳細情報のある楽曲がないため、詳細選択メニューは追加されません。")
+            # まだ存在しない場合、新規作成して追加
+            if song_detail_options:
+                self.song_detail_select = discord.ui.Select(
+                    placeholder="楽曲を選択して詳細を見る", 
+                    options=song_detail_options,
+                    custom_id="song_detail_select",
+                    row=2,
+                    disabled=False 
+                )
+                self.song_detail_select.callback = self.song_detail_select_callback
+                self.add_item(self.song_detail_select)
+            else:
+                # 楽曲詳細オプションがない場合もSelectメニュー自体は追加するが、無効化してダミーオプションを置く
+                self.song_detail_select = discord.ui.Select(
+                    placeholder="詳細情報のある楽曲がありません。",
+                    options=[discord.SelectOption(label="選択肢なし", value="no_option", default=True, description="詳細情報のある楽曲がありません。")],
+                    custom_id="song_detail_select",
+                    row=2,
+                    disabled=True
+                )
+                self.song_detail_select.callback = self.song_detail_select_callback
+                self.add_item(self.song_detail_select)
+                logger.debug("現在のページには詳細情報のある楽曲がないため、詳細選択メニューは無効化されました。")
 
-        logger.debug(f"PjskListView: 初期化完了。総曲数: {len(song_data)}, 表示対象曲数: {self.total_displayable_songs}, 最大ページ: {self.max_pages}, 初期ページ: {self.current_page}, インタラクターID: {self.original_interactor_id}, ソート方法: {self.sort_method}, ソート方向: {self.sort_order}")
 
     def _sort_songs(self, songs_list, method, order): 
         logger.debug(f"_sort_songs: ソート方法 '{method}', 方向 '{order}' でソートを開始します。")
@@ -373,98 +430,20 @@ class PjskListView(discord.ui.View):
             logger.debug(f"PjskListView: interaction_check OK for user ID {interaction.user.id}")
             return True
         else:
-            # ephemeral=True は interaction.response.send_message でのみ有効。
-            # interaction.response.edit_message の前に呼ぶとエラーになる。
-            # なので、ここでは edit_message の前に send_message を呼び出し。
-            # ただし、すでに response.send_message() や response.edit_message() を呼んでいるInteractionでは
-            # send_message() を再び呼ぶと InteractionAlreadyResponded エラーになるため、
-            # await interaction.response.send_message() は defer() の後で follow_up.send() に置き換える。
-            # しかし、ここ interaction_check は defer の前なので、そのまま send_message で OK。
             await interaction.response.send_message("このボタンはコマンドを実行したユーザーのみ操作できます。", ephemeral=True)
             logger.warning(f"PjskListView: 不正なユーザーによるボタン操作: ユーザーID {interaction.user.id}, オリジナルインタラクターID {self.original_interactor_id}")
             return False
 
     async def _update_page_and_view(self, interaction: discord.Interaction):
-        # Viewを停止しない。同じViewインスタンスを使い続ける。
-        # self.stop() は View の寿命が終わったときに使う。
-        # ページングでは同じViewのインスタンスのEmbedとchildren（ボタン、Select）を更新する。
-        
-        # self.clear_items()
-        # self.__init__(self.original_song_data, self.original_interactor_id, self.current_page, self.sort_method, self.sort_order)
-        # 上記のように__init__を再呼び出しすると、既存のボタン参照が壊れる場合があるため、
-        # 既存のボタンとSelectのdisabled状態を更新し、新しいSelectメニューを追加・削除する。
-        
-        # メッセージの編集前に、ボタンの状態を更新
-        self.prev_button.disabled = (self.current_page == 0)
-        self.next_button.disabled = (self.current_page >= self.max_pages - 1)
-        if self.sort_order == self.ORDER_ASC:
-            self.toggle_order_button.label = "降順"
-            self.toggle_order_button.style = discord.ButtonStyle.red 
-        else:
-            self.toggle_order_button.label = "昇順"
-            self.toggle_order_button.style = discord.ButtonStyle.green 
+        # ページングやソート順変更時には、このPjskListViewインスタンスの状態を更新し、
+        # その状態を反映したEmbedとViewでメッセージを編集する。
+        # self.stop() は呼ばない。
 
-        # Selectメニューの再構築（optionsがページごとに変わるため）
-        # 既存のソートSelectと詳細Selectを削除し、再追加する
-        # このViewのchildrenから、custom_idで識別して削除
-        items_to_remove = []
-        for item in self.children:
-            if isinstance(item, discord.ui.Select) and item.custom_id in ["sort_options_select", "song_detail_select"]:
-                items_to_remove.append(item)
-        
-        for item in items_to_remove:
-            self.remove_item(item)
-
-        # ソートSelectを再追加（placeholderの更新のため）
-        current_sort_label = {
-            self.SORT_DEFAULT: "配信順", 
-            self.SORT_JAPANESE_ALPHA: "50音順",
-            **{f"{self.SORT_LEVEL_BASE}{key}": f"{value} Lv順" for key, value in self.DIFFICULTY_MAPPING.items()}
-        }.get(self.sort_method, "ソート方法を選択...")
-
-        sort_select = discord.ui.Select(
-            placeholder=f"現在のソート: {current_sort_label}",
-            options=self._get_sort_options_list(), 
-            custom_id="sort_options_select",
-            row=1 
-        )
-        sort_select.callback = self.sort_options_select_callback
-        self.add_item(sort_select)
-
-        # 楽曲詳細Selectを再追加
-        current_page_songs = self._sorted_song_data[
-            self.current_page * self.songs_per_page : (self.current_page + 1) * self.songs_per_page
-        ]
-        
-        song_detail_options = []
-        for song in current_page_songs:
-            title = song.get('title', '不明なタイトル')
-            if len(title) > 100: 
-                 logger.warning(f"楽曲タイトルが長すぎます（100文字以上）: {title}。Selectメニューで問題が発生する可能性があります。")
-
-            if title in _song_title_to_unit_folder_map:
-                song_detail_options.append(
-                    discord.SelectOption(label=title, value=title)
-                )
-            else:
-                logger.debug(f"楽曲 '{title}' の詳細情報ファイルが見つからないため、詳細選択メニューに追加しません。")
-        
-        if song_detail_options:
-            song_detail_select = discord.ui.Select(
-                placeholder="楽曲を選択して詳細を見る", 
-                options=song_detail_options,
-                custom_id="song_detail_select",
-                row=2,
-                disabled=False 
-            )
-            song_detail_select.callback = self.song_detail_select_callback
-            self.add_item(song_detail_select)
-        else:
-            logger.debug("現在のページには詳細情報のある楽曲がないため、詳細選択メニューは追加されません。")
-
+        self.update_buttons_state() # ボタンの状態を更新
+        self._add_sort_select_menu() # ソートSelectを更新
+        self._add_song_detail_select_menu() # 楽曲詳細Selectを更新
 
         await interaction.response.edit_message(embed=self.get_page_embed(), view=self)
-        # self.message = interaction.message # この行は不要、初回送信時に message は設定済み
 
         
     @discord.ui.button(label="⬅️前のページ", style=discord.ButtonStyle.blurple, custom_id="prev_page", row=0)
@@ -506,9 +485,14 @@ class PjskListView(discord.ui.View):
         await self._update_page_and_view(interaction)
         logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song のソート方法を {self.sort_method} に切り替えました。")
 
-    # ★変更★ 楽曲詳細選択メニューのコールバック関数
     async def song_detail_select_callback(self, interaction: discord.Interaction):
         selected_title = interaction.data['values'][0]
+
+        # Selectメニューにダミーオプションしかなかった場合は処理を終了
+        if selected_title == "no_option":
+            await interaction.response.send_message("この選択肢は無効です。詳細情報のある楽曲を選択してください。", ephemeral=True)
+            return
+
         logger.debug(f"PjskListView: 楽曲詳細オプションが選択されました: {selected_title}")
 
         unit_folder_name = _song_title_to_unit_folder_map.get(selected_title)
@@ -549,16 +533,12 @@ class PjskListView(discord.ui.View):
             else:
                 embed.set_footer(text=f"ユニット: {unit_folder_name}")
 
-            # ★ここが変更点★
-            # SongDetailViewを作成し、元の PjskListView インスタンスを渡す
-            # interaction.message は PjskListView の View.message に設定されている前提
-            song_detail_view = SongDetailView(self.original_list_view, interaction.message)
-            
-            # メッセージを詳細情報に編集する
+            # SongDetailViewを作成し、PjskListViewのインスタンスとメッセージを渡す
+            # interaction.message は、PjskListView の message 属性に既に格納されていることを想定
+            song_detail_view = SongDetailView(self, self.message) # ★ここを修正★
+
             await interaction.response.edit_message(embed=embed, view=song_detail_view)
             
-            # この PjskListView は詳細表示中は動作を一時停止 (timeoutは維持)
-            # self.stop() は呼ばない。SongDetailViewがタイムアウトしたら戻るため
             logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が楽曲 '{selected_title}' の詳細を閲覧しました。")
         else:
             await interaction.response.send_message(
@@ -618,7 +598,7 @@ class PjskListSongCommands(commands.Cog):
             initial_embed = view.get_page_embed()
             
             message = await interaction.followup.send(embed=initial_embed, view=view)
-            view.message = message # ★ここが重要★ Viewインスタンスに送信されたメッセージオブジェクトを保持させる
+            view.message = message # ★ここが重要★ PjskListViewインスタンスに送信されたメッセージオブジェクトを保持させる
 
             logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_list_song コマンドを使用しました。最初のページが送信されました。")
 
