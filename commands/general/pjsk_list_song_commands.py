@@ -140,20 +140,14 @@ class SongDetailView(discord.ui.View):
     async def back_to_list_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が楽曲詳細からリストに戻りました。")
         
-        # このViewを停止
-        self.stop() 
-
-        # 元のリストビューに戻るために、元のメッセージとViewを編集
+        self.stop() # このViewを停止
+        
         # original_list_view の _update_page_and_view はEmbedとViewの状態を更新する
         # このViewは PjskListView のインスタンスを参照しており、その View の状態（ページ、ソート順など）は維持されている。
-        # _update_page_and_view 内で Select メニューのオプションも再生成される。
         await interaction.response.edit_message(
             embed=self.original_list_view.get_page_embed(), 
             view=self.original_list_view # ここで元の PjskListView インスタンスを渡す
         )
-        # self.original_list_view.message は既に設定済みなので不要だが、念のため再設定しても問題ない
-        # self.original_list_view.message = interaction.message 
-
 
     async def on_timeout(self):
         for item in self.children:
@@ -203,6 +197,7 @@ class PjskListView(discord.ui.View):
         self.sort_method = sort_method 
         self.sort_order = sort_order 
         
+        # NOTE: _sort_songs は、ソート方法や順序が変わるたびに呼び出される
         self._sorted_song_data = self._sort_songs(self.original_song_data, self.sort_method, self.sort_order)
         
         self.current_page = current_page
@@ -219,21 +214,15 @@ class PjskListView(discord.ui.View):
             self.current_page = 0
 
         # PjskListViewのインスタンス変数としてSelectメニューを保持
-        # これにより、_update_page_and_viewで直接optionsなどを更新できる
-        self.sort_select: discord.ui.Select = None
-        self.song_detail_select: discord.ui.Select = None
+        self.sort_select: discord.ui.Select | None = None
+        self.song_detail_select: discord.ui.Select | None = None
 
-        # Paging buttons (already added by decorator)
-        # self.prev_button と self.next_button はデコレータにより自動的に追加されるため、
-        # __init__ 内で明示的に add_item する必要はない。
-        # self.toggle_order_button も同様。
         self.update_buttons_state() # ボタンの初期状態を設定
 
-        # ソート方法選択 Select メニュー
-        self._add_sort_select_menu()
-
-        # 楽曲詳細選択 Select メニュー
-        self._add_song_detail_select_menu()
+        # 初回のみ add_item を呼び出す
+        # 以降は _update_page_and_view で options, placeholder, disabled などを更新
+        self._add_sort_select_menu(initial_add=True)
+        self._add_song_detail_select_menu(initial_add=True)
 
         logger.debug(f"PjskListView: 初期化完了。総曲数: {len(song_data)}, 表示対象曲数: {self.total_displayable_songs}, 最大ページ: {self.max_pages}, 初期ページ: {self.current_page}, インタラクターID: {self.original_interactor_id}, ソート方法: {self.sort_method}, ソート方向: {self.sort_order}")
     
@@ -249,7 +238,7 @@ class PjskListView(discord.ui.View):
             self.toggle_order_button.label = "昇順"
             self.toggle_order_button.style = discord.ButtonStyle.green 
 
-    def _add_sort_select_menu(self):
+    def _add_sort_select_menu(self, initial_add: bool = False):
         """ソート選択Selectメニューを追加（または更新）するヘルパーメソッド"""
         current_sort_label = {
             self.SORT_DEFAULT: "配信順", 
@@ -257,11 +246,7 @@ class PjskListView(discord.ui.View):
             **{f"{self.SORT_LEVEL_BASE}{key}": f"{value} Lv順" for key, value in self.DIFFICULTY_MAPPING.items()}
         }.get(self.sort_method, "ソート方法を選択...")
 
-        # 既存のSelectがあればそれを更新、なければ新規作成
-        if self.sort_select:
-            self.sort_select.placeholder = f"現在のソート: {current_sort_label}"
-            self.sort_select.options = self._get_sort_options_list()
-        else:
+        if initial_add or not self.sort_select: # 初回追加時、またはselectオブジェクトがまだない場合
             self.sort_select = discord.ui.Select(
                 placeholder=f"現在のソート: {current_sort_label}",
                 options=self._get_sort_options_list(), 
@@ -270,8 +255,12 @@ class PjskListView(discord.ui.View):
             )
             self.sort_select.callback = self.sort_options_select_callback
             self.add_item(self.sort_select)
+        else: # 既にSelectがある場合は、optionsとplaceholderを更新
+            self.sort_select.placeholder = f"現在のソート: {current_sort_label}"
+            self.sort_select.options = self._get_sort_options_list()
 
-    def _add_song_detail_select_menu(self):
+
+    def _add_song_detail_select_menu(self, initial_add: bool = False):
         """楽曲詳細選択Selectメニューを追加（または更新）するヘルパーメソッド"""
         current_page_songs = self._sorted_song_data[
             self.current_page * self.songs_per_page : (self.current_page + 1) * self.songs_per_page
@@ -290,21 +279,7 @@ class PjskListView(discord.ui.View):
             else:
                 logger.debug(f"楽曲 '{title}' の詳細情報ファイルが見つからないため、詳細選択メニューに追加しません。")
         
-        # 既存のSelectがあればそれを更新、なければ新規作成
-        if self.song_detail_select:
-            # 既に存在する場合、optionsとplaceholderを更新
-            if song_detail_options:
-                self.song_detail_select.placeholder = "楽曲を選択して詳細を見る"
-                self.song_detail_select.options = song_detail_options
-                self.song_detail_select.disabled = False
-            else:
-                # オプションがない場合は、placeholderを更新し、無効化する
-                # Discord APIの制限により、optionsは空にできないためダミーを追加
-                self.song_detail_select.placeholder = "詳細情報のある楽曲がありません。"
-                self.song_detail_select.options = [discord.SelectOption(label="選択肢なし", value="no_option", default=True, description="詳細情報のある楽曲がありません。")]
-                self.song_detail_select.disabled = True # 無効化
-        else:
-            # まだ存在しない場合、新規作成して追加
+        if initial_add or not self.song_detail_select: # 初回追加時、またはselectオブジェクトがまだない場合
             if song_detail_options:
                 self.song_detail_select = discord.ui.Select(
                     placeholder="楽曲を選択して詳細を見る", 
@@ -313,10 +288,7 @@ class PjskListView(discord.ui.View):
                     row=2,
                     disabled=False 
                 )
-                self.song_detail_select.callback = self.song_detail_select_callback
-                self.add_item(self.song_detail_select)
             else:
-                # 楽曲詳細オプションがない場合もSelectメニュー自体は追加するが、無効化してダミーオプションを置く
                 self.song_detail_select = discord.ui.Select(
                     placeholder="詳細情報のある楽曲がありません。",
                     options=[discord.SelectOption(label="選択肢なし", value="no_option", default=True, description="詳細情報のある楽曲がありません。")],
@@ -324,9 +296,20 @@ class PjskListView(discord.ui.View):
                     row=2,
                     disabled=True
                 )
-                self.song_detail_select.callback = self.song_detail_select_callback
-                self.add_item(self.song_detail_select)
-                logger.debug("現在のページには詳細情報のある楽曲がないため、詳細選択メニューは無効化されました。")
+            self.song_detail_select.callback = self.song_detail_select_callback
+            self.add_item(self.song_detail_select)
+        else: # 既にSelectがある場合は、options, placeholder, disabled を更新
+            if song_detail_options:
+                self.song_detail_select.placeholder = "楽曲を選択して詳細を見る"
+                self.song_detail_select.options = song_detail_options
+                self.song_detail_select.disabled = False
+            else:
+                self.song_detail_select.placeholder = "詳細情報のある楽曲がありません。"
+                self.song_detail_select.options = [discord.SelectOption(label="選択肢なし", value="no_option", default=True, description="詳細情報のある楽曲がありません。")]
+                self.song_detail_select.disabled = True
+            
+        if not song_detail_options and not initial_add: # 通常の更新でオプションがない場合
+             logger.debug("現在のページには詳細情報のある楽曲がないため、詳細選択メニューは無効化されました。")
 
 
     def _sort_songs(self, songs_list, method, order): 
@@ -349,10 +332,18 @@ class PjskListView(discord.ui.View):
 
         if method == self.SORT_DEFAULT:
             logger.debug("_sort_songs: 配信順でソートします。")
+            # 配信順は元のリストの順序
+            # reverseはリストを反転させるだけなので、元のデータのコピーを直接操作
             return list(filtered_songs) if order == self.ORDER_ASC else list(reversed(filtered_songs))
 
         elif method == self.SORT_JAPANESE_ALPHA:
             logger.debug("_sort_songs: 50音順でソートします。")
+            # 50音順ソートのロジック:
+            # 漢字、ひらがな、カタカナが混在する場合の正しい50音順ソートは複雑。
+            # 一般的には日本語テキストの比較ライブラリ(MeCab, janomeなど)を使うか、
+            # フリガナデータがあればそれを使う。
+            # 今回は簡易的に文字列比較に任せる。
+            # ただし、現状では songs.py にフリガナ情報がないため、タイトル文字列の直接比較になる。
             return sorted(filtered_songs, key=lambda s: s.get('title', ''), reverse=(order == self.ORDER_DESC))
 
         elif method.startswith(self.SORT_LEVEL_BASE):
@@ -363,15 +354,16 @@ class PjskListView(discord.ui.View):
                 level = song.get(difficulty_key) 
                 
                 if level is None:
-                    logger.debug(f"  _sort_songs.get_level: 曲 '{song.get('title', '不明なタイトル')}' に難易度 '{difficulty_key}' のレベル情報がありません。")
-                elif not isinstance(level, (int, float)):
-                    logger.warning(f"  _sort_songs.get_level: 曲 '{song.get('title', '不明なタイトル')}' の難易度 '{difficulty_key}' のレベルが数値ではありません。値: {level}")
-
+                    # レベル情報がない場合は、ソート順の最後に来るように大きな値を返す
+                    return float('inf') 
+                
                 if isinstance(level, (int, float)): 
                     return level
-                
-                return float('inf') 
+                else:
+                    logger.warning(f"  _sort_songs.get_level: 曲 '{song.get('title', '不明なタイトル')}' の難易度 '{difficulty_key}' のレベルが数値ではありません。値: {level}。ソートから除外または末尾に配置します。")
+                    return float('inf') # 数値でない場合もソートの最後に来るように大きな値を返す
 
+            # レベルでソートし、レベルが同じ場合はタイトルでソート
             sorted_data = sorted(filtered_songs, key=lambda s: (get_level(s), s.get('title', '')), reverse=(order == self.ORDER_DESC))
             return sorted_data
         
@@ -435,13 +427,17 @@ class PjskListView(discord.ui.View):
             return False
 
     async def _update_page_and_view(self, interaction: discord.Interaction):
-        # ページングやソート順変更時には、このPjskListViewインスタンスの状態を更新し、
-        # その状態を反映したEmbedとViewでメッセージを編集する。
-        # self.stop() は呼ばない。
+        # ソートデータとページングを再計算
+        self._sorted_song_data = self._sort_songs(self.original_song_data, self.sort_method, self.sort_order)
+        self.max_pages = (self.total_displayable_songs + self.songs_per_page - 1) // self.songs_per_page
+        if self.max_pages == 0: self.max_pages = 1 
+        if self.current_page >= self.max_pages: self.current_page = self.max_pages - 1
+        if self.current_page < 0: self.current_page = 0
+
 
         self.update_buttons_state() # ボタンの状態を更新
-        self._add_sort_select_menu() # ソートSelectを更新
-        self._add_song_detail_select_menu() # 楽曲詳細Selectを更新
+        self._add_sort_select_menu() # ソートSelectを更新（オプションとプレースホルダー）
+        self._add_song_detail_select_menu() # 楽曲詳細Selectを更新（オプションとプレースホルダー、disabled状態）
 
         await interaction.response.edit_message(embed=self.get_page_embed(), view=self)
 
@@ -533,9 +529,7 @@ class PjskListView(discord.ui.View):
             else:
                 embed.set_footer(text=f"ユニット: {unit_folder_name}")
 
-            # SongDetailViewを作成し、PjskListViewのインスタンスとメッセージを渡す
-            # interaction.message は、PjskListView の message 属性に既に格納されていることを想定
-            song_detail_view = SongDetailView(self, self.message) # ★ここを修正★
+            song_detail_view = SongDetailView(self, self.message) 
 
             await interaction.response.edit_message(embed=embed, view=song_detail_view)
             
@@ -570,7 +564,7 @@ class PjskListSongCommands(commands.Cog):
         "expert": "EXPERT", "master": "MASTER", "append": "APPEND"
     }
 
-    @discord.app_commands.command(name="pjsk_list_song", description="プロセカの全曲リストをページ表示し、ソートできます。")
+    @discord.app_commands.command(name="pjsk_list_song", description="プロセカの全曲リストをページ表示し、ソートできます。", guild_ids=[YOUR_GUILD_ID_HERE]) # あなたのギルドIDを設定してください
     @not_in_maintenance()
     async def pjsk_list_song(
         self,
