@@ -564,7 +564,7 @@ class PjskListSongCommands(commands.Cog):
         "expert": "EXPERT", "master": "MASTER", "append": "APPEND"
     }
 
-    @discord.app_commands.command(name="pjsk_list_song", description="プロセカの全曲リストをページ表示し、ソートできます。", guild_ids=[YOUR_GUILD_ID_HERE]) # あなたのギルドIDを設定してください
+    @discord.app_commands.command(name="pjsk_list_song", description="プロセカの全曲リストをページ表示し、ソートできます。", guild_ids=[1376551581423767582]) # あなたのギルドIDを設定してください
     @not_in_maintenance()
     async def pjsk_list_song(
         self,
