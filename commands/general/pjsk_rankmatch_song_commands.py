@@ -1,4 +1,5 @@
 # commands/general/pjsk_rankmatch_song_commands.py
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -7,41 +8,33 @@ import datetime
 import logging
 
 # data/songs.py から楽曲データをインポート
-# songs.py にランクマッチデータがないため、このモジュール内で定義する
 try:
     from data import songs
     logger = logging.getLogger(__name__)
     logger.info("デバッグ: data/songs.py を commands/general/pjsk_rankmatch_song_commands.py に正常にインポートしました。")
 except ImportError:
     logger = logging.getLogger(__name__)
-    logger.error("エラー: data/songs.py が見つからないか、インポートできませんでした。一部機能が制限されます。")
-    # songs モジュールがない場合のフォールバック
-    class SongsMock:
+    logger.error("エラー: data/songs.py が見つからないか、インポートできませんでした。pjsk_rankmatch_song_commands.pyは動作しません。")
+    class SongsMock: # songs.py がない場合のフォールバック
         proseka_songs = []
-        VALID_DIFFICULTIES = [] # songs.pyが完全にない場合は空
+        VALID_DIFFICULTIES = []
     songs = SongsMock()
 
+# このモジュール内でランクマッチ関連データを定義（songs.py を変更しないため）
 
-# ★このモジュール内でランクマッチ関連データを定義★
-# songs.py を変更しないという制約のため、ここに直接定義します。
-# 実際の日付と楽曲に合わせて、この部分を適切に更新してください。
-# 例として、今日の日付のランクマッチ楽曲を設定します。
-rank_match_songs_by_date_local = {
-    # 2025年6月18日の楽曲リスト
-    # 実際の「Tell Your World」のタイトルと一致させてください
-    "2025-06-18": [
-        "Tell Your World"
-    ],
-    # 例: 明日以降の楽曲を追加する場合はこのように記述
-    # (datetime.date.today() + datetime.timedelta(days=1)).strftime("%Y-%m-%d"): [
-    #     "別の楽曲名"
-    # ],
-    # ... 他の日付 ...
+# ランクマッチで選択可能な難易度のリスト（songs.pyのAPPENDを考慮）
+RANK_MATCH_VALID_DIFFICULTIES_LOCAL = ["EXPERT", "MASTER", "APPEND"]
+
+# ランクとレベル範囲のマッピング
+RANK_LEVEL_RANGES = {
+    "beginner": {"expert_master_range": {"min": 18, "max": 25}, "append_range": None},
+    "bronze":   {"expert_master_range": {"min": 23, "max": 26}, "append_range": None},
+    "silver":   {"expert_master_range": {"min": 25, "max": 28}, "append_range": None},
+    "gold":     {"expert_master_range": {"min": 26, "max": 30}, "append_range": None},
+    "platinum": {"expert_master_range": {"min": 28, "max": 31}, "append_range": None},
+    "diamond":  {"expert_master_range": {"min": 29, "max": 32}, "append_range": {"min": 27, "max": 30}},
+    "master":   {"expert_master_range": {"min": 30, "max": 37}, "append_range": {"min": 28, "max": 38}},
 }
-
-# ランクマッチで選択可能な難易度のリスト
-# VALID_DIFFICULTIES は songs.py から来るが、ランクマッチに特有の難易度をここに定義
-RANK_MATCH_VALID_DIFFICULTIES_LOCAL = ["EXPERT", "MASTER", "APPEND"] # songs.pyのAPPENDを考慮
 
 
 class PjsekRankMatchSongCommands(commands.Cog):
@@ -50,16 +43,29 @@ class PjsekRankMatchSongCommands(commands.Cog):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info("デバッグ: PjsekRankMatchSongCommands コグが初期化されました。")
 
-    @app_commands.command(name="pjsk_rankmatch_song", description="今日のランクマッチ楽曲からランダムに選んで表示します。")
+    @app_commands.command(name="pjsk_rankmatch_song", description="ランクマッチ楽曲からランダムに選んで表示します。") # 説明文を調整
     @app_commands.describe(
         count="表示する曲数 (デフォルト: 1曲, 最大: 5曲)",
-        difficulty="難易度でフィルタリングします (例: EXPERT, MASTER, APPEND)"
+        difficulty="難易度でフィルタリングします (例: EXPERT, MASTER, APPEND)",
+        rank="選曲するランク (Beginner, Bronze, Silver, Gold, Platinum, Diamond, Masterなど)"
+    )
+    @app_commands.choices(
+        rank=[
+            app_commands.Choice(name="Beginner", value="beginner"),
+            app_commands.Choice(name="Bronze", value="bronze"),
+            app_commands.Choice(name="Silver", value="silver"),
+            app_commands.Choice(name="Gold", value="gold"),
+            app_commands.Choice(name="Platinum", value="platinum"),
+            app_commands.Choice(name="Diamond", value="diamond"),
+            app_commands.Choice(name="Master", value="master"),
+        ]
     )
     async def pjsk_rankmatch_song(
         self,
         interaction: discord.Interaction,
         count: app_commands.Range[int, 1, 5] = 1,
-        difficulty: str = None
+        difficulty: str = None,
+        rank: app_commands.Choice[str] = None
     ):
         self.logger.info(f"デバッグ: /pjsk_rankmatch_song コマンドが {interaction.user.name} ({interaction.user.id}) によって実行されました。")
         self_check_ready = self.bot.get_cog("AdminCommands")
@@ -69,70 +75,97 @@ class PjsekRankMatchSongCommands(commands.Cog):
             )
             return
 
-        await interaction.response.defer(ephemeral=False) # コマンド応答を遅延
-
-        # 今日の日付を取得 (JST)
-        utc_now = datetime.datetime.now(datetime.timezone.utc)
-        jst_offset = datetime.timedelta(hours=9)
-        jst_today = (utc_now + jst_offset).date()
-        today_str = jst_today.strftime("%Y-%m-%d")
-
-        self.logger.debug(f"デバッグ: 今日の日付 (JST): {today_str}")
-
-        # ★モジュール内で定義されたランクマッチ楽曲リストを使用★
-        current_rank_match_songs_names = rank_match_songs_by_date_local.get(today_str)
-
-        if not current_rank_match_songs_names:
-            await interaction.followup.send(
-                f"申し訳ありません。今日の ({today_str}) ランクマッチ楽曲情報は見つかりませんでした。\n"
-                "このボットのデータが更新されていないか、日付が変わった可能性があります。"
-            )
-            self.logger.warning(f"警告: 今日のランクマッチ楽曲情報 ({today_str}) が見つかりませんでした。")
+        # songs.py に楽曲が登録されているか確認
+        if not songs.proseka_songs:
+            await interaction.response.send_message("現在、登録されている楽曲がありません。", ephemeral=True)
+            self.logger.warning("警告: /pjsk_rankmatch_song: songs.proseka_songs が空です。")
             return
 
-        # 楽曲名から楽曲オブジェクトを検索
-        available_songs = []
-        for song_name in current_rank_match_songs_names:
-            found_song = next((s for s in songs.proseka_songs if s.get("title") == song_name), None)
-            if found_song:
-                available_songs.append(found_song)
-            else:
-                self.logger.warning(f"警告: ランクマッチ楽曲リストにある '{song_name}' が songs.py の proseka_songs で見つかりませんでした。")
+        await interaction.response.defer(ephemeral=False)
 
-        if not available_songs:
-            await interaction.followup.send("今日のランクマッチ楽曲リストに登録されている曲の詳細情報が songs.py に見つかりませんでした。データを確認してください。")
-            self.logger.warning("警告: ランクマッチ楽曲名リストは取得できましたが、proseka_songsからの詳細情報が見つかりませんでした。")
-            return
+        # ★変更点: 全ての登録楽曲から開始する★
+        songs_to_choose_from = list(songs.proseka_songs) # 全楽曲をコピーしてフィルタリングを開始
 
-        # 難易度フィルタリング
-        filtered_songs = []
+        # 難易度フィルタリング (既存)
         if difficulty:
-            selected_difficulty_upper = difficulty.upper() # 大文字に変換して比較
-            # ★モジュール内で定義されたランクマッチ難易度リストを使用★
-            if selected_difficulty_upper not in RANK_MATCH_VALID_DIFFICULTIES_LOCAL:
-                await interaction.followup.send(f"指定された難易度 `{difficulty}` はランクマッチでは選択できません。選択可能な難易度: {', '.join(RANK_MATCH_VALID_DIFFICULTIES_LOCAL)}")
+            selected_difficulty_upper = difficulty.upper()
+            # ランクマッチではないが、songs.pyのVALID_DIFFICULTIESを使う
+            if selected_difficulty_upper not in songs.VALID_DIFFICULTIES: # ここはRANK_MATCH_VALID_DIFFICULTIES_LOCALではなく、全難易度を許容
+                await interaction.followup.send(f"指定された難易度 `{difficulty}` は無効です。選択可能な難易度: {', '.join(songs.VALID_DIFFICULTIES)}")
+                return
+            
+            temp_filtered_songs = []
+            selected_difficulty_lower = selected_difficulty_upper.lower() 
+            for song in songs_to_choose_from:
+                if selected_difficulty_lower in song and song[selected_difficulty_lower] is not None:
+                    temp_filtered_songs.append(song)
+            
+            if not temp_filtered_songs:
+                await interaction.followup.send(f"指定された難易度 `{difficulty}` の譜面を持つ曲は見つかりませんでした。")
+                self.logger.info(f"情報: 指定難易度 '{difficulty}' の曲が見つかりませんでした。")
+                return
+            songs_to_choose_from = temp_filtered_songs
+
+
+        # ランクによるレベル範囲フィルタリング (更新)
+        if rank:
+            selected_rank_value = rank.value
+            level_ranges_for_rank = RANK_LEVEL_RANGES.get(selected_rank_value)
+            
+            if not level_ranges_for_rank:
+                await interaction.followup.send(f"指定されたランク `{rank.name}` のレベル範囲情報が見つかりませんでした。")
+                self.logger.warning(f"警告: 未知のランク値 '{selected_rank_value}' が指定されました。")
                 return
 
-            # 難易度キーは小文字なので変換
-            selected_difficulty_lower = selected_difficulty_upper.lower() 
-            for song in available_songs:
-                if selected_difficulty_lower in song and song[selected_difficulty_lower] is not None:
-                    filtered_songs.append(song)
+            rank_filtered_songs = []
+            for song in songs_to_choose_from:
+                song_meets_rank_criteria = False
+                
+                # EXPERT/MASTERの範囲をチェック
+                em_range = level_ranges_for_rank.get("expert_master_range")
+                if em_range:
+                    for diff_upper in ["EXPERT", "MASTER"]: # ランクマッチで対象となる難易度
+                        diff_lower = diff_upper.lower()
+                        level = song.get(diff_lower)
+                        if level is not None and em_range["min"] <= level <= em_range["max"]:
+                            song_meets_rank_criteria = True
+                            break # この曲はこの範囲で条件を満たした
+                
+                # APPENDの範囲をチェック
+                append_range = level_ranges_for_rank.get("append_range")
+                if append_range:
+                    level = song.get("append") # APPEND難易度のみ
+                    if level is not None and append_range["min"] <= level <= append_range["max"]:
+                        song_meets_rank_criteria = True
+                
+                if song_meets_rank_criteria:
+                    rank_filtered_songs.append(song)
             
-            if not filtered_songs:
-                await interaction.followup.send(f"今日のランクマッチ楽曲の中から、指定された難易度 `{difficulty}` の譜面を持つ曲は見つかりませんでした。")
-                self.logger.info(f"情報: 今日のランクマッチ楽曲から、指定難易度 '{difficulty}' の曲が見つかりませんでした。")
+            if not rank_filtered_songs:
+                range_msgs = []
+                if level_ranges_for_rank.get("expert_master_range"):
+                    em_r = level_ranges_for_rank["expert_master_range"]
+                    range_msgs.append(f"EXPERT/MASTER ({em_r['min']}~{em_r['max']})")
+                if level_ranges_for_rank.get("append_range"):
+                    ap_r = level_ranges_for_rank["append_range"]
+                    range_msgs.append(f"APPEND ({ap_r['min']}~{ap_r['max']})")
+                
+                range_str = " または ".join(range_msgs) if range_msgs else "指定なし"
+
+                await interaction.followup.send(
+                    f"登録楽曲の中から、ランク `{rank.name}` ({range_str}) に適合する曲は見つかりませんでした。" # メッセージを調整
+                )
+                self.logger.info(f"情報: ランク '{rank.name}' ({range_str}) に適合する曲が見つかりませんでした。")
                 return
             
-            songs_to_choose_from = filtered_songs
-        else:
-            songs_to_choose_from = available_songs
-        
+            songs_to_choose_from = rank_filtered_songs
+
+
         # ランダム選択
         if len(songs_to_choose_from) < count:
             count = len(songs_to_choose_from)
             if count == 0:
-                await interaction.followup.send("選択可能な楽曲がありませんでした。")
+                await interaction.followup.send("選択可能な楽曲がありませんでした。フィルタリング条件を確認してください。") # メッセージを調整
                 self.logger.warning("警告: 選択可能な楽曲が0のため、コマンドを終了します。")
                 return
             await interaction.followup.send(f"選択可能な楽曲が指定された曲数より少ないため、{count}曲表示します。")
@@ -142,13 +175,10 @@ class PjsekRankMatchSongCommands(commands.Cog):
         embeds = []
         for song in selected_songs:
             title = song.get("title", "不明な楽曲")
-            # artist キーがないため、表示を調整
-            # artist = song.get("artist", "不明なアーティスト")
             
             description = ""
             
             difficulty_fields = []
-            # songs.VALID_DIFFICULTIES は songs.py から正しく読み込まれる前提
             for diff_upper in songs.VALID_DIFFICULTIES:
                 diff_lower = diff_upper.lower()
                 level = song.get(diff_lower)
