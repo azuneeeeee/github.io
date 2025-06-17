@@ -5510,6 +5510,16 @@ proseka_songs = [
         "expert": 25,
         "master": 29,
         "append": None
+    },
+    {
+        "title": "モニタリング",
+        "image_url": "https://cdn.discordapp.com/attachments/1376551906570408040/1384328882399870976/image.jpeg?ex=6852083d&is=6850b6bd&hm=61b63df5b20f4510f300ab5e29b36527a17fda2aae3760231e9b10abba4f38a6&",
+        "easy": 8,
+        "normal": 13,
+        "hard": 19,
+        "expert": 26,
+        "master": 29,
+        "append": None
     }
 ]
 
