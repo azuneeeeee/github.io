@@ -221,6 +221,9 @@ async def on_ready():
             
             await bot.load_extension("commands.general.pjsk_list_song_commands")
             logger.info("デバッグ: commands.general.pjsk_list_song_commands がロードされました。")
+            
+            await bot.load_extension("commands.general.pjsk_rankmatch_song_commands")
+            logger.info("デバッグ: commands.general.pjsk_rankmatch_song_commands がロードされました。")
 
         except Exception as e:
             logger.error(f"エラー: コグのロード中にエラーが発生しました: {e}", exc_info=True)
