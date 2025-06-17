@@ -34,7 +34,7 @@ except ImportError:
 try:
     logger.info("デバッグ: utils/config_manager.py のインポートを試みます。")
     import utils.config_manager as config_manager_module
-    logger.info("デバッグ: utils/config_manager.py を正常にインポートしました。")
+    logger.info("デバッグ: utils.config_manager.py を正常にインポートしました。")
 except ImportError:
     logger.critical("致命的なエラー: utils/config_manager.py が見つからないか、インポートできませんでした。")
     logger.critical("致命的なエラー: 'utils' フォルダがあり、その中に 'config_manager.py' が存在するか確認してください。")
@@ -58,7 +58,7 @@ else:
     logger.critical("致命的なエラー: DISCORD_OWNER_ID 環境変数が設定されていません。ボットは起動できません。")
     sys.exit(1)
 
-# ★追加点★ TEST_GUILD_ID を環境変数から取得
+# TEST_GUILD_ID を環境変数から取得
 TEST_GUILD_ID = os.getenv('DISCORD_TEST_GUILD_ID')
 if TEST_GUILD_ID:
     try:
@@ -82,17 +82,27 @@ logger.info("デバッグ: ボットインスタンスが作成されました�
 # === ボットにカスタム属性を追加して状態を管理する ===
 bot.is_maintenance_mode = False # これは初期値。config_managerからロードされる
 bot.is_bot_ready_for_commands = False
-bot.original_status_message = ""
+bot.original_status_message = "" # プロセカ楽曲情報 (例: 〇〇曲/〇〇譜面)
+bot.server_count_message = ""    # サーバー数情報 (例: 〇〇サーバーで稼働中)
 bot.maintenance_loop_initial_delay_done = False
-logger.info(f"デバッグ: ボットのカスタム属性が初期化されました: is_maintenance_mode={bot.is_maintenance_mode}, is_bot_ready_for_commands={bot.is_bot_ready_for_commands}, original_status_message='{bot.original_status_message}', maintenance_loop_initial_delay_done={bot.maintenance_loop_initial_delay_done}")
+# ★新規追加★ ステータス切り替えのためのインデックス
+bot.status_index = 0 
+
+logger.info(f"デバッグ: ボットのカスタム属性が初期化されました: is_maintenance_mode={bot.is_maintenance_mode}, is_bot_ready_for_commands={bot.is_bot_ready_for_commands}, original_status_message='{bot.original_status_message}', server_count_message='{bot.server_count_message}', maintenance_loop_initial_delay_done={bot.maintenance_loop_initial_delay_done}, status_index={bot.status_index}")
 
 
-logger.info("デバッグ: 環境変数がロードされました。") # この行はロードdotenvの後にもう一度表示されるが、無視してよい
+logger.info("デバッグ: 環境変数がロードされました。")
 
 # === メンテナンスモード時のステータス切り替えループ ===
 @tasks.loop(seconds=10)
 async def maintenance_status_loop():
+    # ギルド数を取得
+    guild_count = len(bot.guilds)
+    server_count_msg = f"{guild_count}サーバーで稼働中"
+    
+    # メンテナンスメッセージは固定
     maintenance_message = "メンテナンス中... 🛠️"
+    
     logger.debug("デバッグ: maintenance_status_loop が実行されました。")
 
     try:
@@ -109,15 +119,12 @@ async def maintenance_status_loop():
             logger.warning("警告: maintenance_status_loop: ボットがまだ準備できていないため、ステータス変更をスキップします。")
             return
 
-        # ギルド情報の取得とログ追加
-        # ボットが参加しているギルドがない場合、me_memberは取得できないので return
-        if not bot.guilds:
-            logger.warning("警告: maintenance_status_loop: ボットが参加しているギルドが見つかりません。ステータスを変更できません。")
-            return
-
-        me_member = bot.guilds[0].me
+        # Botの最新のステータスとアクティビティを取得
+        # me_memberはボットが参加しているいずれかのギルドのメンバーオブジェクト
+        # 全てのギルドで同じステータスになるため、最初のギルドのme_memberで十分
+        me_member = bot.guilds[0].me if bot.guilds else None
         if not me_member:
-            logger.warning("警告: maintenance_status_loop: ギルドのボットメンバー情報が取得できません。ステータスを変更できません。")
+            logger.warning("警告: maintenance_status_loop: ギルドが見つからないか、ボットメンバー情報が取得できません。ステータスを変更できません。")
             return
 
         current_activity = me_member.activity
@@ -129,57 +136,58 @@ async def maintenance_status_loop():
         if bot.is_maintenance_mode:
             logger.debug("デバッグ: maintenance_status_loop: メンテナンスモードが有効です。ステータス変更を試みます。")
             
-            # メンテナンスモード時に切り替わる2つのステータスオプション
+            # メンテナンスモード時に切り替わるステータスの候補リスト
+            # original_status_message, サーバー数メッセージ, メンテナンスメッセージ
             status_options = [
-                (bot.original_status_message, discord.Status.dnd), # オプション1: 元のカスタムステータス + DND
-                (maintenance_message, discord.Status.dnd)           # オプション2: メンテナンスメッセージ + DND
+                bot.original_status_message, # プロセカ楽曲情報
+                server_count_msg,           # 〇〇サーバーで稼働中
+                maintenance_message         # メンテナンス中... 🛠️
             ]
 
-            next_activity_name = ""
+            # 次のステータスを決定
+            next_activity_name = status_options[bot.status_index % len(status_options)]
             next_status = discord.Status.dnd # メンテナンスモード中は常にDND
 
-            # 現在のステータスがどちらかのオプションと一致するか確認
-            is_currently_option1 = (isinstance(current_activity, discord.CustomActivity) and current_activity.name == status_options[0][0] and current_status_raw == status_options[0][1])
-            is_currently_option2 = (isinstance(current_activity, discord.CustomActivity) and current_activity.name == status_options[1][0] and current_status_raw == status_options[1][1])
-
-            if is_currently_option1:
-                next_activity_name = status_options[1][0] # メンテナンスメッセージ
-                logger.debug(f"デバッグ: maintenance_status_loop: 現在は元のステータス (DND)。次をメンテナンスメッセージに切り替えます。")
-            # 現在のステータスがオプション2なら、次のループでオプション1へ切り替える
-            elif is_currently_option2:
-                next_activity_name = status_options[0][0] # 元のカスタムステータス
-                logger.debug(f"デバッグ: maintenance_status_loop: 現在はメンテナンスメッセージ (DND)。次を元のステータスに切り替えます。")
-            # どちらでもない場合（初回の切り替えなど）、オプション1へ切り替える
-            else:
-                next_activity_name = status_options[0][0] # 元のカスタムステータス
-                logger.debug(f"デバッグ: maintenance_status_loop: 初回または不正な状態。元のステータス (DND) に切り替えます。")
-            
-            # change_presence は常に実行し、10秒ごとに必ず切り替わるようにする
+            # ステータス変更
             await bot.change_presence(activity=discord.CustomActivity(name=next_activity_name), status=next_status)
             logger.info(f"デバッグ: メンテナンスモード中のステータスを '{next_activity_name}' ({next_status.name}) に切り替えました。")
+            
+            # 次のステータスインデックスに進める
+            bot.status_index += 1
 
         else: # bot.is_maintenance_mode が False (メンテナンスモード無効) の場合
             logger.debug("デバッグ: maintenance_status_loop: メンテナンスモードが無効です。ステータスをオンラインに戻します。")
             
-            # 目的のステータス
-            target_activity_name = bot.original_status_message
-            target_status = discord.Status.online
+            # オンラインモード時に切り替わるステータスの候補リスト
+            # original_status_message, サーバー数メッセージ
+            status_options = [
+                bot.original_status_message, # プロセカ楽曲情報
+                server_count_msg           # 〇〇サーバーで稼働中
+            ]
+
+            # 次のステータスを決定
+            next_activity_name = status_options[bot.status_index % len(status_options)]
+            next_status = discord.Status.online
 
             # 現在のステータスが目的のステータスと異なる場合にのみ変更する
             should_change_status = False
-            if current_status_raw != target_status:
-                logger.debug(f"デバッグ: maintenance_status_loop: ステータスが異なる ({current_status_raw.name} != {target_status.name})")
+            if current_status_raw != next_status:
+                logger.debug(f"デバッグ: maintenance_status_loop: ステータスが異なる ({current_status_raw.name} != {next_status.name})")
                 should_change_status = True
 
-            if not (isinstance(current_activity, discord.CustomActivity) and current_activity.name == target_activity_name):
-                logger.debug(f"デバッグ: maintenance_status_loop: アクティビティが異なる ('{current_activity_name}' != '{target_activity_name}')")
+            if not (isinstance(current_activity, discord.CustomActivity) and current_activity.name == next_activity_name):
+                logger.debug(f"デバッグ: maintenance_status_loop: アクティビティが異なる ('{current_activity_name}' != '{next_activity_name}')")
                 should_change_status = True
+            
+            # ステータス変更の必要がなくても、定期的に更新して確実に切り替える
+            # あるいは、変更が必要な場合のみ切り替えるロジックを維持するかは要件次第
+            # 今回は、毎回切り替わるようにします。
+            await bot.change_presence(activity=discord.CustomActivity(name=next_activity_name), status=next_status)
+            logger.info(f"デバッグ: オンラインモード中のステータスを '{next_activity_name}' ({next_status.name}) に切り替えました。")
+            
+            # 次のステータスインデックスに進める
+            bot.status_index += 1
 
-            if should_change_status:
-                await bot.change_presence(activity=discord.CustomActivity(name=target_activity_name), status=target_status)
-                logger.info("デバッグ: maintenance_status_loop: メンテナンスモード無効化に伴い、ステータスをオンラインに戻しました。")
-            else:
-                logger.debug("デバッグ: maintenance_status_loop: すでにオンラインステータスに設定済みです。")
 
     except discord.HTTPException as http_e:
         logger.error(f"エラー: Discord APIからのHTTPエラーが発生しました（ステータス変更中）: {http_e} (コード: {http_e.status})", exc_info=True)
@@ -254,21 +262,33 @@ async def on_ready():
             bot.original_status_message = status_message_text
             logger.info(f"デバッグ: on_ready: original_status_message を '{bot.original_status_message}' に設定しました。")
 
+            # ★新規追加★ サーバー数メッセージをここで初期化
+            guild_count = len(bot.guilds)
+            bot.server_count_message = f"{guild_count}サーバーで稼働中"
+            logger.info(f"デバッグ: on_ready: server_count_message を '{bot.server_count_message}' に設定しました。")
+
+
             # on_ready イベントで、最初のステータス設定を行う
-            # ここでは config_manager_module.load_maintenance_status() の結果を反映させる
-            # admin_commands コグがロードされた後に bot.is_maintenance_mode が更新されているはずなので、
-            # その状態に基づいて最初のステータスを設定する
+            # メンテナンスモードの状態に基づいて初期ステータスを設定する
+            initial_activity_name = ""
+            initial_status = discord.Status.online # デフォルトはオンライン
+
             if bot.is_maintenance_mode:
-                # メンテナンスモードがロードされていれば、最初のステータスはDNDとメンテナンスメッセージにする
-                initial_activity_name = "メンテナンス中... 🛠️"
+                initial_activity_name = "メンテナンス中... 🛠️" # メンテナンスモードがロードされていれば、最初のステータスはメンテナンスメッセージにする
                 initial_status = discord.Status.dnd
                 logger.info(f"デバッグ: on_ready: 起動時にメンテナンスモードが有効なため、初期ステータスを '{initial_activity_name}' (DND) に設定します。")
             else:
-                # メンテナンスモードが無効であれば、通常のオンラインステータスにする
-                initial_activity_name = bot.original_status_message
+                initial_activity_name = bot.original_status_message # メンテナンスモードが無効であれば、通常のオンラインステータスにする
                 initial_status = discord.Status.online
                 logger.info(f"デバッグ: on_ready: 起動時にメンテナンスモードが無効なため、初期ステータスを '{initial_activity_name}' (オンライン) に設定します。")
             
+            # initial_activity_name が決定したら、最初の status_index を設定
+            # この設定により、メンテナンスループが開始された際に、この初期メッセージから次のメッセージへ適切に切り替わる
+            # initial_activity_name が status_options のどのインデックスに該当するかを特定
+            # ただし、maintenance_status_loop内でstatus_optionsが再構築されるため、
+            # 初回は単純に status_index = 0 から始めるのが安全
+            bot.status_index = 0 # 起動時は常に最初のメッセージから始める
+
             await asyncio.sleep(1) # Discord APIへのリクエスト間隔を空ける
             await bot.change_presence(activity=discord.CustomActivity(name=initial_activity_name), status=initial_status)
             logger.info(f"デバッグ: on_ready: カスタムステータス '{initial_activity_name}' とステータス '{initial_status.name}' が設定されました。")
@@ -304,7 +324,7 @@ if __name__ == '__main__':
 
     try:
         bot.run(token)
-        logger.info("デバッグ: bot.run() が戻りました。これはボットが切断または停止したことを意味します。") # ★ここを修正しました★
+        logger.info("デバッグ: bot.run() が戻りました。これはボットが切断または停止したことを意味します。")
     except discord.LoginFailure:
         logger.critical("致命的なエラー: トークン認証に失敗しました。DISCORD_BOT_TOKEN を確認してください。")
         sys.exit(1)
