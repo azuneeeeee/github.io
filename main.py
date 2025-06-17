@@ -58,6 +58,18 @@ else:
     logger.critical("致命的なエラー: DISCORD_OWNER_ID 環境変数が設定されていません。ボットは起動できません。")
     sys.exit(1)
 
+# ★追加点★ TEST_GUILD_ID を環境変数から取得
+TEST_GUILD_ID = os.getenv('DISCORD_TEST_GUILD_ID')
+if TEST_GUILD_ID:
+    try:
+        TEST_GUILD_ID = int(TEST_GUILD_ID)
+        logger.info(f"デバッグ: 環境変数 DISCORD_TEST_GUILD_ID から TEST_GUILD_ID をロードしました: {TEST_GUILD_ID}")
+    except ValueError:
+        logger.critical("致命的なエラー: DISCORD_TEST_GUILD_ID が整数ではありません。正しいIDを設定してください。")
+        sys.exit(1)
+else:
+    logger.warning("警告: DISCORD_TEST_GUILD_ID 環境変数が設定されていません。スラッシュコマンドはグローバルに同期されます（反映に最大1時間かかります）。開発中は設定を推奨します。")
+
 
 # ボットインスタンスの作成
 intents = discord.Intents.all()
@@ -120,7 +132,7 @@ async def maintenance_status_loop():
             # メンテナンスモード時に切り替わる2つのステータスオプション
             status_options = [
                 (bot.original_status_message, discord.Status.dnd), # オプション1: 元のカスタムステータス + DND
-                (maintenance_message, discord.Status.dnd)          # オプション2: メンテナンスメッセージ + DND
+                (maintenance_message, discord.Status.dnd)           # オプション2: メンテナンスメッセージ + DND
             ]
 
             next_activity_name = ""
@@ -211,8 +223,14 @@ async def on_ready():
         logger.info("デバッグ: スラッシュコマンドの同期を開始します。")
 
         try:
-            synced = await bot.tree.sync()
-            logger.info(f"デバッグ: スラッシュコマンドが {len(synced)} 件同期されました。")
+            if TEST_GUILD_ID:
+                # 特定のギルドに同期 (開発・テスト用)
+                synced = await bot.tree.sync(guild=discord.Object(id=TEST_GUILD_ID))
+                logger.info(f"デバッグ: 特定のギルド ({TEST_GUILD_ID}) にスラッシュコマンドが {len(synced)} 件同期されました。")
+            else:
+                # グローバルに同期 (本番用、反映に最大1時間かかる)
+                synced = await bot.tree.sync()
+                logger.info(f"デバッグ: グローバルスラッシュコマンドが {len(synced)} 件同期されました。")
         except Exception as e:
             logger.error(f"エラー: スラッシュコマンドの同期中にエラーが発生しました: {e}", exc_info=True)
 
@@ -278,7 +296,7 @@ logger.info("デバッグ: on_readyイベントハンドラが定義されまし
 
 # === プログラムのエントリポイント ===
 if __name__ == '__main__':
-    logger.info("デバッグ: プログラムのエントriポイントに入りました。bot.run()でボットを起動します。")
+    logger.info("デバッグ: プログラムのエントリポイントに入りました。bot.run()でボットを起動します。")
     token = os.getenv('DISCORD_BOT_TOKEN')
     if not token:
         logger.critical("致命的なエラー: 'DISCORD_BOT_TOKEN' 環境変数が設定されていません。終了します。")
