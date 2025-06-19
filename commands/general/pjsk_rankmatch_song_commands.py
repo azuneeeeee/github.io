@@ -43,10 +43,8 @@ class PjsekRankMatchSongCommands(commands.Cog):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info("デバッグ: PjsekRankMatchSongCommands コグが初期化されました。")
 
-    @app_commands.command(name="pjsk_rankmatch_song", description="ランクマッチ楽曲からランダムに選んで表示します。") # 説明文を調整
+    @app_commands.command(name="pjsk_rankmatch_song", description="ランクマッチ楽曲からランダムに1曲選びます。")
     @app_commands.describe(
-        count="表示する曲数 (デフォルト: 1曲, 最大: 5曲)",
-        difficulty="難易度でフィルタリングします (例: EXPERT, MASTER, APPEND)",
         rank="選曲するランク (Beginner, Bronze, Silver, Gold, Platinum, Diamond, Masterなど)"
     )
     @app_commands.choices(
@@ -63,14 +61,12 @@ class PjsekRankMatchSongCommands(commands.Cog):
     async def pjsk_rankmatch_song(
         self,
         interaction: discord.Interaction,
-        count: app_commands.Range[int, 1, 5] = 1,
-        difficulty: str = None,
-        rank: app_commands.Choice[str] = None
+        # ★★★ここを修正: デフォルト値の None を削除し、必須項目にする★★★
+        rank: app_commands.Choice[str]
     ):
         self.logger.info(f"デバッグ: /pjsk_rankmatch_song コマンドが {interaction.user.name} ({interaction.user.id}) によって実行されました。")
         
-        # ★★★ここを修正★★★
-        # AdminCommands コグではなく、ボット本体の is_bot_ready_for_commands 属性を参照
+        # メンテナンスモードのチェックは残す
         if not self.bot.is_bot_ready_for_commands:
             await interaction.response.send_message(
                 "Botが現在メンテナンス中のため、このコマンドは利用できません。", ephemeral=True
@@ -85,94 +81,68 @@ class PjsekRankMatchSongCommands(commands.Cog):
 
         await interaction.response.defer(ephemeral=False)
 
-        # ★変更点: 全ての登録楽曲から開始する★
         songs_to_choose_from = list(songs.proseka_songs) # 全楽曲をコピーしてフィルタリングを開始
 
-        # 難易度フィルタリング (既存)
-        if difficulty:
-            selected_difficulty_upper = difficulty.upper()
-            # ランクマッチではないが、songs.pyのVALID_DIFFICULTIESを使う
-            if selected_difficulty_upper not in songs.VALID_DIFFICULTIES: # ここはRANK_MATCH_VALID_DIFFICULTIES_LOCALではなく、全難易度を許容
-                await interaction.followup.send(f"指定された難易度 `{difficulty}` は無効です。選択可能な難易度: {', '.join(songs.VALID_DIFFICULTIES)}")
-                return
-            
-            temp_filtered_songs = []
-            selected_difficulty_lower = selected_difficulty_upper.lower() 
-            for song in songs_to_choose_from:
-                if selected_difficulty_lower in song and song[selected_difficulty_lower] is not None:
-                    temp_filtered_songs.append(song)
-            
-            if not temp_filtered_songs:
-                await interaction.followup.send(f"指定された難易度 `{difficulty}` の譜面を持つ曲は見つかりませんでした。")
-                self.logger.info(f"情報: 指定難易度 '{difficulty}' の曲が見つかりませんでした。")
-                return
-            songs_to_choose_from = temp_filtered_songs
+        # ランクによるレベル範囲フィルタリング (rankが必須になったため、常に実行)
+        selected_rank_value = rank.value # rankが必須なので、Noneチェックは不要
+        level_ranges_for_rank = RANK_LEVEL_RANGES.get(selected_rank_value)
+        
+        if not level_ranges_for_rank:
+            await interaction.followup.send(f"指定されたランク `{rank.name}` のレベル範囲情報が見つかりませんでした。")
+            self.logger.warning(f"警告: 未知のランク値 '{selected_rank_value}' が指定されました。")
+            return
 
-
-        # ランクによるレベル範囲フィルタリング (更新)
-        if rank:
-            selected_rank_value = rank.value
-            level_ranges_for_rank = RANK_LEVEL_RANGES.get(selected_rank_value)
+        rank_filtered_songs = []
+        for song in songs_to_choose_from:
+            song_meets_rank_criteria = False
             
-            if not level_ranges_for_rank:
-                await interaction.followup.send(f"指定されたランク `{rank.name}` のレベル範囲情報が見つかりませんでした。")
-                self.logger.warning(f"警告: 未知のランク値 '{selected_rank_value}' が指定されました。")
-                return
-
-            rank_filtered_songs = []
-            for song in songs_to_choose_from:
-                song_meets_rank_criteria = False
-                
-                # EXPERT/MASTERの範囲をチェック
-                em_range = level_ranges_for_rank.get("expert_master_range")
-                if em_range:
-                    for diff_upper in ["EXPERT", "MASTER"]: # ランクマッチで対象となる難易度
-                        diff_lower = diff_upper.lower()
-                        level = song.get(diff_lower)
-                        if level is not None and em_range["min"] <= level <= em_range["max"]:
-                            song_meets_rank_criteria = True
-                            break # この曲はこの範囲で条件を満たした
-                
-                # APPENDの範囲をチェック
-                append_range = level_ranges_for_rank.get("append_range")
-                if append_range:
-                    level = song.get("append") # APPEND難易度のみ
-                    if level is not None and append_range["min"] <= level <= append_range["max"]:
+            # EXPERT/MASTERの範囲をチェック
+            em_range = level_ranges_for_rank.get("expert_master_range")
+            if em_range:
+                for diff_upper in ["EXPERT", "MASTER"]: # ランクマッチで対象となる難易度
+                    diff_lower = diff_upper.lower()
+                    level = song.get(diff_lower)
+                    if level is not None and em_range["min"] <= level <= em_range["max"]:
                         song_meets_rank_criteria = True
-                
-                if song_meets_rank_criteria:
-                    rank_filtered_songs.append(song)
+                        break # この曲はこの範囲で条件を満たした
             
-            if not rank_filtered_songs:
-                range_msgs = []
-                if level_ranges_for_rank.get("expert_master_range"):
-                    em_r = level_ranges_for_rank["expert_master_range"]
-                    range_msgs.append(f"EXPERT/MASTER ({em_r['min']}~{em_r['max']})")
-                if level_ranges_for_rank.get("append_range"):
-                    ap_r = level_ranges_for_rank["append_range"]
-                    range_msgs.append(f"APPEND ({ap_r['min']}~{ap_r['max']})")
-                
-                range_str = " または ".join(range_msgs) if range_msgs else "指定なし"
-
-                await interaction.followup.send(
-                    f"登録楽曲の中から、ランク `{rank.name}` ({range_str}) に適合する曲は見つかりませんでした。" # メッセージを調整
-                )
-                self.logger.info(f"情報: ランク '{rank.name}' ({range_str}) に適合する曲が見つかりませんでした。")
-                return
+            # APPENDの範囲をチェック
+            append_range = level_ranges_for_rank.get("append_range")
+            if append_range:
+                level = song.get("append") # APPEND難易度のみ
+                if level is not None and append_range["min"] <= level <= append_range["max"]:
+                    song_meets_rank_criteria = True
             
-            songs_to_choose_from = rank_filtered_songs
+            if song_meets_rank_criteria:
+                rank_filtered_songs.append(song)
+        
+        if not rank_filtered_songs:
+            range_msgs = []
+            if level_ranges_for_rank.get("expert_master_range"):
+                em_r = level_ranges_for_rank["expert_master_range"]
+                range_msgs.append(f"EXPERT/MASTER ({em_r['min']}~{em_r['max']})")
+            if level_ranges_for_rank.get("append_range"):
+                ap_r = level_ranges_for_rank["append_range"]
+                range_msgs.append(f"APPEND ({ap_r['min']}~{ap_r['max']})")
+            
+            range_str = " または ".join(range_msgs) if range_msgs else "指定なし"
 
+            await interaction.followup.send(
+                f"登録楽曲の中から、ランク `{rank.name}` ({range_str}) に適合する曲は見つかりませんでした。"
+            )
+            self.logger.info(f"情報: ランク '{rank.name}' ({range_str}) に適合する曲が見つかりませんでした。")
+            return
+        
+        songs_to_choose_from = rank_filtered_songs # ランクで絞り込んだ結果を使用
 
-        # ランダム選択
-        if len(songs_to_choose_from) < count:
-            count = len(songs_to_choose_from)
-            if count == 0:
-                await interaction.followup.send("選択可能な楽曲がありませんでした。フィルタリング条件を確認してください。") # メッセージを調整
-                self.logger.warning("警告: 選択可能な楽曲が0のため、コマンドを終了します。")
-                return
-            await interaction.followup.send(f"選択可能な楽曲が指定された曲数より少ないため、{count}曲表示します。")
+        # countは常に1に固定されるため、ランダム選択は常に1曲
+        count = 1 
+        if not songs_to_choose_from: # フィルタリングの結果、楽曲が0になった場合
+            await interaction.followup.send("選択可能な楽曲がありませんでした。フィルタリング条件を確認してください。") 
+            self.logger.warning("警告: 選択可能な楽曲が0のため、コマンドを終了します。")
+            return
 
-        selected_songs = random.sample(songs_to_choose_from, count)
+        selected_songs = random.sample(songs_to_choose_from, count) # countは常に1
 
         embeds = []
         for song in selected_songs:
