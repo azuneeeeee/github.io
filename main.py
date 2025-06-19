@@ -234,12 +234,6 @@ async def on_ready():
         logger.info("デバッグ: スラッシュコマンドの同期を開始します。")
 
         try:
-            if TEST_GUILD_ID:
-                # 特定のギルドに同期 (開発・テスト用)
-                synced = await bot.tree.sync(guild=discord.Object(id=TEST_GUILD_ID))
-                logger.info(f"デバッグ: 特定のギルド ({TEST_GUILD_ID}) にスラッシュコマンドが {len(synced)} 件同期されました。")
-            else:
-                # グローバルに同期 (本番用、反映に最大1時間かかる)
                 synced = await bot.tree.sync()
                 logger.info(f"デバッグ: グローバルスラッシュコマンドが {len(synced)} 件同期されました。")
         except Exception as e:
