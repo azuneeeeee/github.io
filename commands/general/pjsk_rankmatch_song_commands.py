@@ -68,8 +68,10 @@ class PjsekRankMatchSongCommands(commands.Cog):
         rank: app_commands.Choice[str] = None
     ):
         self.logger.info(f"デバッグ: /pjsk_rankmatch_song コマンドが {interaction.user.name} ({interaction.user.id}) によって実行されました。")
-        self_check_ready = self.bot.get_cog("AdminCommands")
-        if self_check_ready and not self_check_ready.is_bot_ready_for_commands():
+        
+        # ★★★ここを修正★★★
+        # AdminCommands コグではなく、ボット本体の is_bot_ready_for_commands 属性を参照
+        if not self.bot.is_bot_ready_for_commands:
             await interaction.response.send_message(
                 "Botが現在メンテナンス中のため、このコマンドは利用できません。", ephemeral=True
             )
