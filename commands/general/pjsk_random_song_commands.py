@@ -1,201 +1,174 @@
+# commands/general/pjsk_rankmatch_song_commands.py
+
 import discord
+from discord import app_commands
 from discord.ext import commands
-import discord.app_commands
 import random
+import datetime
 import logging
 
-# data/songs.py から情報をインポート
+# data/songs.py から楽曲データをインポート
 try:
     from data import songs
+    logger = logging.getLogger(__name__)
+    logger.info("デバッグ: data/songs.py を commands/general/pjsk_rankmatch_song_commands.py に正常にインポートしました。")
 except ImportError:
-    logging.critical("致命的なエラー: data/songs.py が見つからないか、インポートできませんでした。")
-    raise SystemExit("data/songs.py が見つかりません。")
+    logger = logging.getLogger(__name__)
+    logger.error("エラー: data/songs.py が見つからないか、インポートできませんでした。pjsk_rankmatch_song_commands.pyは動作しません。")
+    class SongsMock: # songs.py がない場合のフォールバック
+        proseka_songs = []
+        VALID_DIFFICULTIES = []
+    songs = SongsMock()
 
-# admin_commands から not_in_maintenance と is_owner_check をインポート
-from commands.admin.admin_commands import not_in_maintenance, is_owner_check
+# このモジュール内でランクマッチ関連データを定義（songs.py を変更しないため）
 
-logger = logging.getLogger(__name__)
+# ランクとレベル範囲のマッピング
+RANK_LEVEL_RANGES = {
+    "beginner": {"expert_master_range": {"min": 18, "max": 25}, "append_range": None},
+    "bronze":   {"expert_master_range": {"min": 23, "max": 26}, "append_range": None},
+    "silver":   {"expert_master_range": {"min": 25, "max": 28}, "append_range": None},
+    "gold":     {"expert_master_range": {"min": 26, "max": 30}, "append_range": None},
+    "platinum": {"expert_master_range": {"min": 28, "max": 31}, "append_range": None},
+    "diamond":  {"expert_master_range": {"min": 29, "max": 32}, "append_range": {"min": 27, "max": 30}},
+    "master":   {"expert_master_range": {"min": 30, "max": 37}, "append_range": {"min": 28, "max": 38}},
+}
 
-class PjskRandomSongCommands(commands.Cog):
-    def __init__(self, bot):
+
+class PjsekRankMatchSongCommands(commands.Cog):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("PjskRandomSongCommandsコグが初期化されています。")
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.info("デバッグ: PjsekRankMatchSongCommands コグが初期化されました。")
 
-    # 利用可能な難易度タイプを定義 (小文字で内部処理、大文字で表示)
-    ALL_DIFFICULTY_TYPES = ["easy", "normal", "hard", "expert", "master", "append"]
-    DISPLAY_DIFFICULTY_TYPES = {
-        "easy": "EASY",
-        "normal": "NORMAL",
-        "hard": "HARD",
-        "expert": "EXPERT",
-        "master": "MASTER",
-        "append": "APPEND"
-    }
-
-    # ★★★ 難易度ごとの色のマッピングを更新 ★★★
-    DIFFICULTY_COLORS = {
-        "easy": discord.Color.green(),     # 緑
-        "normal": discord.Color.blue(),    # 青
-        "hard": discord.Color.yellow(),    # 黄色
-        "expert": discord.Color.red(),     # 赤
-        "master": discord.Color.purple(),  # 紫
-        "append": discord.Color.from_rgb(255, 192, 203), # 桃色 (RGB: R:255, G:192, B:203)
-        # デフォルトの色（該当する難易度が見つからない場合）
-        "default": discord.Color.light_grey() # デフォルトは薄い灰色などに変更
-    }
-    
-    # コマンド名を 'pjsk_random_song' に変更し、新しいオプションを追加
-    @discord.app_commands.command(name="pjsk_random_song", description="プロセカのランダムな曲を提示します。")
-    @discord.app_commands.describe(
-        min_level="最小レベル (1-37)",
-        max_level="最大レベル (1-37)",
-        difficulties="選曲する難易度タイプ (カンマ区切りで複数指定可例: MASTER,EXPERT)"
+    @app_commands.command(name="pjsk_rankmatch_song", description="ランクマッチ楽曲からランダムに1曲選びます。")
+    @app_commands.describe(
+        rank="選曲するランク (Beginner, Bronze, Silver, Gold, Platinum, Diamond, Masterなど)"
     )
-    @not_in_maintenance() # メンテナンスモード中は利用不可
-    async def pjsk_random_song(
+    @app_commands.choices(
+        rank=[
+            app_commands.Choice(name="Beginner", value="beginner"),
+            app_commands.Choice(name="Bronze", value="bronze"),
+            app_commands.Choice(name="Silver", value="silver"),
+            app_commands.Choice(name="Gold", value="gold"),
+            app_commands.Choice(name="Platinum", value="platinum"),
+            app_commands.Choice(name="Diamond", value="diamond"),
+            app_commands.Choice(name="Master", value="master"),
+        ]
+    )
+    async def pjsk_rankmatch_song(
         self,
         interaction: discord.Interaction,
-        min_level: discord.app_commands.Range[int, 1, 37] = None, # 最小レベル
-        max_level: discord.app_commands.Range[int, 1, 37] = None, # 最大レベル
-        difficulties: str = None # カンマ区切りの文字列として受け取る
+        rank: app_commands.Choice[str]
     ):
-        await interaction.response.defer() # 処理に時間がかかる可能性があるため、deferで応答を保留
-
-        if not songs.proseka_songs:
-            await interaction.followup.send("曲データが見つかりませんでした。", ephemeral=True)
-            logger.warning("警告: /pjsk_random_song コマンドが実行されましたが、proseka_songs が空でした。")
+        self.logger.info(f"デバッグ: /pjsk_rankmatch_song コマンドが {interaction.user.name} ({interaction.user.id}) によって実行されました。")
+        
+        if not self.bot.is_bot_ready_for_commands:
+            await interaction.response.send_message(
+                "Botが現在メンテナンス中のため、このコマンドは利用できません。", ephemeral=True
+            )
             return
 
-        try:
-            available_songs = []
+        if not songs.proseka_songs:
+            await interaction.response.send_message("現在、登録されている楽曲がありません。", ephemeral=True)
+            self.logger.warning("警告: /pjsk_rankmatch_song: songs.proseka_songs が空です。")
+            return
+
+        await interaction.response.defer(ephemeral=False)
+
+        # 楽曲データに、合致する難易度とレベルの情報を一時的に追加する
+        eligible_songs_with_details = [] 
+        selected_rank_value = rank.value
+        level_ranges_for_rank = RANK_LEVEL_RANGES.get(selected_rank_value)
+        
+        if not level_ranges_for_rank:
+            await interaction.followup.send(f"指定されたランク `{rank.name}` のレベル範囲情報が見つかりませんでした。")
+            self.logger.warning(f"警告: 未知のランク値 '{selected_rank_value}' が指定されました。")
+            return
+
+        for song in songs.proseka_songs:
+            # その楽曲が、選択されたランクのレベル範囲に合致する難易度をリストアップ
+            current_song_matched_difficulties = []
+
+            em_range = level_ranges_for_rank.get("expert_master_range")
+            if em_range:
+                for diff_upper in ["EXPERT", "MASTER"]:
+                    diff_lower = diff_upper.lower()
+                    level = song.get(diff_lower)
+                    if level is not None and em_range["min"] <= level <= em_range["max"]:
+                        current_song_matched_difficulties.append((diff_upper, level))
             
-            # 選択された難易度タイプをパース
-            selected_difficulty_types_from_input = [] # ユーザーが入力した難易度タイプ
-            if difficulties:
-                raw_difficulties = [d.strip().lower() for d in difficulties.split(',') if d.strip()]
-                selected_difficulty_types_from_input = [
-                    d for d in raw_difficulties if d in self.ALL_DIFFICULTY_TYPES
-                ]
-                
-                if len(raw_difficulties) != len(selected_difficulty_types_from_input):
-                    invalid_types = set(raw_difficulties) - set(self.ALL_DIFFICULTY_TYPES)
-                    if invalid_types:
-                        await interaction.followup.send(
-                            f"警告: 不正な難易度タイプが指定されました: {', '.join([self.DISPLAY_DIFFICULTY_TYPES.get(t, t.upper()) for t in invalid_types])}。無視して処理を続行します。",
-                            ephemeral=True
-                        )
+            append_range = level_ranges_for_rank.get("append_range")
+            if append_range:
+                level = song.get("append")
+                if level is not None and append_range["min"] <= level <= append_range["max"]:
+                    current_song_matched_difficulties.append(("APPEND", level))
             
-            # フィルタリングに使用する難易度タイプ。指定がなければ全て
-            difficulties_for_filtering = selected_difficulty_types_from_input if selected_difficulty_types_from_input else self.ALL_DIFFICULTY_TYPES
+            # 合致する難易度が1つでもあれば、その曲は対象
+            if current_song_matched_difficulties:
+                song_copy = song.copy()
+                # ★★★ 合致する全ての難易度情報を格納 ★★★
+                song_copy['_all_matched_difficulties'] = current_song_matched_difficulties 
+                eligible_songs_with_details.append(song_copy)
+        
+        if not eligible_songs_with_details:
+            range_msgs = []
+            if level_ranges_for_rank.get("expert_master_range"):
+                em_r = level_ranges_for_rank["expert_master_range"]
+                range_msgs.append(f"EXPERT/MASTER ({em_r['min']}~{em_r['max']})")
+            if level_ranges_for_rank.get("append_range"):
+                ap_r = level_ranges_for_rank["append_range"]
+                range_msgs.append(f"APPEND ({ap_r['min']}~{ap_r['max']})")
             
-            logger.debug(f"デバッグ: フィルタリングに使用する難易度タイプ: {difficulties_for_filtering}")
-            logger.debug(f"デバッグ: min_level={min_level}, max_level={max_level}")
+            range_str = " または ".join(range_msgs) if range_msgs else "指定なし"
 
-            # フィルタリングロジック
-            for song in songs.proseka_songs:
-                song_matches_criteria = False
-                
-                for diff_type in difficulties_for_filtering: # フィルタリング用難易度タイプを使用
-                    if diff_type in song and song[diff_type] is not None:
-                        level = song[diff_type]
-                        
-                        level_in_range = True
-                        if min_level is not None and level < min_level:
-                            level_in_range = False
-                        if max_level is not None and level > max_level:
-                            level_in_range = False
-                        
-                        if level_in_range:
-                            song_matches_criteria = True
-                            break
-
-                if song_matches_criteria:
-                    available_songs.append(song)
-
-            if not available_songs:
-                await interaction.followup.send(
-                    "指定された条件に合う曲が見つかりませんでした。条件を緩和してみてください。",
-                    ephemeral=True
-                )
-                logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_random_song コマンドを使用しましたが、条件に合う曲が見つかりませんでした。min_level={min_level}, max_level={max_level}, difficulties_selected={difficulties_for_filtering}")
-                return
-
-            # フィルタリングされた曲の中からランダムに選択
-            random_song = random.choice(available_songs)
-
-            # --- 表示する難易度をランダムに選ぶロジック ---
-            difficulty_info = "情報なし"
-            chosen_difficulty_type_for_embed = "default" # Embedの色に使用する難易度タイプを初期化
-
-            # 実際に表示する難易度タイプを決定するための候補リスト
-            display_candidates = []
-            
-            # ユーザーが難易度タイプを指定している場合
-            if selected_difficulty_types_from_input:
-                # ユーザーが指定した難易度タイプの中から、選ばれた曲に存在するものを候補とする
-                for diff_type in selected_difficulty_types_from_input:
-                    if diff_type in random_song and random_song[diff_type] is not None:
-                        level_for_display = random_song[diff_type]
-                        
-                        # その難易度がレベル範囲内にあるかチェック
-                        if (min_level is None or level_for_display >= min_level) and \
-                           (max_level is None or level_for_display <= max_level):
-                            display_candidates.append(diff_type)
-            
-            # ユーザーが難易度タイプを指定していない場合、または指定したが候補が見つからなかった場合
-            if not display_candidates:
-                # 選ばれた曲が持つ全ての難易度の中から、レベル範囲内のものを候補とする
-                for diff_type in self.ALL_DIFFICULTY_TYPES:
-                    if diff_type in random_song and random_song[diff_type] is not None:
-                        level_for_display = random_song[diff_type]
-                        
-                        # その難易度がレベル範囲内にあるかチェック
-                        if (min_level is None or level_for_display >= min_level) and \
-                           (max_level is None or level_for_display <= max_level):
-                            display_candidates.append(diff_type)
-            
-            # 最終的な表示難易度を決定
-            if display_candidates:
-                chosen_display_difficulty = random.choice(display_candidates) # 候補からランダムに選択
-                difficulty_info = f"{self.DISPLAY_DIFFICULTY_TYPES.get(chosen_display_difficulty, chosen_display_difficulty.upper())}: {random_song[chosen_display_difficulty]}"
-                chosen_difficulty_type_for_embed = chosen_display_difficulty # Embedの色に使う難易度をセット
-            
-            logger.debug(f"デバッグ: 最終的に表示する難易度情報: {difficulty_info}")
-
-            # 曲のサムネイルURLを安全に取得 (キー名を 'image_url' に変更)
-            thumbnail_url = random_song.get("image_url", None)
-
-            # Embedの作成
-            # chosen_difficulty_type_for_embed に基づいて色を設定
-            embed_color = self.DIFFICULTY_COLORS.get(chosen_difficulty_type_for_embed, self.DIFFICULTY_COLORS["default"])
-
-            embed = discord.Embed(
-                title=f"🎧 {random_song.get('title', 'タイトル情報なし')}",
-                color=embed_color # 設定した色を適用
+            await interaction.followup.send(
+                f"登録楽曲の中から、ランク `{rank.name}` ({range_str}) に適合する曲は見つかりませんでした。"
             )
+            self.logger.info(f"情報: ランク '{rank.name}' ({range_str}) に適合する曲が見つかりませんでした。")
+            return
+        
+        count = 1 
+        selected_songs_with_details = random.sample(eligible_songs_with_details, count)
 
-            embed.add_field(name="難易度", value=difficulty_info, inline=False)
+        embeds = []
+        for song_detail in selected_songs_with_details:
+            title = song_detail.get("title", "不明な楽曲")
+            
+            difficulty_display = "難易度情報なし"
+            # ★★★ ここで合致する難易度の中からランダムに1つを選ぶ ★★★
+            if '_all_matched_difficulties' in song_detail and song_detail['_all_matched_difficulties']:
+                chosen_diff_info = random.choice(song_detail['_all_matched_difficulties'])
+                difficulty_display = f"**{chosen_diff_info[0]}**: {chosen_diff_info[1]}"
+            
+            embed = discord.Embed(
+                title=f"🎧 {title}",
+                description=difficulty_display,
+                color=discord.Color.blue()
+            )
+            if song_detail.get("image_url"):
+                embed.set_thumbnail(url=song_detail["image_url"])
+            
+            embed.set_footer(text="プロセカ ランクマッチ楽曲選曲")
 
-            if thumbnail_url:
-                embed.set_thumbnail(url=thumbnail_url)
-                logger.debug(f"デバッグ: Embedに設定するサムネイルURL: {thumbnail_url}")
-            else:
-                logger.debug("デバッグ: サムネイルURLが取得できなかったため、Embedに設定しませんでした。")
+            embeds.append(embed)
 
-            embed.set_footer(text="プロセカ ランダム選曲")
+        await interaction.followup.send(embeds=embeds)
+        self.logger.info(f"デバッグ: /pjsk_rankmatch_song コマンドが正常に完了しました。{count}曲を表示しました。")
 
-            await interaction.followup.send(embed=embed)
-            logger.info(f"ユーザー: {interaction.user.name}({interaction.user.id}) が /pjsk_random_song コマンドを使用しました。曲: {random_song.get('title', 'タイトル情報なし')}")
+    # エラーハンドリング
+    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.CommandOnCooldown):
+            await interaction.response.send_message(f"このコマンドはクールダウン中です。あと {error.retry_after:.1f} 秒待ってください。", ephemeral=True)
+            self.logger.warning(f"警告: コマンドクールダウン: {interaction.user.name} ({interaction.user.id}) - /pjsk_rankmatch_song")
+        elif isinstance(error, app_commands.NoPrivateMessage):
+            await interaction.response.send_message("このコマンドはDMでは使えません。", ephemeral=True)
+            self.logger.warning(f"警告: DMからのコマンド実行: {interaction.user.name} ({interaction.user.id}) - /pjsk_rankmatch_song")
+        else:
+            self.logger.error(f"エラー: /pjsk_rankmatch_song コマンドで予期せぬエラーが発生しました: {error}", exc_info=True)
+            await interaction.response.send_message(f"コマンドの実行中にエラーが発生しました。\nエラー内容: `{error}`", ephemeral=True)
 
-        except Exception as e:
-            await interaction.followup.send(f"曲の選曲中にエラーが発生しました: {e}", ephemeral=True)
-            logger.error(f"エラー: /pjsk_random_song コマンドの実行中に予期せぬエラーが発生しました: {e}", exc_info=True)
-
-    async def cog_load(self):
-        logger.info("PjskRandomSongCommandsコグがロードされました。")
-
-    async def cog_unload(self):
-        logger.info("PjskRandomSongCommandsコグがアンロードされました。")
 
 async def setup(bot):
-    await bot.add_cog(PjskRandomSongCommands(bot))
+    await bot.add_cog(PjsekRankMatchSongCommands(bot))
+    logger = logging.getLogger(__name__)
+    logger.info("デバッグ: PjsekRankMatchSongCommands コグがセットアップされました。")
