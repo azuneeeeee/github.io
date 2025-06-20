@@ -33,12 +33,33 @@ RANK_LEVEL_RANGES = {
     "master":   {"expert_master_range": {"min": 30, "max": 37}, "append_range": {"min": 28, "max": 38}},
 }
 
-
 class PjsekRankMatchSongCommands(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info("デバッグ: PjsekRankMatchSongCommands コグが初期化されました。")
+
+    # random_song_commands と同じ難易度ごとの色のマッピングを定義
+    # DISPLAY_DIFFICULTY_TYPES も合わせて定義し、小文字キーで扱えるようにする
+    DIFFICULTY_COLORS = {
+        "easy": discord.Color.green(),      # 緑
+        "normal": discord.Color.blue(),     # 青
+        "hard": discord.Color.yellow(),     # 黄色
+        "expert": discord.Color.red(),      # 赤
+        "master": discord.Color.purple(),   # 紫
+        "append": discord.Color.from_rgb(255, 192, 203), # 桃色 (RGB: R:255, G:192, B:203)
+        "default": discord.Color.light_grey() # デフォルトは薄い灰色
+    }
+    
+    # 難易度の表示名を小文字キーで取得できるようにしておく
+    DISPLAY_DIFFICULTY_TYPES_LOWER = {
+        "easy": "EASY",
+        "normal": "NORMAL",
+        "hard": "HARD",
+        "expert": "EXPERT",
+        "master": "MASTER",
+        "append": "APPEND"
+    }
 
     @app_commands.command(name="pjsk_rankmatch_song", description="ランクマッチ楽曲からランダムに1曲選びます。")
     @app_commands.describe(
@@ -75,7 +96,6 @@ class PjsekRankMatchSongCommands(commands.Cog):
 
         await interaction.response.defer(ephemeral=False)
 
-        # 楽曲データに、合致する難易度とレベルの情報を一時的に追加する
         eligible_songs_with_details = [] 
         selected_rank_value = rank.value
         level_ranges_for_rank = RANK_LEVEL_RANGES.get(selected_rank_value)
@@ -86,7 +106,6 @@ class PjsekRankMatchSongCommands(commands.Cog):
             return
 
         for song in songs.proseka_songs:
-            # その楽曲が、選択されたランクのレベル範囲に合致する難易度をリストアップ
             current_song_matched_difficulties = []
 
             em_range = level_ranges_for_rank.get("expert_master_range")
@@ -103,10 +122,8 @@ class PjsekRankMatchSongCommands(commands.Cog):
                 if level is not None and append_range["min"] <= level <= append_range["max"]:
                     current_song_matched_difficulties.append(("APPEND", level))
             
-            # 合致する難易度が1つでもあれば、その曲は対象
             if current_song_matched_difficulties:
                 song_copy = song.copy()
-                # ★★★ 合致する全ての難易度情報を格納 ★★★
                 song_copy['_all_matched_difficulties'] = current_song_matched_difficulties 
                 eligible_songs_with_details.append(song_copy)
         
@@ -135,15 +152,23 @@ class PjsekRankMatchSongCommands(commands.Cog):
             title = song_detail.get("title", "不明な楽曲")
             
             difficulty_display = "難易度情報なし"
-            # ★★★ ここで合致する難易度の中からランダムに1つを選ぶ ★★★
+            embed_color = self.DIFFICULTY_COLORS["default"] # デフォルト色を初期化
+            
             if '_all_matched_difficulties' in song_detail and song_detail['_all_matched_difficulties']:
                 chosen_diff_info = random.choice(song_detail['_all_matched_difficulties'])
-                difficulty_display = f"**{chosen_diff_info[0]}**: {chosen_diff_info[1]}"
+                chosen_diff_upper = chosen_diff_info[0] # 例: "EXPERT"
+                chosen_level = chosen_diff_info[1] # 例: 32
+
+                # Embedの表示テキスト
+                difficulty_display = f"**{chosen_diff_upper}**: {chosen_level}"
+                
+                # Embedの色を設定 (小文字にしてからマッピングを探す)
+                embed_color = self.DIFFICULTY_COLORS.get(chosen_diff_upper.lower(), self.DIFFICULTY_COLORS["default"])
             
             embed = discord.Embed(
                 title=f"🎧 {title}",
                 description=difficulty_display,
-                color=discord.Color.blue()
+                color=embed_color # 設定した色を適用
             )
             if song_detail.get("image_url"):
                 embed.set_thumbnail(url=song_detail["image_url"])
