@@ -61,19 +61,16 @@ class PjsekRankMatchSongCommands(commands.Cog):
     async def pjsk_rankmatch_song(
         self,
         interaction: discord.Interaction,
-        # ★★★ここを修正: デフォルト値の None を削除し、必須項目にする★★★
         rank: app_commands.Choice[str]
     ):
         self.logger.info(f"デバッグ: /pjsk_rankmatch_song コマンドが {interaction.user.name} ({interaction.user.id}) によって実行されました。")
         
-        # メンテナンスモードのチェックは残す
         if not self.bot.is_bot_ready_for_commands:
             await interaction.response.send_message(
                 "Botが現在メンテナンス中のため、このコマンドは利用できません。", ephemeral=True
             )
             return
 
-        # songs.py に楽曲が登録されているか確認
         if not songs.proseka_songs:
             await interaction.response.send_message("現在、登録されている楽曲がありません。", ephemeral=True)
             self.logger.warning("警告: /pjsk_rankmatch_song: songs.proseka_songs が空です。")
@@ -81,10 +78,9 @@ class PjsekRankMatchSongCommands(commands.Cog):
 
         await interaction.response.defer(ephemeral=False)
 
-        songs_to_choose_from = list(songs.proseka_songs) # 全楽曲をコピーしてフィルタリングを開始
-
-        # ランクによるレベル範囲フィルタリング (rankが必須になったため、常に実行)
-        selected_rank_value = rank.value # rankが必須なので、Noneチェックは不要
+        # 楽曲データに、合致する難易度とレベルの情報を一時的に追加する
+        eligible_songs_with_details = [] 
+        selected_rank_value = rank.value
         level_ranges_for_rank = RANK_LEVEL_RANGES.get(selected_rank_value)
         
         if not level_ranges_for_rank:
@@ -92,31 +88,40 @@ class PjsekRankMatchSongCommands(commands.Cog):
             self.logger.warning(f"警告: 未知のランク値 '{selected_rank_value}' が指定されました。")
             return
 
-        rank_filtered_songs = []
-        for song in songs_to_choose_from:
-            song_meets_rank_criteria = False
-            
+        for song in songs.proseka_songs:
+            # 各楽曲で、ランクのレベル範囲に合致する難易度を探す
+            matched_difficulty = None
+            matched_level = None
+
             # EXPERT/MASTERの範囲をチェック
             em_range = level_ranges_for_rank.get("expert_master_range")
             if em_range:
-                for diff_upper in ["EXPERT", "MASTER"]: # ランクマッチで対象となる難易度
+                for diff_upper in ["EXPERT", "MASTER"]:
                     diff_lower = diff_upper.lower()
                     level = song.get(diff_lower)
                     if level is not None and em_range["min"] <= level <= em_range["max"]:
-                        song_meets_rank_criteria = True
-                        break # この曲はこの範囲で条件を満たした
+                        matched_difficulty = diff_upper
+                        matched_level = level
+                        break # 合致するものが見つかったら、この曲のEMチェックは終了
             
-            # APPENDの範囲をチェック
-            append_range = level_ranges_for_rank.get("append_range")
-            if append_range:
-                level = song.get("append") # APPEND難易度のみ
-                if level is not None and append_range["min"] <= level <= append_range["max"]:
-                    song_meets_rank_criteria = True
+            # APPENDの範囲をチェック (EMで見つからなければ)
+            if not matched_difficulty: # EMで見つからなかった場合のみAPPENDをチェック
+                append_range = level_ranges_for_rank.get("append_range")
+                if append_range:
+                    level = song.get("append")
+                    if level is not None and append_range["min"] <= level <= append_range["max"]:
+                        matched_difficulty = "APPEND"
+                        matched_level = level
             
-            if song_meets_rank_criteria:
-                rank_filtered_songs.append(song)
+            # 合致する難易度が見つかった場合、リストに追加
+            if matched_difficulty and matched_level is not None:
+                # 曲情報に、合致した難易度とレベルのペアを追加して格納
+                song_copy = song.copy() # 元の辞書を変更しないようにコピー
+                song_copy['_matched_difficulty'] = matched_difficulty
+                song_copy['_matched_level'] = matched_level
+                eligible_songs_with_details.append(song_copy)
         
-        if not rank_filtered_songs:
+        if not eligible_songs_with_details:
             range_msgs = []
             if level_ranges_for_rank.get("expert_master_range"):
                 em_r = level_ranges_for_rank["expert_master_range"]
@@ -133,43 +138,27 @@ class PjsekRankMatchSongCommands(commands.Cog):
             self.logger.info(f"情報: ランク '{rank.name}' ({range_str}) に適合する曲が見つかりませんでした。")
             return
         
-        songs_to_choose_from = rank_filtered_songs # ランクで絞り込んだ結果を使用
-
-        # countは常に1に固定されるため、ランダム選択は常に1曲
+        # 選ばれた曲は常に1曲
         count = 1 
-        if not songs_to_choose_from: # フィルタリングの結果、楽曲が0になった場合
-            await interaction.followup.send("選択可能な楽曲がありませんでした。フィルタリング条件を確認してください。") 
-            self.logger.warning("警告: 選択可能な楽曲が0のため、コマンドを終了します。")
-            return
-
-        selected_songs = random.sample(songs_to_choose_from, count) # countは常に1
+        selected_songs_with_details = random.sample(eligible_songs_with_details, count)
 
         embeds = []
-        for song in selected_songs:
-            title = song.get("title", "不明な楽曲")
+        for song_detail in selected_songs_with_details:
+            title = song_detail.get("title", "不明な楽曲")
             
-            description = ""
+            # ★★★ここを修正: 一時的に追加した情報を表示に利用★★★
+            # 表示する難易度とそのレベルを確定
+            difficulty_display = "難易度情報なし"
+            if '_matched_difficulty' in song_detail and '_matched_level' in song_detail:
+                difficulty_display = f"{song_detail['_matched_difficulty']}: {song_detail['_matched_level']}"
             
-            difficulty_fields = []
-            for diff_upper in songs.VALID_DIFFICULTIES:
-                diff_lower = diff_upper.lower()
-                level = song.get(diff_lower)
-                if level is not None:
-                    difficulty_fields.append(f"{diff_upper}: {level}")
-            
-            if difficulty_fields:
-                description += "難易度: " + ", ".join(difficulty_fields)
-            else:
-                description += "難易度情報なし"
-
-
             embed = discord.Embed(
                 title=title,
-                description=description,
+                description=difficulty_display, # 修正された難易度表示を使用
                 color=discord.Color.blue()
             )
-            if song.get("image_url"):
-                embed.set_thumbnail(url=song["image_url"])
+            if song_detail.get("image_url"):
+                embed.set_thumbnail(url=song_detail["image_url"])
             
             embeds.append(embed)
 
